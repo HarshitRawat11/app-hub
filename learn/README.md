@@ -1,6 +1,6 @@
 # learn/
 
-The learning record for app-hub. One file per step we perform, written so you can redo that step yourself without help.
+The learning record for app-hub. One file per step performed, written so you can redo that step yourself without help.
 
 ## Why this exists
 
@@ -28,20 +28,21 @@ Every file follows the same shape:
 
 | # | File | Covers |
 |---|------|--------|
-| 00 | [00-project-setup-and-governance.md](00-project-setup-and-governance.md) | Why a project needs CLAUDE.md / README.md / PROGRESS.md, what each is for, and how the three-repo layout and WSL/Windows split shape everything else |
-| 01 | [01-n8n-workflows-as-code.md](01-n8n-workflows-as-code.md) | Version-controlling GUI-built workflows; how n8n separates workflows from credentials; using an API key without ever seeing it; the CRLF/`bad interpreter` trap |
-| 02 | [02-first-defect-fixes.md](02-first-defect-fixes.md) | A write bug hiding behind a correct response; why `uv` papers over a wrong base image; build-time vs container-start work; Docker layer-cache ordering; per-repo git identity |
+| 00 | [00-project-setup-and-governance.md](00-project-setup-and-governance.md) | Orientation: why the project needs CLAUDE.md / README.md / PROGRESS.md, and how the polyrepo layout and WSL/Windows split shape everything else |
+| 01 | [01-fastapi-service-basics.md](01-fastapi-service-basics.md) | `uv` and lockfiles; the request/response model split (`Link` vs `LinkCreate`); Pydantic validation at the boundary; CRUD handlers and `HTTPException` |
+| 02 | [02-containerising-with-docker-and-uv.md](02-containerising-with-docker-and-uv.md) | Layer caching and instruction order; `COPY --from`; why the base image must satisfy `requires-python`; build-time vs container-start work; `0.0.0.0` as a bind address |
+| 03 | [03-terraform-and-remote-state.md](03-terraform-and-remote-state.md) | What Terraform state is and why losing it is worse than losing code; the S3 backend and `use_lockfile`; version pinning; variables and outputs |
+| 04 | [04-vpc-networking.md](04-vpc-networking.md) | CIDR sizing; public vs private subnets as a routing distinction; IGW vs NAT gateway (and which one costs money); the EKS subnet tags that are functional, not decorative |
+| 05 | [05-eks-cluster-and-node-groups.md](05-eks-cluster-and-node-groups.md) | Control plane vs data plane; managed node groups; **the IAM-vs-RBAC trap** that `enable_cluster_creator_admin_permissions` solves; why kubeconfig goes stale on every rebuild |
+| 06 | [06-ecr-container-registry.md](06-ecr-container-registry.md) | Registry/repository/image/tag; mutable vs immutable tags; **`force_delete` and why teardown fails without it**; token auth and why nodes need none |
+| 07 | [07-kubernetes-deployment-and-service.md](07-kubernetes-deployment-and-service.md) | Declarative state and control loops; labels and selectors; Deployment→ReplicaSet→Pod; liveness vs readiness; ClusterIP and DNS-based service discovery |
+| 08 | [08-n8n-workflows-as-code.md](08-n8n-workflows-as-code.md) | Version-controlling GUI-built workflows; how n8n separates workflows from credentials; using an API key without ever seeing it; the CRLF/`bad interpreter` trap |
+| 09 | [09-first-defect-fixes.md](09-first-defect-fixes.md) | A write bug hiding behind a correct response; why `uv` papers over a wrong base image; build-time vs container-start work; per-repo git identity |
 
-*Steps 03 onward get added as we do them.*
+*Steps 10 onward get added as we do them.*
 
-## Not yet written up
+## A note on files 01–07
 
-These were built earlier, by hand with Claude chat, before this folder existed. They can be backfilled on request:
+These steps were performed by hand, with Claude chat, before this folder existed. They were written up afterwards (task `P-07`) from the **committed code and git history** — so they explain what the code does and why it is that way, rather than narrating the original sessions. Where the current code differs from what was originally written, the file says so and points at the file that changed it.
 
-- Terraform project scaffolding and the S3 remote state backend
-- The VPC: subnets, internet gateway, NAT gateway
-- The EKS cluster and its managed node group
-- The ECR repository
-- The FastAPI service and its CRUD endpoints
-- Containerising with Docker and `uv`
-- The Kubernetes Deployment and Service manifests
+Files 00, 08 and 09 were written as their steps happened.

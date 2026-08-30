@@ -30,13 +30,14 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
-| P-01 | Version-control the root docs (`CLAUDE.md`, `README.md`, `PROGRESS.md`, `CONTEXT-BRIEF.md`, `learn/`) | Blocked | Root `app-hub/` is not a git repo; the three subdirs are separate repos. Needs an owner decision on where these live. | Decide: (a) `git init` a fourth `app-hub-docs` repo at the root, (b) move the docs into one existing repo, or (c) leave untracked and accept the risk. Then act on it. `learn/` makes this more urgent — it will hold the most irreplaceable content in the project. |
+| P-01 | Version-control the root docs (`CLAUDE.md`, `README.md`, `PROGRESS.md`, `CONTEXT-BRIEF.md`, `learn/`) | **Done** | None | Done 2026-08-29 (`2dfcc93`). Chose an **umbrella repo at the root** that tracks only the cross-cutting docs and gitignores `infra/`, `links-service/`, `manifests/`, `n8n/` so they stay fully independent. Remote not created yet — see `P-08`. |
 | P-02 | Commit the untracked `links-service/Dockerfile` | **Done** | None | Committed 2026-08-29 as `5e312ef`, after fixing `P-03` and `D-11` in the same file |
 | P-03 | Fix Dockerfile base image / Python version mismatch | **Done** | None | Committed 2026-08-29 as `5e312ef`. Base moved to `python:3.14-slim` (verified to exist, currently 3.14.7) so the tag matches `requires-python >=3.14`. Fixed together with `D-11`. |
 | P-04 | Rename `infra/vairables.tf` → `infra/variables.tf` | **Done** | None | Committed 2026-08-29 as `3cb9e57` via `git mv` (staged as a rename). `terraform validate` passes, `terraform fmt -check` clean. |
 | P-05 | Remove or populate the empty `infra/main.tf` | **Done** | None | Removed 2026-08-29 in `3cb9e57`. Terraform loads all `.tf` files, so `main.tf` is convention only — nothing depended on it. |
 | P-06 | Write `links-service/README.md` | **Done** | None | Committed 2026-08-29 as `f3203de`. Covers the API table, local + Docker run, and an explicit storage caveat pointing at `C-03`. |
-| P-07 | Backfill `learn/` files for the steps done before this folder existed | Not started | None — needs a go-ahead, since it is ~7 files of writing. | Write up: Terraform scaffolding + S3 backend, VPC, EKS, ECR, FastAPI service, Docker/uv, K8s manifests. Listed in `learn/README.md § Not yet written up`. |
+| P-07 | Backfill `learn/` files for the steps done before this folder existed | **Done** | None | Done 2026-08-29: wrote `learn/01`–`07` (FastAPI, Docker/uv, Terraform+state, VPC, EKS, ECR, K8s manifests) from committed code and git history. Renumbered the two recent files to `08`/`09` so the folder reads chronologically. |
+| P-08 | Create the `app-hub` GitHub remote for the umbrella docs repo and push | Not started | `gh` CLI is not installed — create via the GitHub web UI | Create `HarshitRawat11/app-hub` (empty, no README), then `git remote add origin git@github.com:HarshitRawat11/app-hub.git && git push -u origin master` from the project root |
 
 ### Phase 1 — Correctness
 
@@ -81,7 +82,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | N-03 | Populate `n8n/.env` with the instance URL and API key | Not started | Owner action — the key must not be pasted into chat | `cp n8n/.env.example n8n/.env`, fill it in from **Settings → n8n API**, verify with `git -C n8n check-ignore -v .env` |
 | N-04 | Pull the existing workflow into `n8n/workflows/` | Not started | Depends on `N-03`; Docker Desktop was not running at scaffold time | Run `scripts/pull-workflows.sh` from WSL, grep for hardcoded secrets, then commit |
 | N-05 | Back up the n8n encryption key outside the repo | Not started | Owner action | Copy the key from `~/.n8n` into a password manager. Without it, every stored credential is unrecoverable if the instance is lost. |
-| N-06 | Decide whether n8n moves onto the EKS cluster | Not started | Needs an owner decision; depends on Phase 2 landing first | Running it in-cluster needs a Postgres backing store, `N8N_ENCRYPTION_KEY` as a Kubernetes Secret, and a persistent volume. Not urgent — local Docker is fine for now. |
+| N-06 | Move n8n onto the EKS cluster | **Decided: YES** (2026-08-29) | Depends on Phase 2 landing first. Not urgent — local Docker is fine meanwhile. | Needs: a Postgres backing store (n8n defaults to SQLite, unsuitable in a pod), `N8N_ENCRYPTION_KEY` supplied as a Kubernetes Secret (**must be the existing key from `~/.n8n`, or every stored credential becomes undecryptable** — see `N-05`), and persistent storage. Note this interacts with the destroy-every-session policy: the database must live outside the destroyed stack. See the `C-03` note on splitting Terraform into ephemeral and persistent stacks. |
 
 ### Phase 5 — Further services
 
@@ -107,7 +108,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | `D-09` | Low | [links-service/pyproject.toml:4](links-service/pyproject.toml:4) | `description = "Add your description here"` — leftover scaffold text. |
 | ~~`D-11`~~ | **RESOLVED** 2026-08-29 (`5e312ef`) | [links-service/Dockerfile:8](links-service/Dockerfile:8) + `:14` | Build runs `uv sync --frozen --no-install-project`, but `CMD` uses `uv run`, which re-resolves and installs the project **at container start**. That defeats the build-time sync, moves dependency work into startup (slowing pod readiness, risking a cold-start failure), and will bite when the base image changes. Fix: install the project at build time and invoke `uvicorn` directly in `CMD`. Missed in the 2026-08-29 audit; surfaced from project history. |
 | `D-10` | Low | [links-service/app/main.py](links-service/app/main.py) | Function names are `camelCase` (`getLinks`, `createLink`, `removeLink`), against PEP 8. Cosmetic, but easy to fix before the file grows. |
-| `D-12` | Low | `infra/`, `links-service/`, `manifests/` | No `.gitattributes`, so git warns `LF will be replaced by CRLF` on every commit. Harmless for Python and exec-form `CMD`, but the same setting that breaks shell scripts under WSL (see `learn/01`). `n8n/` already has one. Add `* text=auto eol=lf` to the other three. |
+| `D-12` | Low | `infra/`, `links-service/`, `manifests/` | No `.gitattributes`, so git warns `LF will be replaced by CRLF` on every commit. Harmless for Python and exec-form `CMD`, but the same setting that breaks shell scripts under WSL (see `learn/08`). `n8n/` already has one. Add `* text=auto eol=lf` to the other three. |
 
 ---
 
@@ -119,6 +120,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | 2026-08-29 | app-hub is the permanent home for every app the owner builds for daily use — not a one-off project around `links-service` | Owner-confirmed. Means designing for a hub that grows. |
 | 2026-08-29 | app-hub serves three goals at once: learning platform, real daily-use software, and portfolio piece | Owner-confirmed. Sets the quality bar above "works on my machine". |
 | 2026-08-29 | AWS EKS (`ap-south-1`) is the canonical deploy target; minikube is a local sandbox only | Owner-confirmed |
+| 2026-08-29 | **n8n will eventually run on EKS** (`N-06`) | Owner-confirmed. Implies a Postgres backing store and the existing encryption key as a Kubernetes Secret. Also forces the ephemeral-vs-persistent Terraform split, since a nightly-destroyed cluster cannot hold a database. |
 | 2026-08-29 | **Do not build ahead** — the first implementation of each new concept is written by the owner, by hand, even when slower | From project history. A finished artifact that skips the wrestling defeats the reason the project exists. Recorded in `CLAUDE.md § 2`. |
 | — | **Service discovery is Kubernetes-native DNS, not Eureka** | Eureka is a Spring Boot–ecosystem tool; this stack is Python. Services find each other by Kubernetes service name. |
 | — | **CI is Jenkins, in-cluster via Helm; CD is ArgoCD** | Deliberately the org's toolset rather than the easiest option — that is the point of the learning goal. The separate `app-hub-manifests` repo exists to enable GitOps. |
@@ -155,7 +157,7 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **Held back deliberately:** `C-02` (tests). No tests exist anywhere, so this is a new concept, and `CLAUDE.md § 2` says the owner writes the first implementation by hand. Handover notes are on the task row.
 
-Defects closed: `D-01`, `D-03`, `D-04`, `D-06`, `D-07`, `D-08`, `D-11`. New: `D-12` (missing `.gitattributes` in the three older repos). `learn/02-first-defect-fixes.md` written.
+Defects closed: `D-01`, `D-03`, `D-04`, `D-06`, `D-07`, `D-08`, `D-11`. New: `D-12` (missing `.gitattributes` in the three older repos). `learn/09-first-defect-fixes.md` written.
 
 ### 2026-08-29 — Reconciled with prior Claude-chat project history
 

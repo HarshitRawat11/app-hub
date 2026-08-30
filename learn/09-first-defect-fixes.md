@@ -103,7 +103,7 @@ R  vairables.tf -> variables.tf
 ## Gotchas
 
 - **Three of the four repos had no git identity set.** `links-service` had a name but no email; `manifests` and `n8n` had neither; global was unset. The first commit in any of them would have failed with `fatal: empty ident name`. Because this is a work-managed laptop, identity is deliberately set **per repo** rather than globally, so a personal commit can never pick up a work identity by accident. Set both `user.name` and `user.email` locally *before* the first commit in any new repo.
-- **`git status` warns about CRLF in `links-service`.** That repo has no `.gitattributes`. It's harmless for Python and for exec-form `CMD`, but it's the same trap that would break a shell script — see `learn/01` for the failure mode. Logged as `D-12`.
+- **`git status` warns about CRLF in `links-service`.** That repo has no `.gitattributes`. It's harmless for Python and for exec-form `CMD`, but it's the same trap that would break a shell script — see `learn/08` for the failure mode. Logged as `D-12`.
 - **Fixing `C-01` does not make the service correct.** Data still lives in an in-process dict while the Deployment runs 2 replicas (`C-03` / `D-02`). The record now has its `id`; it's still lost on restart and still invisible to the other pod.
 
 ## Verify it yourself
