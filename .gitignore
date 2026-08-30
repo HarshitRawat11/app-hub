@@ -1,0 +1,16 @@
+# The component directories are INDEPENDENT git repositories with their own
+# GitHub remotes. This umbrella repo deliberately does not track them --
+# it holds only the cross-cutting docs that belong to no single component.
+#
+#   infra/         -> HarshitRawat11/app-hub-infra
+#   links-service/ -> HarshitRawat11/app-hub-links-service
+#   manifests/     -> HarshitRawat11/app-hub-manifests
+#   n8n/           -> HarshitRawat11/app-hub-n8n
+infra/
+links-service/
+manifests/
+n8n/
+
+# OS/editor cruft
+.DS_Store
+*.swp
