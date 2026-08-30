@@ -38,8 +38,13 @@ Every file follows the same shape:
 | 07 | [07-kubernetes-deployment-and-service.md](07-kubernetes-deployment-and-service.md) | Declarative state and control loops; labels and selectors; Deployment→ReplicaSet→Pod; liveness vs readiness; ClusterIP and DNS-based service discovery |
 | 08 | [08-n8n-workflows-as-code.md](08-n8n-workflows-as-code.md) | Version-controlling GUI-built workflows; how n8n separates workflows from credentials; using an API key without ever seeing it; the CRLF/`bad interpreter` trap |
 | 09 | [09-first-defect-fixes.md](09-first-defect-fixes.md) | A write bug hiding behind a correct response; why `uv` papers over a wrong base image; build-time vs container-start work; per-repo git identity |
+| 10 | [10-versioning-docs-in-a-polyrepo.md](10-versioning-docs-in-a-polyrepo.md) | Monorepo vs polyrepo; a repo that gitignores other repos; why not submodules; remote vs branch vs upstream; scanning for secrets before the first push |
+| 11 | [11-aws-credentials-and-the-two-kubeconfigs.md](11-aws-credentials-and-the-two-kubeconfigs.md) | Why WSL and Windows never share `~/.aws` or `~/.kube`; credential resolution order; `sts get-caller-identity` as ground truth; the silent wrong-context trap |
+| 12 | [12-reading-a-terraform-plan.md](12-reading-a-terraform-plan.md) | What a plan compares; the four symbols and why `-/+` matters; `(known after apply)`; what the 55 resources are; which three actually bill |
+| 13 | [13-persistence-and-the-ephemeral-persistent-split.md](13-persistence-and-the-ephemeral-persistent-split.md) | Why a nightly-destroyed cluster cannot hold data; splitting Terraform into ephemeral and persistent stacks; DynamoDB vs RDS; IRSA; the repository pattern |
+| 14 | [14-testing-fastapi-with-pytest.md](14-testing-fastapi-with-pytest.md) | **Guide, not a record** — `TestClient`; the module-level shared-state trap; fixtures and `autouse`; why tests come before the storage refactor |
 
-*Steps 10 onward get added as we do them.*
+*Steps 15 onward get added as we do them.*
 
 ## A note on files 01–07
 

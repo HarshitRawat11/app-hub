@@ -15,9 +15,9 @@ So **"nothing is currently deployed" is the normal resting state of this project
 What that leaves:
 
 - **`E-00` is resolved.** AWS credentials for `314146298861` (`terraform-learning` user) are now configured — in **WSL's own `~/.aws/`**, separate from the Windows-side `.aws` where the work profiles live untouched. `terraform init` succeeds. Confirmed nothing is currently deployed (`terraform state list` and `aws eks list-clusters` both empty) — the expected resting state.
-- **Next real blocker is approval, not credentials.** `E-02` (provision) is ready to run but needs an explicit go-ahead each time, since it starts real billing.
-- **Code state:** the Dockerfile defects (`D-03`, `D-11`) and the `POST /links` bug (`C-01`) are **fixed and committed** as of 2026-08-29. Remaining correctness gap: there are still **no tests anywhere** (`C-02`), and storage is still an in-process dict behind 2 replicas (`C-03`).
-- **`kubectl` context is `minikube`.** After any rebuild, re-run `aws eks update-kubeconfig` — EKS issues a new endpoint hostname every time (see `CLAUDE.md § 9`).
+- **Next real blocker is approval, not credentials.** `E-02` is **planned** — 55 resources to add, no replacements. Awaiting an explicit go-ahead to `terraform apply`.
+- **Code state:** `C-01`, `D-03`, `D-11` fixed and committed. `replicas` pinned to 1 as the `C-03` stopgap. Remaining gaps: still **no tests anywhere** (`C-02`, guide written at `learn/14`) and storage is still ephemeral until `C-04`–`C-06` land.
+- **`kubectl` context:** Windows says `minikube`, WSL says `app-hub-eks`. They are **separate config files**. Run EKS-facing commands from WSL only (`CLAUDE.md § 5`, `learn/11`).
 
 **Milestone 2 — rebuild the loop cleanly, with the defects fixed and the steps captured in `learn/`. Unblocked; waiting on approval to `terraform apply`.**
 
@@ -38,7 +38,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 | P-05 | Remove or populate the empty `infra/main.tf` | **Done** | None | Removed 2026-08-29 in `3cb9e57`. Terraform loads all `.tf` files, so `main.tf` is convention only — nothing depended on it. |
 | P-06 | Write `links-service/README.md` | **Done** | None | Committed 2026-08-29 as `f3203de`. Covers the API table, local + Docker run, and an explicit storage caveat pointing at `C-03`. |
 | P-07 | Backfill `learn/` files for the steps done before this folder existed | **Done** | None | Done 2026-08-29: wrote `learn/01`–`07` (FastAPI, Docker/uv, Terraform+state, VPC, EKS, ECR, K8s manifests) from committed code and git history. Renumbered the two recent files to `08`/`09` so the folder reads chronologically. |
-| P-08 | Create the `app-hub` GitHub remote for the umbrella docs repo and push | Not started | `gh` CLI is not installed — create via the GitHub web UI | Create `HarshitRawat11/app-hub` (empty, no README), then `git remote add origin git@github.com:HarshitRawat11/app-hub.git && git push -u origin master` from the project root |
+| P-08 | Create the `app-hub` GitHub remote for the umbrella docs repo and push | **Done** | None | Done 2026-08-29. Repo existed but empty and no local remote was configured; wired `origin` and pushed 3 commits. `git@github.com:HarshitRawat11/app-hub.git` |
 
 ### Phase 1 — Correctness
 
@@ -46,7 +46,10 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 |----|------|--------|---------|-----------|
 | C-01 | Fix `POST /links` storing the wrong object | **Done** | None | Committed 2026-08-29 as `7b7b0bd`. Verified by HTTP round-trip: `POST` then `GET /links` now both return `"id":1`. |
 | C-02 | Add tests for the links CRUD endpoints | **Ready — owner writes this** | None. Held back deliberately: there are no tests anywhere yet, so this is a *new concept* for the project and `CLAUDE.md § 2` says the first implementation is done by hand. | Add `pytest` + `httpx` as dev deps (`uv add --dev pytest httpx`), create `tests/test_links.py` using FastAPI `TestClient`. Cover create → list → get → delete plus the two 404 paths. Note the shared-state trap: `links_db` is a module-level dict, so tests leak into each other unless reset between them. Ask for an explanation of `TestClient` and fixtures before writing, not after. |
-| C-03 | Decide how link data persists across pods | Not started | Needs an owner decision — this is an architecture call, not a bug fix. | `links_db` is an in-process dict while `deployment.yaml` runs 2 replicas, so reads hit inconsistent state and everything is lost on restart. Choose: scale to 1 replica as a stopgap, or add a real datastore (RDS/DynamoDB). See `D-02`. |
+| C-03 | Decide how link data persists across pods | **Decided** 2026-08-29 | None | **Decision: DynamoDB in a separate persistent Terraform stack, accessed via IRSA.** Rationale: the cluster is destroyed every session, so anything durable must live outside the destroyed stack; DynamoDB on-demand costs ~$0 idle, unlike RDS which bills continuously. Stopgap applied: `replicas` pinned to 1 (`93cea2c`) — removes inconsistent reads, does not add durability. Implementation split into `C-04`–`C-06`. See `learn/13`. |
+| C-04 | Create the `persistent/` Terraform stack with the DynamoDB table | Not started | **New concept — owner builds by hand** (`CLAUDE.md § 2`). Depends on `E-02` for the OIDC provider. | New directory, own S3 state key (`persistent/terraform.tfstate` — NOT the same key as `infra/`, or they overwrite each other). Declares the table + the IRSA role. Never destroyed. See `learn/13`. |
+| C-05 | Wire IRSA: annotate the ServiceAccount, trust the OIDC provider | Not started | **New concept — owner builds by hand.** Depends on `C-04`. | Cluster needs its OIDC provider enabled; IAM role trust policy scoped to the specific namespace + ServiceAccount; `eks.amazonaws.com/role-arn` annotation on the SA. No stored credential anywhere. |
+| C-06 | Refactor `links-service` to a repository layer and swap to DynamoDB | Not started | **Depends on `C-02`** — do not refactor storage without tests. | Extract `LinkRepository` interface with in-memory + DynamoDB implementations. Move id generation off the `global next_id` counter (UUID/ULID preferred). Then raise `replicas` back above 1. |
 
 ### Phase 2 — First end-to-end deploy
 
@@ -54,7 +57,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 |----|------|--------|---------|-----------|
 | E-00 | Configure an AWS profile for the app-hub account | **Done** | None | Resolved 2026-08-29: `aws configure` run **inside WSL** (`~/.aws/`, separate from the Windows-side `.aws`), profile `default`, region `ap-south-1`, user `terraform-learning`, account `314146298861` confirmed via `sts get-caller-identity`. Windows-side `default` (work profiles) verified untouched and still rejected. `terraform init` now succeeds. |
 | E-01 | Confirm whether `terraform apply` has ever run against the S3 backend | **Resolved** | None | **Answered by project history 2026-08-29: yes.** The full loop was proven once — image built, pushed to ECR, deployed to EKS, 2 pods `Running`, ClusterIP routing and Kubernetes DNS discovery confirmed — then torn down with `terraform destroy` per the cost policy. "Nothing deployed" is the normal resting state, not a failure. Live re-verification is blocked on `E-00`. |
-| E-02 | Re-provision the infra (VPC + EKS + ECR) | **Ready** | None — `E-00` cleared. **Requires explicit owner approval before running** — this starts real billing (~$150–200/mo if left up). | Run `terraform plan` from WSL, review it line by line, get approval, then `terraform apply`. Remember `aws eks update-kubeconfig` afterwards — the endpoint hostname changes on every rebuild. |
+| E-02 | Re-provision the infra (VPC + EKS + ECR) | **Planned — awaiting approval** | Needs explicit owner approval to `apply`; this starts real billing (~$150–200/mo if left up). | `terraform plan` run 2026-08-29: **55 to add, 0 to change, 0 to destroy** (vpc 19, eks 37, ecr/root 3). No `forces replacement`. See `learn/12`. Next: approve, `terraform apply`, then `aws eks update-kubeconfig` **from WSL** (`learn/11`). |
 | E-03 | Build and push `links-service:v1` to ECR | Not started | Depends on `P-03` (image will not build cleanly) and `E-02` (ECR must exist) | Follow README § Quick start step 4 |
 | E-04 | Deploy manifests to EKS and reach `/health` | Not started | Depends on `E-03` | `aws eks update-kubeconfig`, verify context is **not** minikube, `kubectl apply -f manifests/links-service/`, then port-forward and curl |
 | E-05 | Expose the service outside the cluster | Not started | Depends on `E-04` | Service is `ClusterIP` — nothing reaches it externally. Add an Ingress + AWS Load Balancer Controller, or switch to `type: LoadBalancer`. |
@@ -79,7 +82,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 |----|------|--------|---------|-----------|
 | N-00 | Existing workflows: `cost-watchdog` (✅ working — checks whether EKS is up, emails via Gmail 5 PM & 9 PM) and `destroy-notifier` (🚧 in progress — local script posts destroy result to an n8n webhook, which emails it) | Partially done | None | `N-04` pulls both into git. `destroy-notifier` still needs finishing. Uses the `n8n-readonly` IAM user, scoped to `eks:DescribeCluster`. |
 | N-01 | Scaffold the `n8n/` repo | Done | None | Done 2026-08-29: git repo, `.gitignore`, `.gitattributes` (LF enforcement), `.env.example`, `pull-workflows.sh`, README with security rules |
-| N-02 | Create the `app-hub-n8n` GitHub remote and push | Not started | `gh` CLI is not installed — the repo must be created via the GitHub web UI | Create `HarshitRawat11/app-hub-n8n` (empty, no README), then `git -C n8n remote add origin ... && git -C n8n push -u origin master` |
+| N-02 | Create the `app-hub-n8n` GitHub remote and push | **Done** | None | Done 2026-08-29. The scaffold had **zero commits** — made the initial commit, wired `origin`, pushed. Secret-scanned before pushing; no real `.env` exists. |
 | N-03 | Populate `n8n/.env` with the instance URL and API key | Not started | Owner action — the key must not be pasted into chat | `cp n8n/.env.example n8n/.env`, fill it in from **Settings → n8n API**, verify with `git -C n8n check-ignore -v .env` |
 | N-04 | Pull the existing workflow into `n8n/workflows/` | Not started | Depends on `N-03`; Docker Desktop was not running at scaffold time | Run `scripts/pull-workflows.sh` from WSL, grep for hardcoded secrets, then commit |
 | N-05 | Back up the n8n encryption key outside the repo | Not started | Owner action | Copy the key from `~/.n8n` into a password manager. Without it, every stored credential is unrecoverable if the instance is lost. |
@@ -99,7 +102,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | ID | Severity | Where | What is wrong |
 |----|----------|-------|---------------|
 | ~~`D-01`~~ | **RESOLVED** 2026-08-29 (`7b7b0bd`) | [links-service/app/main.py:29](links-service/app/main.py:29) | `createLink` builds `new_link = Link(id=next_id, ...)` but then stores the *incoming* `link` (a `LinkCreate`, which has no `id`). It returns `new_link`, so `POST` looks correct — but `GET /links` and `GET /links/{id}` return records with no `id` field. Fix: store `new_link`. |
-| `D-02` | **High** | [manifests/links-service/deployment.yaml](manifests/links-service/deployment.yaml) + [links-service/app/main.py:5](links-service/app/main.py:5) | `links_db` is an in-process dict, but the Deployment runs `replicas: 2`. The two pods hold independent data, so reads are non-deterministic and a restart loses everything. Tracked as task `C-03`. |
+| `D-02` | **Mitigated** (was High) | [manifests/links-service/deployment.yaml](manifests/links-service/deployment.yaml) + [links-service/app/main.py:5](links-service/app/main.py:5) | `links_db` is an in-process dict, but the Deployment runs `replicas: 2`. **Inconsistent-read half fixed 2026-08-29** by pinning `replicas: 1` (`93cea2c`). Data is still lost on restart — durability lands with `C-04`–`C-06`. Do not raise replicas before then. |
 | ~~`D-03`~~ | **RESOLVED** 2026-08-29 (`5e312ef`) | [links-service/Dockerfile:1](links-service/Dockerfile:1) | Base is `python:3.12-slim` while `pyproject.toml` requires `>=3.14` and `.python-version` says `3.14`. `uv sync` will silently download a managed Python 3.14 rather than use the base image's interpreter — bloating the image and making the base tag a lie. Tracked as `P-03`. |
 | ~~`D-04`~~ | **RESOLVED** 2026-08-29 (`5e312ef`) | [links-service/Dockerfile](links-service/Dockerfile) | Untracked in git — the build is not reproducible from a clean clone. Tracked as `P-02`. |
 | `D-05` | Medium | [manifests/links-service/service.yaml](manifests/links-service/service.yaml) | `ClusterIP` with no Ingress means the app is unreachable from outside the cluster. Fine for now, blocking for "real internal app hub". Tracked as `E-05`. |
@@ -145,6 +148,15 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 ## Progress log
 
 Newest first. One entry per working session — what changed, and what it unblocked.
+
+### 2026-08-29 — Repos published, infra planned, persistence decided
+
+- **`P-08` / `N-02`** — both GitHub repos existed but were **empty, with no local remote configured**, and `n8n` had **zero commits**. Committed the n8n scaffold, wired `origin` on both, secret-scanned the staged content, pushed. Lesson recorded in `learn/10`: creating the GitHub repo and connecting to it are separate states — check `git remote -v` and `git log @{u}..`, not just the web UI.
+- **`E-02`** — `terraform plan` run with the new credentials: **55 to add, 0 to change, 0 to destroy** (vpc 19, eks 37, ecr/root 3). No `forces replacement`. Confirmed `aws_eks_access_entry.this["cluster_creator"]` is in the plan — the flag that prevents the `Unauthorized` trap. **Not applied** — awaiting explicit approval, since it starts billing.
+- **`C-03` decided** — DynamoDB in a separate **persistent** Terraform stack, reached via IRSA. The deciding constraint is the destroy-every-session policy: anything durable must live outside the stack being destroyed, and DynamoDB on-demand costs ~$0 idle where RDS bills continuously. Stopgap applied: `replicas` pinned to **1** (`93cea2c`) with an in-file comment explaining what must land before it is raised. Implementation broken out as `C-04`–`C-06`, all marked owner-builds-by-hand.
+- **`C-02`** — still owner-written, but now has a full teaching guide at `learn/14` covering `TestClient`, the module-level shared-state trap, and fixtures.
+- **Conformance sweep on the `learn/` rule.** Several completed steps had no learning file. Wrote `learn/10`–`14` to close the gap: polyrepo doc versioning, AWS credentials and the two-kubeconfig split, reading a Terraform plan, the persistence architecture, and the testing guide.
+- **n8n runbooks** — `n8n/README.md` now has explicit numbered steps for `N-03` (fill `.env`) and `N-05` (back up the encryption key), including the check-ignore-before-you-paste ordering and a clipboard route that keeps the key off screen.
 
 ### 2026-08-29 — Cleared the ready-now backlog (6 tasks, 4 commits, 2 repos)
 
