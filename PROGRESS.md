@@ -2,7 +2,7 @@
 
 Live status board. **Update this at the end of every working session** — status, blocker, next step, plus a line in the log.
 
-**Last updated:** 2026-08-29
+**Last updated:** 2026-08-31
 
 ---
 
@@ -70,9 +70,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 | R-02 | Add a `securityContext` (non-root, read-only rootfs) | Not started | None | Also add a non-root `USER` to the Dockerfile |
 | R-03 | Replace the mutable `:v1` tag with immutable tags | Not started | None | Tag by git SHA; set `image_tag_mutability = "IMMUTABLE"` in `ecr.tf` |
 | R-04 | Deploy into a dedicated namespace | Not started | None | Manifests currently have no `metadata.namespace`, so they land in `default` |
-| R-05 | CI: **Jenkins, running as a Helm chart inside EKS** | Not started | Depends on Phase 2 being proven by hand first | Deliberately Jenkins-in-cluster rather than GitHub Actions — the point is learning the org's toolset. On push to `links-service` → test, build, push to ECR, bump the manifest tag. |
-| R-06 | CD: **ArgoCD, GitOps from `app-hub-manifests`** | Not started | Depends on `E-04` | The manifests repo is already separate specifically to enable this. ArgoCD watches it and reconciles the cluster. |
-| R-07 | Observability: **Grafana / Prometheus** | Not started | Depends on `E-04` | Part of the org toolset being learned. Structured logging in the service first, then metrics and dashboards. |
+| R-05 | Observability: **Prometheus / Grafana via `kube-prometheus-stack`** | Not started | Depends on `E-04`. **Phase 2 in the owner roadmap — comes before CI/CD.** | Helm chart. Note this is *why* the node group is EC2 and not Fargate: `node-exporter` is a DaemonSet, which Fargate does not support. First stateful workload — the PVC/EBS teardown checklist in `CLAUDE.md § 9` becomes mandatory from here on. |
+| R-06 | CI: **Jenkins in-cluster via Helm** | Not started | Depends on `R-05` landing first (owner roadmap phase 3) | Build, test, push image, then **commit a bumped image tag into the `manifests` repo**. Jenkins must never run `kubectl apply` — that is ArgoCD deliberately (see Decisions). |
+| R-07 | CD: **ArgoCD, GitOps from `app-hub-manifests`** | Not started | Depends on `R-06` (owner roadmap phase 4) | ArgoCD watches the manifests repo and reconciles. Current state is *GitOps-shaped, not GitOps*: declarative and versioned, but still applied by hand. ArgoCD supplies the missing reconciliation half. |
 
 ### Phase 4 — n8n workflows
 
@@ -80,20 +80,22 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
-| N-00 | Existing workflows: `cost-watchdog` (✅ working — checks whether EKS is up, emails via Gmail 5 PM & 9 PM) and `destroy-notifier` (🚧 in progress — local script posts destroy result to an n8n webhook, which emails it) | Partially done | None | `N-04` pulls both into git. `destroy-notifier` still needs finishing. Uses the `n8n-readonly` IAM user, scoped to `eks:DescribeCluster`. |
+| N-00 | `cost-watchdog` — ✅ **working, published/active** | None | Schedule Trigger (5 PM + 9 PM, two rules) → HTTP Request → Gmail. Calls `GET https://eks.ap-south-1.amazonaws.com/clusters/app-hub-eks` with Predefined Credential Type → AWS (IAM) → `n8n-readonly`. **On Error must be `Stop Workflow`** — 404 (cluster gone) halts silently, 200 (still up) proceeds to Gmail. Gmail via OAuth2, Google Cloud project `n8n-app-hub`. |
+| N-00b | `destroy-notifier` — 🚧 **in progress** | Owner work; needs the IF node, two Gmail branches, and the local destroy script | Webhook node done: `POST` path `destroy-status`, verified by curl. **Payload arrives nested under `body`, so expressions are `{{ $json.body.status }}` not `{{ $json.status }}`.** Remaining: IF on `body.status == success`; Gmail on both branches (include `{{ $json.body.output }}` on failure); the destroy script; schedule via **Windows Task Scheduler invoking `wsl.exe`** (a WSL cron is unreliable — WSL may not be running). **The destroy stays local, not in n8n**, so destructive AWS credentials are never stored in a long-running app. |
 | N-01 | Scaffold the `n8n/` repo | Done | None | Done 2026-08-29: git repo, `.gitignore`, `.gitattributes` (LF enforcement), `.env.example`, `pull-workflows.sh`, README with security rules |
 | N-02 | Create the `app-hub-n8n` GitHub remote and push | **Done** | None | Done 2026-08-29. The scaffold had **zero commits** — made the initial commit, wired `origin`, pushed. Secret-scanned before pushing; no real `.env` exists. |
 | N-03 | Populate `n8n/.env` with the instance URL and API key | Not started | Owner action — the key must not be pasted into chat | `cp n8n/.env.example n8n/.env`, fill it in from **Settings → n8n API**, verify with `git -C n8n check-ignore -v .env` |
 | N-04 | Pull the existing workflow into `n8n/workflows/` | Not started | Depends on `N-03`; Docker Desktop was not running at scaffold time | Run `scripts/pull-workflows.sh` from WSL, grep for hardcoded secrets, then commit |
-| N-05 | Back up the n8n encryption key outside the repo | Not started | Owner action | Copy the key from `~/.n8n` into a password manager. Without it, every stored credential is unrecoverable if the instance is lost. |
+| N-05 | Back up the n8n encryption key outside the repo | Not started | Owner action | n8n runs locally as `docker run -p 5678:5678 -v n8n_data:/home/node/.n8n`, so the key is in the **`n8n_data`** Docker volume at `/home/node/.n8n/config`. Check `printenv N8N_ENCRYPTION_KEY` first — if set, that value wins. Copy into a password manager; never into this repo or a chat. Step-by-step in `n8n/README.md`. **Blocks `N-06`**: a fresh n8n on EKS generates a new key and orphans every existing credential. |
 | N-06 | Move n8n onto the EKS cluster | **Decided: YES** (2026-08-29) | Depends on Phase 2 landing first. Not urgent — local Docker is fine meanwhile. | Needs: a Postgres backing store (n8n defaults to SQLite, unsuitable in a pod), `N8N_ENCRYPTION_KEY` supplied as a Kubernetes Secret (**must be the existing key from `~/.n8n`, or every stored credential becomes undecryptable** — see `N-05`), and persistent storage. Note this interacts with the destroy-every-session policy: the database must live outside the destroyed stack. See the `C-03` note on splitting Terraform into ephemeral and persistent stacks. |
 
 ### Phase 5 — Further services
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
-| S-01 | Build `gateway` — calls `links-service` **by Kubernetes DNS name** | Not started | Depends on Phase 2. **Owner builds this by hand** (`CLAUDE.md § 2` — do not build ahead). | Its purpose is to prove service-to-service discovery. Repo `app-hub-gateway` does not exist yet. |
-| S-02 | Build `aggregator` | Not started | Future — after `gateway` | Scope not yet defined |
+| S-01 | Build `gateway` — entry point, routes to `links-service` by Kubernetes DNS name | Not started | Depends on `E-02`. **Owner builds this by hand** (`CLAUDE.md § 2` — do not build ahead). | **This is the next core-app task in the owner roadmap (phase 0b).** Repo `app-hub-gateway` does not exist yet. Each service must earn its place by teaching something distinct — `gateway` teaches routing and service-to-service calls. |
+| S-02 | Build `aggregator` — calls `links-service` internally; **the service that truly proves discovery** | Not started | Deferred until infra is solid (owner roadmap phase 5) | Distinct from `gateway`: `gateway` is the external entry point, `aggregator` exercises purely internal pod-to-pod discovery. |
+| S-03 | Build `frontend` — static page / SPA talking to the gateway | Not started | Depends on `S-01` | The actual dashboard UI. This is what makes app-hub a usable daily start page rather than an API. |
 
 ---
 
@@ -126,6 +128,13 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | 2026-08-29 | AWS EKS (`ap-south-1`) is the canonical deploy target; minikube is a local sandbox only | Owner-confirmed |
 | 2026-08-29 | **n8n will eventually run on EKS** (`N-06`) | Owner-confirmed. Implies a Postgres backing store and the existing encryption key as a Kubernetes Secret. Also forces the ephemeral-vs-persistent Terraform split, since a nightly-destroyed cluster cannot hold a database. |
 | 2026-08-29 | **Do not build ahead** — the first implementation of each new concept is written by the owner, by hand, even when slower | From project history. A finished artifact that skips the wrestling defeats the reason the project exists. Recorded in `CLAUDE.md § 2`. |
+| — | **EC2 managed node groups, not Fargate** | Fargate does not support DaemonSets, and `kube-prometheus-stack`'s `node-exporter` is one — Fargate would break the Phase 2 observability work outright. Also closer to what a real EC2→EKS migration lands on. |
+| — | **Jenkins builds and bumps a tag; ArgoCD deploys. Jenkins never runs `kubectl apply`.** | Clean separation of CI from CD. Jenkins pushes the image and commits a new tag into the `manifests` repo; ArgoCD notices the commit and reconciles. The cluster's desired state stays exactly what is in git. |
+| — | **Each service must earn its place by teaching something distinct** | The service split exists to give the infra lessons something real to run — not to model a genuine domain. `gateway` teaches routing, `aggregator` teaches internal discovery, `frontend` makes it usable. |
+| — | **Long-lived IAM access keys over IAM Identity Center / SSO** | Deliberate trade-off to unblock quickly. Known to be not-best-practice; recorded rather than pretended otherwise. |
+| — | **Spring Boot dropped in favour of Python/FastAPI** | It would have been a fourth new thing to learn simultaneously. The language is not the lesson here; the infra is. |
+| — | **EKS rather than self-hosted Kubernetes** | EKS cannot be self-hosted — it is AWS's managed control plane by definition. k3s/kubeadm on spare hardware would teach vanilla Kubernetes but skip IAM cluster auth, VPC CNI, ALB integration and EC2 node groups, which are the point. Parked as a deliberate follow-up comparison project. |
+| — | **The S3 state bucket was created by hand** | The bootstrapping exception: Terraform cannot create its own backend. Versioning + AES256 enabled on `app-hub-tfstate-314146298861`. |
 | — | **Service discovery is Kubernetes-native DNS, not Eureka** | Eureka is a Spring Boot–ecosystem tool; this stack is Python. Services find each other by Kubernetes service name. |
 | — | **CI is Jenkins, in-cluster via Helm; CD is ArgoCD** | Deliberately the org's toolset rather than the easiest option — that is the point of the learning goal. The separate `app-hub-manifests` repo exists to enable GitOps. |
 | — | **Ansible and Eureka explicitly dropped from scope** | Not needed for this stack |
@@ -148,6 +157,20 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 ## Progress log
 
 Newest first. One entry per working session — what changed, and what it unblocked.
+
+### 2026-08-31 — Reconciled with the second Claude-chat context document
+
+Absorbed a fuller handoff from the manual sessions. It **corrected one thing I had documented wrongly** and added a cost risk that was not on the board at all.
+
+**Correction — `force_delete` on ECR is not sufficient.** `CLAUDE.md § 9` and `learn/06` both stated that `force_delete = true` prevents the teardown failure. In practice it was **observed not to take effect**, and destroy failed anyway. Both files now keep the flag *and* carry the working fallback (`aws ecr batch-delete-image` before destroy). Stating a mitigation works when it has been seen to fail is the worst kind of doc error, since it stops you looking further.
+
+**New risk — Kubernetes creates AWS resources Terraform cannot see.** EBS volumes behind PVCs are made by the EBS CSI driver, not Terraform: `destroy` leaves them and they bill indefinitely, silently. LoadBalancer ENIs additionally block VPC deletion with a confusing dependency error. Written up as `learn/15-safe-teardown.md` with a drain-then-destroy checklist and a verify step, and added to `CLAUDE.md § 9`. **Live from `R-05` onward** — `kube-prometheus-stack` is the first workload here wanting persistent storage.
+
+**Roadmap reordered to match the owner sequence:** Prometheus/Grafana (`R-05`) → Jenkins (`R-06`) → ArgoCD (`R-07`). I previously had Jenkins first. Added `S-03` (`frontend`) as a fourth service, and sharpened `S-01`/`S-02`: `gateway` is the external entry point and the next core-app task; `aggregator` is the one that truly proves internal discovery.
+
+**Decisions recorded with their rationale:** EC2 node groups over Fargate (Fargate has no DaemonSets, which `node-exporter` requires); Jenkins bumps a tag and ArgoCD deploys, so Jenkins never runs `kubectl apply`; each service must earn its place by teaching something distinct; long-lived access keys over SSO as a knowing trade-off; Spring Boot dropped to avoid a fourth simultaneous unknown; EKS over self-hosted, with the comparison parked as a follow-up; the S3 state bucket hand-created as the bootstrapping exception.
+
+**Also recorded:** the `destroy-notifier` webhook payload nests under `body` (`{{ $json.body.status }}`); it will be scheduled via Windows Task Scheduler invoking `wsl.exe`, because a WSL cron is unreliable; the destroy stays local so destructive credentials never live in a long-running app; n8n pinned data can replay frozen output, and a green check means "did not halt", not "got a 200"; the `/etc/resolv.conf` symlink breaks after `wsl --shutdown`; n8n's volume is `n8n_data`, which pins down where the encryption key lives for `N-05`.
 
 ### 2026-08-29 — Repos published, infra planned, persistence decided
 

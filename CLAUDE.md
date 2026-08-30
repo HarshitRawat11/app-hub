@@ -279,7 +279,39 @@ Each of these cost real time to find. They are here so no future session pays fo
 
 - **Re-run `aws eks update-kubeconfig --region ap-south-1 --name app-hub-eks` after every `destroy` + `apply` cycle.** EKS generates a *new endpoint hostname* each time, even with an identical cluster name. A stale kubeconfig is the single biggest source of confusing `kubectl` failures in this project — the errors look like network or auth problems, not staleness. Given the destroy-every-session policy (§ 4), this applies almost every time the cluster comes back.
 
-- **ECR needs `force_delete = true`.** Without it, `terraform destroy` fails when the repository still holds images. Already set in `ecr.tf`; do not remove it.
+- **ECR needs `force_delete = true` — and it is not always sufficient.** Keep it in `ecr.tf`; without it `terraform destroy` definitely fails once the repository holds images. But it has been **observed not to take effect**, and destroy still failed. Working fallback: delete the images first, then destroy.
+
+  ```bash
+  aws ecr batch-delete-image --repository-name app-hub/links-service --region ap-south-1 --image-ids imageTag=v1
+  ```
+
+  Repeat for any untagged digests. Deleting images by hand is safe — Terraform tracks the *repository*, never the images inside it.
+
+- **Kubernetes creates AWS resources Terraform does not know about, and they block or silently outlive `destroy`.** This is the most expensive trap in the project because it fails *quietly*.
+  - **EBS volumes** behind PVCs are created by the EBS CSI driver, not Terraform. `terraform destroy` leaves them, and they keep billing.
+  - **ENIs and load balancers** from `Service type: LoadBalancer` or an Ingress can block VPC deletion outright.
+
+  **Before every destroy, once any stateful workload exists** (Prometheus, Jenkins, n8n-on-EKS, or the `C-04` datastore):
+
+  ```bash
+  helm uninstall <release> ; kubectl delete pvc --all --all-namespaces ; kubectl delete svc --all-namespaces --field-selector spec.type=LoadBalancer
+  ```
+
+  Then audit for orphans — anything listed here is costing money for nothing:
+
+  ```bash
+  aws ec2 describe-volumes --filters Name=status,Values=available --region ap-south-1 --query "Volumes[*].[VolumeId,Size,CreateTime]" --output table
+  ```
+
+- **WSL2 `/etc/resolv.conf` breaks after `wsl --shutdown`.** With `generateResolvConf = false`, the symlink target lives under `/run/`, which is wiped on restart. Fix by replacing the symlink with a real file:
+
+  ```bash
+  sudo rm -f /etc/resolv.conf && echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+  ```
+
+  Corporate DNS has also interfered with AWS endpoint resolution here. Note `wsl --shutdown` is a **Windows** command — run it from PowerShell, not inside the WSL shell.
+
+- **n8n nodes can replay pinned data instead of executing.** Right-click a node; if the menu offers "Unpin", its output is frozen and the node is not really running. Also: the green check on the canvas means "did not halt the workflow", **not** "received a 200".
 
 - **EKS needs `enable_cluster_creator_admin_permissions = true`.** Without it, the IAM user that *created* the cluster has no `kubectl` access to it. Already set in `eks.tf`.
 

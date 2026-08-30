@@ -143,7 +143,13 @@ The Deployment then references that exact string, and nodes pull it using their 
 
 ## Gotchas
 
-- **`force_delete = true` must stay.** Without it, `terraform destroy` fails once an image exists — and the NAT gateway keeps billing.
+- **`force_delete = true` must stay — but do not trust it alone.** Without it, `terraform destroy` definitely fails once an image exists. **It has also been observed not to take effect**, with destroy failing anyway. The reliable fallback is to empty the repository first:
+
+  ```bash
+  aws ecr batch-delete-image --repository-name app-hub/links-service --region ap-south-1 --image-ids imageTag=v1
+  ```
+
+  Repeat for untagged digests. This is safe: Terraform manages the *repository*, never the images in it. A failed destroy is expensive here, because the NAT gateway keeps billing while you debug it.
 - **The login token expires (~12h).** A `denied` or `no basic auth credentials` error after a while usually just means re-authenticate.
 - **The repository must exist before you push.** ECR does not create repositories on demand the way Docker Hub does. `E-02` (apply) precedes `E-03` (push).
 - **Region must match everywhere.** Login region, repository region, cluster region. A mismatch produces a confusing auth failure rather than a clear "wrong region".
