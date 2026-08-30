@@ -178,7 +178,7 @@ This is the single biggest source of confusion in this workspace. **The toolchai
 | `terraform` | **WSL Ubuntu only** (`/usr/bin/terraform`, v1.15.8) | NOT on the Windows PATH |
 | `uv`        | **WSL Ubuntu only** (`~/.local/bin/uv`, v0.11.32)   | NOT on the Windows PATH |
 | `python3`   | **WSL Ubuntu** (`/usr/bin/python3`)                 | Windows `python` is the Store stub — it does not work |
-| `docker`    | Windows (Docker Desktop, v29.5.3)                   | Not reachable from WSL — Docker Desktop's WSL integration isn't wired up. Builds and pushes happen on Windows. |
+| `docker`    | Windows (Docker Desktop, v29.5.3) — **but callable from WSL** | WSL's native `/usr/bin/docker` fails (`Input/output error`) because the Linux daemon isn't running. **Use `docker.exe` instead**: WSL interop resolves it at `/Docker/host/bin/docker.exe` and it reaches the Docker Desktop daemon. Verified 2026-08-29: a full `docker.exe build` with a `/mnt/c/...` context works. This means one WSL shell can drive the entire pipeline. |
 | `kubectl`   | **Both**, but they are two different tools in practice | Windows kubectl → `~/.kube/config` on Windows, context `minikube`. WSL kubectl → its own separate `~/.kube/config`, context `app-hub-eks`. Different files, different clusters. See below. |
 | `helm`      | Windows (winget)                                    | |
 | `aws`       | **Both**, with different accounts on each side       | Windows `~/.aws/` holds the **work** profiles (`default`, `uzio-nonprod-audit`, `scripttest`) — unrelated to app-hub, and `default` there is intentionally left broken. WSL `~/.aws/` holds the **app-hub** credentials (`default` profile, `terraform-learning` user, account `314146298861`). Two entirely separate files — configuring one never touches the other. |
@@ -208,7 +208,19 @@ Windows and WSL each have their own home directory, so each has its own `~/.kube
 wsl -e bash -lc "aws eks update-kubeconfig --region ap-south-1 --name app-hub-eks && kubectl config current-context && kubectl apply -f manifests/links-service/"
 ```
 
-Docker still has to build and push from Windows (Docker Desktop's WSL integration is not enabled here), so the deploy path genuinely straddles both: `docker build`/`push` on Windows, `aws eks update-kubeconfig` + `kubectl apply` on WSL.
+**Everything can run from one WSL shell.** `terraform`, `aws`, and `kubectl` are WSL-native; Docker is reached with `docker.exe` (see the table above). So the deploy path no longer needs to hop between two shells — prefer a single WSL session for the whole build → push → deploy sequence, and reserve Windows for minikube.
+
+### Stale kubeconfig is a certainty, not a risk
+
+EKS issues a **new API endpoint hostname on every cluster creation**, so after each `destroy` + `apply` the kubeconfig is guaranteed stale. There is no way to pin the endpoint — the only fix is to refresh it.
+
+`aws eks update-kubeconfig` is **idempotent and takes about a second**, so treat it as an unconditional precondition rather than a step to remember:
+
+```bash
+wsl -e bash -lc "aws eks update-kubeconfig --region ap-south-1 --name app-hub-eks && kubectl config current-context && kubectl get nodes"
+```
+
+Never run a bare `kubectl apply` against EKS without that prefix. Symptoms of skipping it — connection timeouts, TLS errors, `Unauthorized` — all look like network or permission faults, not staleness.
 
 ### WSL2 DNS
 
