@@ -6,6 +6,22 @@ Live status board. **Update this at the end of every working session** — statu
 
 ---
 
+## ▶ START HERE NEXT SESSION
+
+**Claude: surface this block first, before anything else. The owner asked to be reminded immediately.**
+
+1. **`E-02` — provision the infra.** Deferred on 2026-08-31 only because there was no 2–3 hour block free. The plan is reviewed and clean (55 add / 0 change / 0 destroy). **Ask whether to `terraform apply` as the first thing in the session**, since everything in Phase 2 and the `C-04`/`C-05` persistence work is queued behind it. Budget 2–3 hours so `E-03` and `E-04` land in the same session — an idle cluster still bills.
+
+2. **`C-02` — teach the testing step.** The owner explicitly wants this *taught*, not written. Explain `TestClient`, fixtures, and the module-level shared-state trap **before** any code is typed; the owner writes `tests/test_links.py`. Deps are already installed. Guide: `learn/14`.
+
+3. **`S-01` — `gateway`** comes after `E-02` is up, and is owner-built by hand.
+
+4. **`P-09` — automate the deploy path.** The owner wants `E-04` automated so `aws eks update-kubeconfig` is never a remembered step. Design agreed; not yet built.
+
+**Before any `terraform destroy` this session, follow the checklist in `learn/15`** — orphaned EBS volumes bill silently.
+
+---
+
 ## Where the project stands
 
 **The full deploy loop has already been proven once.** In an earlier manual session, `links-service` was built, pushed to ECR, deployed to EKS with 2 pods `Running`, and ClusterIP routing plus Kubernetes DNS discovery were confirmed working. Everything was then destroyed with `terraform destroy`, per the standing cost policy.
@@ -15,8 +31,8 @@ So **"nothing is currently deployed" is the normal resting state of this project
 What that leaves:
 
 - **`E-00` is resolved.** AWS credentials for `314146298861` (`terraform-learning` user) are now configured — in **WSL's own `~/.aws/`**, separate from the Windows-side `.aws` where the work profiles live untouched. `terraform init` succeeds. Confirmed nothing is currently deployed (`terraform state list` and `aws eks list-clusters` both empty) — the expected resting state.
-- **Next real blocker is approval, not credentials.** `E-02` is **planned** — 55 resources to add, no replacements. Awaiting an explicit go-ahead to `terraform apply`.
-- **Code state:** `C-01`, `D-03`, `D-11` fixed and committed. `replicas` pinned to 1 as the `C-03` stopgap. Remaining gaps: still **no tests anywhere** (`C-02`, guide written at `learn/14`) and storage is still ephemeral until `C-04`–`C-06` land.
+- **`E-02` is planned and reviewed** — 55 add / 0 change / 0 destroy, no replacements. Deferred 2026-08-31 for want of a long enough block; **it is the first item next session**.
+- **Code state:** `C-01`, `D-03`, `D-11` fixed, committed and **verified in-container**. `replicas` pinned to 1 as the `C-03` stopgap. `C-02` in progress (deps installed, owner writing the tests). Storage stays ephemeral until `C-04`–`C-06`.
 - **`kubectl` context:** Windows says `minikube`, WSL says `app-hub-eks`. They are **separate config files**. Run EKS-facing commands from WSL only (`CLAUDE.md § 5`, `learn/11`).
 
 **Milestone 2 — rebuild the loop cleanly, with the defects fixed and the steps captured in `learn/`. Unblocked; waiting on approval to `terraform apply`.**
@@ -39,6 +55,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 | P-06 | Write `links-service/README.md` | **Done** | None | Committed 2026-08-29 as `f3203de`. Covers the API table, local + Docker run, and an explicit storage caveat pointing at `C-03`. |
 | P-07 | Backfill `learn/` files for the steps done before this folder existed | **Done** | None | Done 2026-08-29: wrote `learn/01`–`07` (FastAPI, Docker/uv, Terraform+state, VPC, EKS, ECR, K8s manifests) from committed code and git history. Renumbered the two recent files to `08`/`09` so the folder reads chronologically. |
 | P-08 | Create the `app-hub` GitHub remote for the umbrella docs repo and push | **Done** | None | Done 2026-08-29. Repo existed but empty and no local remote was configured; wired `origin` and pushed 3 commits. `git@github.com:HarshitRawat11/app-hub.git` |
+| P-09 | Automate the deploy path so `update-kubeconfig` is never a remembered step | Not started | Design agreed 2026-08-31; owner wants this. Not yet built. | A `Makefile` (or shell script) driven from **one WSL shell** — `docker.exe` reaches Docker Desktop, so terraform/aws/kubectl/docker can all run from WSL. Targets: `up` = apply + update-kubeconfig + verify context; `deploy` = build + push + kubectl apply; `down` = the `learn/15` teardown checklist + destroy. Deliberately **not** a Terraform `local-exec` provisioner — HashiCorp treats provisioners as a last resort, they skip on refresh, and they couple Terraform to local tooling. |
 
 ### Phase 1 — Correctness
 
@@ -85,7 +102,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | N-01 | Scaffold the `n8n/` repo | Done | None | Done 2026-08-29: git repo, `.gitignore`, `.gitattributes` (LF enforcement), `.env.example`, `pull-workflows.sh`, README with security rules |
 | N-02 | Create the `app-hub-n8n` GitHub remote and push | **Done** | None | Done 2026-08-29. The scaffold had **zero commits** — made the initial commit, wired `origin`, pushed. Secret-scanned before pushing; no real `.env` exists. |
 | N-03 | Populate `n8n/.env` with the instance URL and API key | **Done** 2026-08-31 | None | Verified: both values populated, `.env` matched by `.gitignore:2`, absent from `git status`. API returns **HTTP 200** and lists both workflows (`eks-cost-watchdog`, `terraform-destroy-notifier`). Key never entered the transcript. |
-| N-04 | Pull the existing workflow into `n8n/workflows/` | Not started | Depends on `N-03`; Docker Desktop was not running at scaffold time | Run `scripts/pull-workflows.sh` from WSL, grep for hardcoded secrets, then commit |
+| N-04 | Pull the existing workflows into `n8n/workflows/` | **Done** 2026-08-31 | None | Pulled 2 workflows via the API (`065b447`): `eks-cost-watchdog` (active) and `terraform-destroy-notifier` (inactive). Count checked against `jq .data | length` **before** writing — an earlier grep had matched nested node names and suggested 14. Secret-scanned: only credential *references* (`AWS (IAM) account`, `Gmail account`), no values. |
 | N-05 | Back up the n8n encryption key outside the repo | **Done** 2026-08-31 (owner-reported) | None | Owner confirms the key from the `n8n_data` volume (`/home/node/.n8n/config`) is stored in a password manager. Not independently verifiable by design — nothing in this repo should ever be able to see it. Unblocks `N-06`. |
 | N-06 | Move n8n onto the EKS cluster | **Decided: YES** (2026-08-29) | Depends on Phase 2 landing first. Not urgent — local Docker is fine meanwhile. | Needs: a Postgres backing store (n8n defaults to SQLite, unsuitable in a pod), `N8N_ENCRYPTION_KEY` supplied as a Kubernetes Secret (**must be the existing key from `~/.n8n`, or every stored credential becomes undecryptable** — see `N-05`), and persistent storage. Note this interacts with the destroy-every-session policy: the database must live outside the destroyed stack. See the `C-03` note on splitting Terraform into ephemeral and persistent stacks. |
 
@@ -157,6 +174,13 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 ## Progress log
 
 Newest first. One entry per working session — what changed, and what it unblocked.
+
+### 2026-08-31 — Workflows versioned, all five repos published
+
+- **`N-04` done.** Pulled both workflows via the n8n API (`065b447`): `eks-cost-watchdog` (active) and `terraform-destroy-notifier` (inactive). **Checked the count with `jq '.data | length'` before writing anything** — an earlier `grep` had matched nested node names and reported 14, which would have meant something was wrong with the script. It was 2. Secret scan found only credential *references* by name and id, exactly as `learn/08` predicts.
+- **All five repos now pushed.** `infra` (2), `links-service` (4), `manifests` (2) had local-only commits; reviewed the outgoing diffs, scanned for secrets, pushed. Every repo is at `0 unpushed`.
+- **`N-03` / `N-05` confirmed done.** `.env` populated and verified ignored; API returns 200. Encryption key backed up by the owner — not independently verifiable by design, which is the point.
+- **Added `P-09`** to automate the deploy path, and a **START HERE NEXT SESSION** block at the top of this file at the owner's request: `E-02` is to be raised first thing.
 
 ### 2026-08-31 — Reconciled with the second Claude-chat context document
 
