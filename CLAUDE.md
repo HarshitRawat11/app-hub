@@ -178,10 +178,10 @@ This is the single biggest source of confusion in this workspace. **The toolchai
 | `terraform` | **WSL Ubuntu only** (`/usr/bin/terraform`, v1.15.8) | NOT on the Windows PATH |
 | `uv`        | **WSL Ubuntu only** (`~/.local/bin/uv`, v0.11.32)   | NOT on the Windows PATH |
 | `python3`   | **WSL Ubuntu** (`/usr/bin/python3`)                 | Windows `python` is the Store stub — it does not work |
-| `docker`    | Windows (Docker Desktop, v29.5.3)                   | |
-| `kubectl`   | Windows (via Docker Desktop, v1.34.1)               | context: `minikube` |
+| `docker`    | Windows (Docker Desktop, v29.5.3)                   | Not reachable from WSL — Docker Desktop's WSL integration isn't wired up. Builds and pushes happen on Windows. |
+| `kubectl`   | **Both**, but they are two different tools in practice | Windows kubectl → `~/.kube/config` on Windows, context `minikube`. WSL kubectl → its own separate `~/.kube/config`, context `app-hub-eks`. Different files, different clusters. See below. |
 | `helm`      | Windows (winget)                                    | |
-| `aws`       | Windows (v2.33.15)                                  | |
+| `aws`       | **Both**, with different accounts on each side       | Windows `~/.aws/` holds the **work** profiles (`default`, `uzio-nonprod-audit`, `scripttest`) — unrelated to app-hub, and `default` there is intentionally left broken. WSL `~/.aws/` holds the **app-hub** credentials (`default` profile, `terraform-learning` user, account `314146298861`). Two entirely separate files — configuring one never touches the other. |
 | `gh`        | **Not installed anywhere**                          | Use the GitHub web UI for PRs, or install it |
 
 Claude Code runs on the **Windows** side. So:
@@ -195,19 +195,32 @@ Claude Code runs on the **Windows** side. So:
 - Same pattern for `uv` and `python3`.
 - The vendored providers under `infra/.terraform/providers/` are `linux_amd64` binaries — further confirmation that Terraform only ever runs from WSL. Do not try to "fix" this by reinstalling on Windows without asking.
 
+### The two kubeconfigs — read this before every `kubectl` command
+
+Windows and WSL each have their own home directory, so each has its own `~/.kube/config`. They are not synced and never will be automatically.
+
+- **Windows kubectl** has only ever talked to **minikube**. That is its whole job here.
+- **WSL kubectl** already has a leftover context, `arn:aws:eks:ap-south-1:314146298861:cluster/app-hub-eks`, from the proven manual deploy in project history. That is stale once the cluster is destroyed, but it confirms EKS work has always happened from WSL — consistent with Terraform and the AWS credentials both living there.
+
+**Consequence for `E-04` and beyond: run `aws eks update-kubeconfig` and every EKS-facing `kubectl` command from WSL, not Windows.** Reserve Windows `kubectl` for minikube. Running `kubectl config current-context` on the wrong side is a silent trap — both return a plausible-looking answer, just not the one you meant.
+
+```bash
+wsl -e bash -lc "aws eks update-kubeconfig --region ap-south-1 --name app-hub-eks && kubectl config current-context && kubectl apply -f manifests/links-service/"
+```
+
+Docker still has to build and push from Windows (Docker Desktop's WSL integration is not enabled here), so the deploy path genuinely straddles both: `docker build`/`push` on Windows, `aws eks update-kubeconfig` + `kubectl apply` on WSL.
+
 ### WSL2 DNS
 
 A fix is already applied and must not be reverted: `generateResolvConf = false` in `/etc/wsl.conf`, with `nameserver 8.8.8.8` set manually in `/etc/resolv.conf`. WSL2 DNS breaks by default. If name resolution fails inside WSL, check that these are still in place before debugging anything else.
 
-### AWS credentials ⚠️
+### AWS credentials
 
-**Verified 2026-08-29: there is currently no working AWS profile for the app-hub account.**
+**Resolved 2026-08-29.** App-hub credentials are configured in **WSL's `~/.aws/`** (`default` profile, `terraform-learning` user, account `314146298861`, region `ap-south-1`) — a completely separate file from the Windows-side `~/.aws/`, which still holds the unrelated work profiles (`default`, `uzio-nonprod-audit`, `scripttest`) untouched and still intentionally broken.
 
-- Configured profiles are `uzio-nonprod-audit`, `default`, and `scripttest` — these are work-account profiles on a work-managed laptop. There is no `terraform-learning` profile.
-- `default` has `region = us-east-1`, not `ap-south-1`, and its keys are rejected: `InvalidClientTokenId`.
-- The app-hub IAM users named in the project history are `terraform-learning` (AdministratorAccess, used by Terraform) and `n8n-readonly` (scoped to `eks:DescribeCluster`, used by the cost watchdog). Neither is currently configured here.
-
-**Consequence:** every `aws` and `terraform` command against app-hub will fail until the owner adds credentials. Use a *named* profile (e.g. `AWS_PROFILE=app-hub`) rather than overwriting `default` — `default` belongs to work, and pointing it at a personal account, or vice versa, is how accidents happen. Tracked as `E-00`.
+- Both sides use the profile name `default`, but they are **different files resolving to different accounts.** There is no conflict, because Windows and WSL never share a home directory.
+- Run all `aws`/`terraform` commands for this project from **WSL**. Running `aws sts get-caller-identity` on Windows will still fail — that's the work side, and it's supposed to.
+- The `n8n-readonly` IAM user (scoped to `eks:DescribeCluster`, used by the cost watchdog) is not configured here — it's used from within n8n's own container, not from a shell.
 
 ---
 
@@ -249,6 +262,8 @@ The authoritative list — with severity and next steps — lives in **`PROGRESS
 ## 9. Hard-won lessons — do not rediscover these
 
 Each of these cost real time to find. They are here so no future session pays for them twice.
+
+- **Windows and WSL each have their own `~/.kube/config` and `~/.aws/` — they are not the same file.** Configuring AWS credentials in WSL does nothing for Windows, and vice versa. `aws eks update-kubeconfig` writes to whichever side ran it. Run all EKS-facing `aws` and `kubectl` commands from WSL — that's where the app-hub credentials and Terraform both live — and reserve Windows `kubectl` for minikube. See § 5.
 
 - **Re-run `aws eks update-kubeconfig --region ap-south-1 --name app-hub-eks` after every `destroy` + `apply` cycle.** EKS generates a *new endpoint hostname* each time, even with an identical cluster name. A stale kubeconfig is the single biggest source of confusing `kubectl` failures in this project — the errors look like network or auth problems, not staleness. Given the destroy-every-session policy (§ 4), this applies almost every time the cluster comes back.
 

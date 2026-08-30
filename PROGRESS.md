@@ -14,11 +14,12 @@ So **"nothing is currently deployed" is the normal resting state of this project
 
 What that leaves:
 
-- **Immediate blocker:** `E-00` — there is no working AWS profile for account `314146298861` on this machine. Verified 2026-08-29: credentials are rejected (`InvalidClientTokenId`), and the three configured profiles are all work-account. Nothing touching AWS can proceed until this is fixed.
+- **`E-00` is resolved.** AWS credentials for `314146298861` (`terraform-learning` user) are now configured — in **WSL's own `~/.aws/`**, separate from the Windows-side `.aws` where the work profiles live untouched. `terraform init` succeeds. Confirmed nothing is currently deployed (`terraform state list` and `aws eks list-clusters` both empty) — the expected resting state.
+- **Next real blocker is approval, not credentials.** `E-02` (provision) is ready to run but needs an explicit go-ahead each time, since it starts real billing.
 - **Code state:** the Dockerfile defects (`D-03`, `D-11`) and the `POST /links` bug (`C-01`) are **fixed and committed** as of 2026-08-29. Remaining correctness gap: there are still **no tests anywhere** (`C-02`), and storage is still an in-process dict behind 2 replicas (`C-03`).
 - **`kubectl` context is `minikube`.** After any rebuild, re-run `aws eks update-kubeconfig` — EKS issues a new endpoint hostname every time (see `CLAUDE.md § 9`).
 
-**Milestone 2 — rebuild the loop cleanly, with the defects fixed and the steps captured in `learn/`.**
+**Milestone 2 — rebuild the loop cleanly, with the defects fixed and the steps captured in `learn/`. Unblocked; waiting on approval to `terraform apply`.**
 
 ---
 
@@ -51,9 +52,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
-| E-00 | Configure an AWS profile for the app-hub account | **Blocked** | Owner action. No profile for account `314146298861` exists on this machine. | Configured profiles are `uzio-nonprod-audit`, `default`, `scripttest` — all work-account, and `default` is `us-east-1` with rejected keys (`InvalidClientTokenId`). Create a **named** profile (e.g. `app-hub`) for the `terraform-learning` IAM user; do not overwrite `default`, which belongs to work. |
+| E-00 | Configure an AWS profile for the app-hub account | **Done** | None | Resolved 2026-08-29: `aws configure` run **inside WSL** (`~/.aws/`, separate from the Windows-side `.aws`), profile `default`, region `ap-south-1`, user `terraform-learning`, account `314146298861` confirmed via `sts get-caller-identity`. Windows-side `default` (work profiles) verified untouched and still rejected. `terraform init` now succeeds. |
 | E-01 | Confirm whether `terraform apply` has ever run against the S3 backend | **Resolved** | None | **Answered by project history 2026-08-29: yes.** The full loop was proven once — image built, pushed to ECR, deployed to EKS, 2 pods `Running`, ClusterIP routing and Kubernetes DNS discovery confirmed — then torn down with `terraform destroy` per the cost policy. "Nothing deployed" is the normal resting state, not a failure. Live re-verification is blocked on `E-00`. |
-| E-02 | Re-provision the infra (VPC + EKS + ECR) | Not started | Depends on `E-00` (no credentials); **requires explicit owner approval** — this starts real billing. | Review `terraform plan` output line by line, get approval, then apply. Remember `aws eks update-kubeconfig` afterwards — the endpoint hostname changes on every rebuild. |
+| E-02 | Re-provision the infra (VPC + EKS + ECR) | **Ready** | None — `E-00` cleared. **Requires explicit owner approval before running** — this starts real billing (~$150–200/mo if left up). | Run `terraform plan` from WSL, review it line by line, get approval, then `terraform apply`. Remember `aws eks update-kubeconfig` afterwards — the endpoint hostname changes on every rebuild. |
 | E-03 | Build and push `links-service:v1` to ECR | Not started | Depends on `P-03` (image will not build cleanly) and `E-02` (ECR must exist) | Follow README § Quick start step 4 |
 | E-04 | Deploy manifests to EKS and reach `/health` | Not started | Depends on `E-03` | `aws eks update-kubeconfig`, verify context is **not** minikube, `kubectl apply -f manifests/links-service/`, then port-forward and curl |
 | E-05 | Expose the service outside the cluster | Not started | Depends on `E-04` | Service is `ClusterIP` — nothing reaches it externally. Add an Ingress + AWS Load Balancer Controller, or switch to `type: LoadBalancer`. |
