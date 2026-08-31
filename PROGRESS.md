@@ -8,34 +8,44 @@ Live status board. **Update this at the end of every working session** — statu
 
 ## ▶ START HERE NEXT SESSION
 
-**Claude: surface this block first, before anything else. The owner asked to be reminded immediately.**
+**Claude: surface this block first, before anything else.**
 
-1. **`E-02` — provision the infra.** Deferred on 2026-08-31 only because there was no 2–3 hour block free. The plan is reviewed and clean (55 add / 0 change / 0 destroy). **Ask whether to `terraform apply` as the first thing in the session**, since everything in Phase 2 and the `C-04`/`C-05` persistence work is queued behind it. Budget 2–3 hours so `E-03` and `E-04` land in the same session — an idle cluster still bills.
+### ⚠️ FIRST: is the cluster still up?
 
-2. **`C-02` — teach the testing step.** The owner explicitly wants this *taught*, not written. Explain `TestClient`, fixtures, and the module-level shared-state trap **before** any code is typed; the owner writes `tests/test_links.py`. Deps are already installed. Guide: `learn/14`.
+As of **2026-08-31 · 16:15 IST** the cluster was **UP and billing** (`E-02`/`E-03`/`E-04` all landed). If the session ended without a teardown, it has been running ever since at roughly **$0.25–0.30/hour**. Check before anything else:
 
-3. **`S-01` — `gateway`** comes after `E-02` is up, and is owner-built by hand.
+```bash
+wsl -e bash -lc "aws eks list-clusters --region ap-south-1 --output text; aws ec2 describe-nat-gateways --filter Name=state,Values=available --region ap-south-1 --query 'NatGateways[*].NatGatewayId' --output text"
+```
 
-4. **`P-09` — automate the deploy path.** The owner wants `E-04` automated so `aws eks update-kubeconfig` is never a remembered step. Design agreed; not yet built.
+Empty output = clean, nothing billing. Anything listed = **tear it down using the `learn/15` checklist** before doing anything else.
 
-**Before any `terraform destroy` this session, follow the checklist in `learn/15`** — orphaned EBS volumes bill silently.
+### Then, in priority order
+
+1. **`C-02` — teach the testing step.** The owner explicitly wants this *taught*, not written. Explain `TestClient`, fixtures, and the module-level shared-state trap **before** any code is typed; the owner writes `tests/test_links.py`. Deps already installed. Guide: `learn/14`. **Blocks `C-06`.**
+
+2. **`P-09` — automate the deploy path.** Now clearly worth it: this session showed the whole loop runs from one WSL shell (`docker.exe` reaches Docker Desktop). The `down` target matters most — it encodes the `learn/15` teardown checklist so orphans cannot accumulate.
+
+3. **`S-01` — `gateway`**, owner-built by hand. Needs the cluster up. Its purpose is to prove service-to-service DNS discovery — already demonstrated manually this session with an in-cluster `curl http://links-service:8000/health`.
+
+4. **`C-04`/`C-05`** — persistent stack + IRSA. The cluster's OIDC provider now exists, so these are unblocked whenever the cluster is up.
 
 ---
 
 ## Where the project stands
 
-**The full deploy loop has already been proven once.** In an earlier manual session, `links-service` was built, pushed to ECR, deployed to EKS with 2 pods `Running`, and ClusterIP routing plus Kubernetes DNS discovery were confirmed working. Everything was then destroyed with `terraform destroy`, per the standing cost policy.
+**Milestone 2 is COMPLETE.** On 2026-08-31 the loop was rebuilt end to end on real EKS with every known defect fixed: `terraform apply` → build → push to ECR → deploy → reach `/health` by Kubernetes DNS name. Verified in-cluster, not just locally.
 
-So **"nothing is currently deployed" is the normal resting state of this project, not a failure.** The NAT gateway bills continuously, so the cluster only exists while it is being worked on.
+**"Nothing deployed" is still the normal resting state** — the cluster is destroyed between sessions because the NAT gateway bills continuously. A cluster being absent is expected, not a failure. But **check whether one is currently up before assuming** (see the block above).
 
 What that leaves:
 
-- **`E-00` is resolved.** AWS credentials for `314146298861` (`terraform-learning` user) are now configured — in **WSL's own `~/.aws/`**, separate from the Windows-side `.aws` where the work profiles live untouched. `terraform init` succeeds. Confirmed nothing is currently deployed (`terraform state list` and `aws eks list-clusters` both empty) — the expected resting state.
-- **`E-02` is planned and reviewed** — 55 add / 0 change / 0 destroy, no replacements. Deferred 2026-08-31 for want of a long enough block; **it is the first item next session**.
-- **Code state:** `C-01`, `D-03`, `D-11` fixed, committed and **verified in-container**. `replicas` pinned to 1 as the `C-03` stopgap. `C-02` in progress (deps installed, owner writing the tests). Storage stays ephemeral until `C-04`–`C-06`.
+- **`E-00` is resolved.** AWS credentials for `314146298861` (`terraform-learning`) live in **WSL's own `~/.aws/`**, separate from the Windows-side `.aws` holding untouched work profiles. Proven this session by a real `terraform apply`.
+- **`E-02`/`E-03`/`E-04` all landed 2026-08-31.** VPC `vpc-0c3e0c493dec78d8e`, EKS `app-hub-eks` (1.31), 2 nodes in private subnets, image `v1` in ECR, 1 pod `Running`, ClusterIP routing and DNS discovery both confirmed.
+- **Code state:** `C-01`, `D-03`, `D-11` fixed and **verified on the cluster**, not just in a container. `replicas` pinned to 1 (`C-03` stopgap). Remaining: no tests yet (`C-02`), storage still ephemeral until `C-04`–`C-06`.
 - **`kubectl` context:** Windows says `minikube`, WSL says `app-hub-eks`. They are **separate config files**. Run EKS-facing commands from WSL only (`CLAUDE.md § 5`, `learn/11`).
 
-**Milestone 2 — rebuild the loop cleanly, with the defects fixed and the steps captured in `learn/`. Unblocked; waiting on approval to `terraform apply`.**
+**Next milestone — make it durable and repeatable:** `C-02` (tests) → `C-04`/`C-05` (persistent DynamoDB stack + IRSA) → `C-06` (repository refactor, then raise replicas). `P-09` automates the loop so teardown is never skipped.
 
 ---
 
@@ -74,9 +84,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 |----|------|--------|---------|-----------|
 | E-00 | Configure an AWS profile for the app-hub account | **Done** | None | Resolved 2026-08-30: `aws configure` run **inside WSL** (`~/.aws/`, separate from the Windows-side `.aws`), profile `default`, region `ap-south-1`, user `terraform-learning`, account `314146298861` confirmed via `sts get-caller-identity`. Windows-side `default` (work profiles) verified untouched and still rejected. `terraform init` now succeeds. |
 | E-01 | Confirm whether `terraform apply` has ever run against the S3 backend | **Resolved** | None | **Answered by project history 2026-08-30: yes.** The full loop was proven once — image built, pushed to ECR, deployed to EKS, 2 pods `Running`, ClusterIP routing and Kubernetes DNS discovery confirmed — then torn down with `terraform destroy` per the cost policy. "Nothing deployed" is the normal resting state, not a failure. Live re-verification is blocked on `E-00`. |
-| E-02 | Re-provision the infra (VPC + EKS + ECR) | **Planned — awaiting approval** | Needs explicit owner approval to `apply`; this starts real billing (~$150–200/mo if left up). | `terraform plan` run 2026-08-30: **55 to add, 0 to change, 0 to destroy** (vpc 19, eks 37, ecr/root 3). No `forces replacement`. See `learn/12`. Next: approve, `terraform apply`, then `aws eks update-kubeconfig` **from WSL** (`learn/11`). |
-| E-03 | Build and push `links-service:v1` to ECR | Not started | Depends on `P-03` (image will not build cleanly) and `E-02` (ECR must exist) | Follow README § Quick start step 4 |
-| E-04 | Deploy manifests to EKS and reach `/health` | Not started | Depends on `E-03` | `aws eks update-kubeconfig`, verify context is **not** minikube, `kubectl apply -f manifests/links-service/`, then port-forward and curl |
+| E-02 | Re-provision the infra (VPC + EKS + ECR) | **DONE** 2026-08-31 · ~16:10 IST | None | Owner ran `terraform apply`. Created: VPC `vpc-0c3e0c493dec78d8e`, NAT `nat-007a005277aac306c`, EKS `app-hub-eks` (1.31, platform `eks.68`), node group `default-20260831104239047500000013`, ECR repo. Both nodes `Ready` on `10.0.1.184` / `10.0.2.247` with **no external IP** — confirming private subnets. **Cluster is UP and billing.** 
+| E-03 | Build and push `links-service:v1` to ECR | **DONE** 2026-08-31 · 16:13 IST | None | Built and pushed from **WSL via `docker.exe`**, digest `sha256:d9caf579…`, 70.7 MB. Done in parallel with the EKS control plane still `CREATING` — the push depends only on ECR, not the cluster. Note two **untagged** buildkit attestation digests also landed; `batch-delete-image --image-ids imageTag=v1` will not remove those at teardown (`learn/15`). 
+| E-04 | Deploy manifests to EKS and reach `/health` | **DONE** 2026-08-31 · 16:15 IST | None | `kubectl apply` → 1 pod `Running` on `10.0.2.118`, Service ClusterIP `172.20.10.137`, endpoints resolved correctly. **Verified in-cluster by DNS name**: `curl http://links-service:8000/health` → `{"status":"ok"}`. Full CRUD round-trip passed, and `GET /links` returned `"id":1` — the `C-01` fix confirmed on real EKS. `GET /links/999` → 404. 
 | E-05 | Expose the service outside the cluster | Not started | Depends on `E-04` | Service is `ClusterIP` — nothing reaches it externally. Add an Ingress + AWS Load Balancer Controller, or switch to `type: LoadBalancer`. |
 
 ### Phase 3 — Production readiness
@@ -179,14 +189,23 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all five repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
-### 2026-08-30 · 19:15–19:17 IST — Workflows versioned, all five repos published
+### 2026-08-31 · 16:07–16:20 IST — Milestone 2: first end-to-end deploy on EKS
+
+- **`E-02` done.** Owner ran `terraform apply`; 55 resources created. VPC `vpc-0c3e0c493dec78d8e`, NAT `nat-007a005277aac306c`, EKS `app-hub-eks` (1.31, platform `eks.68`), 2x t3.medium node group. Both nodes `Ready` on `10.0.1.184` / `10.0.2.247` with **no external IP**, confirming private subnets. `kubectl` working at all is the proof that `enable_cluster_creator_admin_permissions` did its job.
+- **`E-03` done, in parallel.** The image push depends only on ECR, which is created early -- so it ran while the control plane was still `CREATING` instead of after. Built and pushed from **one WSL shell via `docker.exe`**, digest `sha256:d9caf579...`, 70.7 MB.
+- **`E-04` done.** 1 pod `Running`, Service ClusterIP `172.20.10.137`, endpoints resolved to `10.0.2.118:8000`. **Service discovery proven in-cluster by DNS name alone** -- `curl http://links-service:8000/health` from a disposable pod returned `{"status":"ok"}`. That is the mechanism `S-01` (`gateway`) will use, and the reason Eureka was dropped.
+- **`C-01` confirmed on real infrastructure.** Full CRUD round-trip: `POST` then `GET /links` both returned `"id":1`. The bug that hid for weeks behind a correct-looking `POST` response is genuinely gone.
+- **Timestamp system built and debugged.** `scripts/timeline.sh` generates `TIMELINE.md` from git across all five repos. It produced wrong times twice before working -- Git Bash silently ignores `TZ` and falls back to GMT, so the first run was 5.5 hours out; then my own self-check constant was wrong by three minutes. Now uses epoch arithmetic with a guard that refuses to run if conversion is broken, and is byte-identical from both shells. Written up in `learn/17`.
+- **Corrected a one-day drift**: 36 `PROGRESS.md` rows said `2026-08-29` for work git records on `2026-08-30`.
+
+### 2026-08-31 · 00:45–00:47 IST — Workflows versioned, all five repos published
 
 - **`N-04` done.** Pulled both workflows via the n8n API (`065b447`): `eks-cost-watchdog` (active) and `terraform-destroy-notifier` (inactive). **Checked the count with `jq '.data | length'` before writing anything** — an earlier `grep` had matched nested node names and reported 14, which would have meant something was wrong with the script. It was 2. Secret scan found only credential *references* by name and id, exactly as `learn/08` predicts.
 - **All five repos now pushed.** `infra` (2), `links-service` (4), `manifests` (2) had local-only commits; reviewed the outgoing diffs, scanned for secrets, pushed. Every repo is at `0 unpushed`.
 - **`N-03` / `N-05` confirmed done.** `.env` populated and verified ignored; API returns 200. Encryption key backed up by the owner — not independently verifiable by design, which is the point.
 - **Added `P-09`** to automate the deploy path, and a **START HERE NEXT SESSION** block at the top of this file at the owner's request: `E-02` is to be raised first thing.
 
-### 2026-08-30 · 18:52–18:59 IST — Reconciled with the second Claude-chat context document
+### 2026-08-31 · 00:22–00:29 IST — Reconciled with the second Claude-chat context document
 
 Absorbed a fuller handoff from the manual sessions. It **corrected one thing I had documented wrongly** and added a cost risk that was not on the board at all.
 
@@ -200,7 +219,7 @@ Absorbed a fuller handoff from the manual sessions. It **corrected one thing I h
 
 **Also recorded:** the `destroy-notifier` webhook payload nests under `body` (`{{ $json.body.status }}`); it will be scheduled via Windows Task Scheduler invoking `wsl.exe`, because a WSL cron is unreliable; the destroy stays local so destructive credentials never live in a long-running app; n8n pinned data can replay frozen output, and a green check means "did not halt", not "got a 200"; the `/etc/resolv.conf` symlink breaks after `wsl --shutdown`; n8n's volume is `n8n_data`, which pins down where the encryption key lives for `N-05`.
 
-### 2026-08-30 · 17:43–18:14 IST — Repos published, infra planned, persistence decided
+### 2026-08-30 · 23:13–23:44 IST — Repos published, infra planned, persistence decided
 
 - **`P-08` / `N-02`** — both GitHub repos existed but were **empty, with no local remote configured**, and `n8n` had **zero commits**. Committed the n8n scaffold, wired `origin` on both, secret-scanned the staged content, pushed. Lesson recorded in `learn/10`: creating the GitHub repo and connecting to it are separate states — check `git remote -v` and `git log @{u}..`, not just the web UI.
 - **`E-02`** — `terraform plan` run with the new credentials: **55 to add, 0 to change, 0 to destroy** (vpc 19, eks 37, ecr/root 3). No `forces replacement`. Confirmed `aws_eks_access_entry.this["cluster_creator"]` is in the plan — the flag that prevents the `Unauthorized` trap. **Not applied** — awaiting explicit approval, since it starts billing.
@@ -209,7 +228,7 @@ Absorbed a fuller handoff from the manual sessions. It **corrected one thing I h
 - **Conformance sweep on the `learn/` rule.** Several completed steps had no learning file. Wrote `learn/10`–`14` to close the gap: polyrepo doc versioning, AWS credentials and the two-kubeconfig split, reading a Terraform plan, the persistence architecture, and the testing guide.
 - **n8n runbooks** — `n8n/README.md` now has explicit numbered steps for `N-03` (fill `.env`) and `N-05` (back up the encryption key), including the check-ignore-before-you-paste ordering and a clipboard route that keeps the key off screen.
 
-### 2026-08-30 · 06:30 IST — Cleared the ready-now backlog (6 tasks, 4 commits, 2 repos)
+### 2026-08-30 · 12:00 IST — Cleared the ready-now backlog (6 tasks, 4 commits, 2 repos)
 
 - **`C-01`** — fixed `POST /links` storing the `LinkCreate` instead of the constructed `Link` (`7b7b0bd`). Verified by HTTP round-trip, not by reading the POST response: `GET /links` now returns `"id":1`, which it did not before.
 - **`P-03` + `D-11`** — rewrote the Dockerfile (`5e312ef`). Base moved to `python:3.14-slim` (confirmed to exist via the Docker Hub tag API, currently 3.14.7) so the tag no longer lies about the interpreter; `CMD` now calls `uvicorn` from the venv on `PATH` instead of `uv run`, which was re-installing the project at container start.
@@ -223,7 +242,7 @@ Absorbed a fuller handoff from the manual sessions. It **corrected one thing I h
 
 Defects closed: `D-01`, `D-03`, `D-04`, `D-06`, `D-07`, `D-08`, `D-11`. New: `D-12` (missing `.gitattributes` in the three older repos). `learn/09-first-defect-fixes.md` written.
 
-### 2026-08-30 · 13:33 IST — Reconciled with prior Claude-chat project history
+### 2026-08-30 · 19:03 IST — Reconciled with prior Claude-chat project history
 
 The owner supplied a handoff document summarising the manual sessions that preceded Claude Code. It resolved several things my audit could only guess at, and contradicted my docs in two places.
 
@@ -238,7 +257,7 @@ The owner supplied a handoff document summarising the manual sessions that prece
 
 **Verified live, not assumed:** `kubectl` context is `minikube`. AWS credentials are **rejected** — `InvalidClientTokenId` — and no profile exists for account `314146298861`. Configured profiles are `uzio-nonprod-audit`, `default`, `scripttest`, all work-account, with `default` on `us-east-1`. Logged as `E-00`, now the first blocker in the deploy chain.
 
-### 2026-08-30 · ~17:00 IST — n8n added as a fourth component
+### 2026-08-30 · ~22:30 IST — n8n added as a fourth component
 
 - Owner has a self-hosted n8n instance with an existing workflow, and expects to build more. Confirmed: self-hosted (Docker/local), and it gets its own repo, consistent with the one-repo-per-component pattern.
 - Scaffolded `n8n/` as a git repo on `master`: `workflows/`, `scripts/pull-workflows.sh`, `.env.example`, README, `.gitignore` (blocks `.env` and any credential export), `.gitattributes`.
@@ -248,7 +267,7 @@ The owner supplied a handoff document summarising the manual sessions that prece
 - Docker Desktop was not running, so nothing was pulled from the live instance yet — that is `N-04`.
 - Noted `N-05`: the n8n encryption key in `~/.n8n` needs backing up outside the repo. Losing it makes every stored credential unrecoverable.
 
-### 2026-08-30 · ~09:30 IST — Teaching mandate and the `learn/` folder
+### 2026-08-30 · ~15:00 IST — Teaching mandate and the `learn/` folder
 
 - Owner clarified the working model: this project began as a manual, step-by-step learning exercise with Claude chat, and the move to Claude Code was for **speed, not for outsourcing the understanding**. Claude Code must teach at every step, not silently complete the work.
 - Added `CLAUDE.md § 2 — How we work: teach, don't just ship`, and renumbered the sections that followed. It is placed second, immediately after the objective, because it governs *how* every other task is carried out.
@@ -257,7 +276,7 @@ The owner supplied a handoff document summarising the manual sessions that prece
 - Made the learning file part of the definition of done in `CLAUDE.md § 7` and `README.md § Governance`.
 - Logged `P-07` to backfill learning files for the ~7 steps completed before this folder existed.
 
-### 2026-08-30 · ~09:22 IST — Project documentation and baseline audit
+### 2026-08-30 · ~14:52 IST — Project documentation and baseline audit
 
 - Audited the whole workspace: 3 independent git repos, 6 source files, 2 manifests, 7 Terraform files.
 - Established `CLAUDE.md`, `README.md`, and `PROGRESS.md` at the root to stop objective drift across sessions.

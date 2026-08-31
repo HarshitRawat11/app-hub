@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 25 across 5 repositories |
+| Commits | 26 across 5 repositories |
 | Active days | 6 |
-| First commit | 2026-07-29 06:39 IST |
-| Latest commit | 2026-08-31 07:20 IST |
+| First commit | 2026-07-29 12:09 IST |
+| Latest commit | 2026-08-31 16:07 IST |
 
 ---
 
@@ -19,53 +19,54 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
-| 06:39 | `links-service` | `5a21d5a` | Added health check endpoint |
+| 12:09 | `links-service` | `5a21d5a` | Added health check endpoint |
 
 ## 2026-08-02
 
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
-| 16:04 | `links-service` | `58e29cd` | Added CRUD operations |
-| 19:55 | `infra` | `66f8f16` | Add VPC module with public/private subnets, IGW, NAT gateway |
+| 21:34 | `links-service` | `58e29cd` | Added CRUD operations |
 
 ## 2026-08-03
 
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
-| 07:29 | `infra` | `838d446` | Added AWS EKS cluster and its admin access |
-| 07:44 | `infra` | `009bd10` | Add outputs.tf for cluster and VPC values |
-| 10:25 | `infra` | `19f7a5e` | Add ECR repository for links-service |
+| 01:25 | `infra` | `66f8f16` | Add VPC module with public/private subnets, IGW, NAT gateway |
+| 12:59 | `infra` | `838d446` | Added AWS EKS cluster and its admin access |
+| 13:14 | `infra` | `009bd10` | Add outputs.tf for cluster and VPC values |
+| 15:55 | `infra` | `19f7a5e` | Add ECR repository for links-service |
 
 ## 2026-08-04
 
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
-| 05:35 | `infra` | `cdfa2d5` | Add force_delete to ECR repo for easier teardown |
+| 11:05 | `infra` | `cdfa2d5` | Add force_delete to ECR repo for easier teardown |
 
 ## 2026-08-30
 
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
-| 06:30 | `links-service` | `7b7b0bd` | Fix POST /links storing LinkCreate instead of the constructed Link |
-| 06:30 | `links-service` | `5e312ef` | Add Dockerfile with Python 3.14 base and direct uvicorn entrypoint |
-| 06:30 | `links-service` | `f3203de` | Add service README covering API, local run and storage caveat |
-| 06:30 | `infra` | `3cb9e57` | Rename vairables.tf to variables.tf and remove empty main.tf |
-| 09:22 | `infra` | `dd3c025` | Add .gitattributes to force LF line endings |
-| 09:22 | `links-service` | `73ddaf6` | Add .gitattributes to force LF line endings |
-| 09:22 | `manifests` | `ce67c58` | Add .gitattributes to force LF line endings |
-| 09:30 | `app-hub` | `2b995c0` | Backfill learn/ files 01-07 and record P-01, P-07, N-06 outcomes |
-| 13:33 | `app-hub` | `78e9788` | Record E-00 resolved and document the two-kubeconfig split |
-| 17:45 | `manifests` | `93cea2c` | Pin links-service to a single replica until persistence lands |
-| 17:51 | `app-hub` | `fe85d08` | Publish repos, plan infra, decide persistence, and close learn/ gaps |
-| 18:14 | `app-hub` | `c71ef9e` | Correct the docker-from-WSL claim and harden the kubeconfig rule |
-| 18:52 | `app-hub` | `e2a97f8` | Correct the ECR force_delete claim and document safe teardown |
-| 18:59 | `app-hub` | `46d2fc5` | Mark N-03 and N-05 done, C-02 in progress |
-| 19:15 | `n8n` | `065b447` | Add eks-cost-watchdog and terraform-destroy-notifier workflows |
-| 19:17 | `app-hub` | `e12bb6d` | Record N-04 done, all repos pushed, and next-session priorities |
+| 12:00 | `links-service` | `7b7b0bd` | Fix POST /links storing LinkCreate instead of the constructed Link |
+| 12:00 | `links-service` | `5e312ef` | Add Dockerfile with Python 3.14 base and direct uvicorn entrypoint |
+| 12:00 | `links-service` | `f3203de` | Add service README covering API, local run and storage caveat |
+| 12:00 | `infra` | `3cb9e57` | Rename vairables.tf to variables.tf and remove empty main.tf |
+| 14:52 | `infra` | `dd3c025` | Add .gitattributes to force LF line endings |
+| 14:52 | `links-service` | `73ddaf6` | Add .gitattributes to force LF line endings |
+| 14:52 | `manifests` | `ce67c58` | Add .gitattributes to force LF line endings |
+| 15:00 | `app-hub` | `2b995c0` | Backfill learn/ files 01-07 and record P-01, P-07, N-06 outcomes |
+| 19:03 | `app-hub` | `78e9788` | Record E-00 resolved and document the two-kubeconfig split |
+| 23:15 | `manifests` | `93cea2c` | Pin links-service to a single replica until persistence lands |
+| 23:21 | `app-hub` | `fe85d08` | Publish repos, plan infra, decide persistence, and close learn/ gaps |
+| 23:44 | `app-hub` | `c71ef9e` | Correct the docker-from-WSL claim and harden the kubeconfig rule |
 
 ## 2026-08-31
 
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
-| 07:19 | `links-service` | `1ece6ee` | Add pytest and httpx as dev dependencies |
-| 07:20 | `infra` | `32a6c16` | Gitignore saved Terraform plan files |
+| 00:22 | `app-hub` | `e2a97f8` | Correct the ECR force_delete claim and document safe teardown |
+| 00:29 | `app-hub` | `46d2fc5` | Mark N-03 and N-05 done, C-02 in progress |
+| 00:45 | `n8n` | `065b447` | Add eks-cost-watchdog and terraform-destroy-notifier workflows |
+| 00:47 | `app-hub` | `e12bb6d` | Record N-04 done, all repos pushed, and next-session priorities |
+| 12:49 | `links-service` | `1ece6ee` | Add pytest and httpx as dev dependencies |
+| 12:50 | `infra` | `32a6c16` | Gitignore saved Terraform plan files |
+| 16:07 | `app-hub` | `e1c865d` | Add generated TIMELINE.md and fix a one-day date drift |

@@ -44,8 +44,10 @@ Every file follows the same shape:
 | 13 | [13-persistence-and-the-ephemeral-persistent-split.md](13-persistence-and-the-ephemeral-persistent-split.md) | Why a nightly-destroyed cluster cannot hold data; splitting Terraform into ephemeral and persistent stacks; DynamoDB vs RDS; IRSA; the repository pattern |
 | 14 | [14-testing-fastapi-with-pytest.md](14-testing-fastapi-with-pytest.md) | **Guide, not a record** — `TestClient`; the module-level shared-state trap; fixtures and `autouse`; why tests come before the storage refactor |
 | 15 | [15-safe-teardown.md](15-safe-teardown.md) | What `terraform destroy` does not know about: ECR images, LoadBalancer ENIs, and orphaned EBS volumes; the drain-then-destroy order; the verify step that catches silent billing |
+| 16 | [16-first-end-to-end-deploy.md](16-first-end-to-end-deploy.md) | The apply dependency order and when billing starts; parallelising the ECR push with cluster creation; `update-kubeconfig`; Endpoints as the "is this Service wired up" check; DNS discovery proven in-cluster |
+| 17 | [17-timestamps-and-the-tz-trap.md](17-timestamps-and-the-tz-trap.md) | Derive timestamps, do not type them; `%at` as an absolute instant; **Git Bash silently ignores `TZ`**; why a self-check that refuses to run beats a silent fallback |
 
-*Steps 16 onward get added as we do them.*
+*Steps 18 onward get added as we do them.*
 
 ## A note on files 01–07
 

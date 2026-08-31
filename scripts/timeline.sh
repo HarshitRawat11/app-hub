@@ -24,15 +24,38 @@ OUT="TIMELINE.md"
 
 repo_name() { [[ "$1" == "." ]] && echo "app-hub" || echo "$1"; }
 
+# IST is UTC+05:30 and never observes DST, so the offset is a constant.
+IST_OFFSET=19800   # 5.5 * 3600
+
+# Convert a UTC epoch to IST WITHOUT relying on the tz database.
+#
+# Why not TZ=Asia/Kolkata? Because Git Bash on Windows silently ignores it and
+# falls back to GMT -- producing times that are 5.5 hours wrong but labelled
+# "IST". WSL honours TZ correctly, so the same script gave different answers
+# depending on which shell ran it. Shifting the epoch and formatting as UTC is
+# correct in both.
+to_ist() { TZ=UTC date -d "@$(( $1 + IST_OFFSET ))" '+%Y-%m-%d %H:%M' 2>/dev/null \
+        || TZ=UTC date -r "$(( $1 + IST_OFFSET ))" '+%Y-%m-%d %H:%M' 2>/dev/null; }
+
+# Self-check: a known epoch must render as the known IST time, or refuse to run.
+# Cross-checked against WSL's tz database:
+#   epoch 1700000000 == 2023-11-14 22:13:20 UTC == 2023-11-15 03:43:20 IST
+# This guard is what catches a shell whose date/TZ handling differs -- which is
+# exactly how this script shipped 5.5-hour-wrong timestamps the first time.
+_expect="2023-11-15 03:43"
+_check=$(to_ist 1700000000)
+if [[ "$_check" != "$_expect" ]]; then
+  echo "error: timezone conversion is broken (got '$_check', expected '$_expect')" >&2
+  exit 1
+fi
+
 # Collect: sortable-epoch | IST datetime | repo | short sha | subject
 collect() {
   for d in "${REPOS[@]}"; do
     [[ -d "$d/.git" ]] || continue
     git -C "$d" log --pretty=format:"%at|%H|%h|%s" 2>/dev/null | while IFS='|' read -r epoch full short subj; do
-      # %at is a UTC epoch; render it in IST regardless of who committed it.
-      ist=$(TZ=Asia/Kolkata date -d "@$epoch" '+%Y-%m-%d %H:%M' 2>/dev/null \
-            || TZ=Asia/Kolkata date -r "$epoch" '+%Y-%m-%d %H:%M' 2>/dev/null)
-      printf '%s|%s|%s|%s|%s\n' "$epoch" "$ist" "$(repo_name "$d")" "$short" "$subj"
+      # %at is an absolute UTC epoch, independent of the committer's timezone.
+      printf '%s|%s|%s|%s|%s\n' "$epoch" "$(to_ist "$epoch")" "$(repo_name "$d")" "$short" "$subj"
     done
     echo
   done
