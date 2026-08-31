@@ -10,25 +10,19 @@ Live status board. **Update this at the end of every working session** — statu
 
 **Claude: surface this block first, before anything else.**
 
-### ⚠️ FIRST: is the cluster still up?
+### ✅ Nothing is deployed — verified clean at 2026-08-31 · 17:05 IST
 
-As of **2026-08-31 · 16:32 IST** the cluster was **UP and billing**, and Phase 2 is fully complete (`E-02`–`E-05`). There is now also a **live Network Load Balancer** from `E-05`, which bills separately (~$16–20/month) **and will block `terraform destroy` if not removed first**.
+**Phase 2 is complete** (`E-02`–`E-05`) and everything was torn down afterwards: `Destroy complete! Resources: 55 destroyed`, with a full orphan audit showing no clusters, NAT gateways, load balancers, VPC, EC2, EBS volumes or unassociated EIPs. **$0/hour.**
 
-Check all three before anything else:
-
-```bash
-wsl -e bash -lc "aws eks list-clusters --region ap-south-1 --output text; aws ec2 describe-nat-gateways --filter Name=state,Values=available --region ap-south-1 --query 'NatGateways[*].NatGatewayId' --output text; aws elbv2 describe-load-balancers --region ap-south-1 --query 'LoadBalancers[*].LoadBalancerName' --output text"
-```
-
-All three empty = clean, nothing billing.
-
-**If anything is listed, tear down in this order** — the Service first, or its ENIs block VPC deletion:
+Confirm before assuming — it takes two seconds:
 
 ```bash
-wsl -e bash -lc "kubectl delete svc links-service --ignore-not-found && sleep 45 && cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub/infra && aws ecr batch-delete-image --repository-name app-hub/links-service --region ap-south-1 --image-ids imageTag=v1 && terraform destroy"
+wsl -e bash -lc "aws eks list-clusters --region ap-south-1 --output text; aws ec2 describe-nat-gateways --filter Name=state,Values=available --region ap-south-1 --query 'NatGateways[*].NatGatewayId' --output text; aws elbv2 describe-load-balancers --region ap-south-1 --query 'LoadBalancers[*].LoadBalancerName' --output text; aws ec2 describe-volumes --filters Name=status,Values=available --region ap-south-1 --query 'Volumes[*].VolumeId' --output text"
 ```
 
-Then verify with the `learn/15` checklist — a successful destroy is not proof that nothing is billing.
+All empty = clean. **To bring it back up**, the whole loop is proven and documented in `learn/16`; budget ~15 min for `terraform apply`, and remember `aws eks update-kubeconfig` from **WSL** afterwards.
+
+**When tearing down again, order matters** (`learn/15`): delete LoadBalancer Services first so their ENIs release, then empty ECR **with `--filter tagStatus=ANY`** (the default hides untagged digests), then `terraform destroy`, then audit for orphans.
 
 ### Then, in priority order
 
@@ -36,9 +30,9 @@ Then verify with the `learn/15` checklist — a successful destroy is not proof 
 
 2. **`P-09` — automate the deploy path.** Now clearly worth it: this session showed the whole loop runs from one WSL shell (`docker.exe` reaches Docker Desktop). The `down` target matters most — it encodes the `learn/15` teardown checklist so orphans cannot accumulate.
 
-3. **`S-01` — `gateway`**, owner-built by hand. Needs the cluster up. Its purpose is to prove service-to-service DNS discovery — already demonstrated manually this session with an in-cluster `curl http://links-service:8000/health`.
+3. **`S-01` — `gateway`**, owner-built by hand. Needs the cluster up (~15 min to rebuild). Its purpose is to prove service-to-service DNS discovery — already demonstrated manually with an in-cluster `curl http://links-service:8000/health`.
 
-4. **`C-04`/`C-05`** — persistent stack + IRSA. The cluster's OIDC provider now exists, so these are unblocked whenever the cluster is up.
+4. **`C-04`/`C-05`** — persistent stack + IRSA, owner-built. Needs the cluster up for the OIDC provider. **`C-06` should wait for `C-02`** — do not refactor storage without tests.
 
 ---
 
@@ -46,12 +40,12 @@ Then verify with the `learn/15` checklist — a successful destroy is not proof 
 
 **Milestone 2 is COMPLETE.** On 2026-08-31 the loop was rebuilt end to end on real EKS with every known defect fixed: `terraform apply` → build → push to ECR → deploy → reach `/health` by Kubernetes DNS name. Verified in-cluster, not just locally.
 
-**"Nothing deployed" is still the normal resting state** — the cluster is destroyed between sessions because the NAT gateway bills continuously. A cluster being absent is expected, not a failure. But **check whether one is currently up before assuming** (see the block above).
+**Currently nothing is deployed, and that is the correct resting state.** Torn down 2026-08-31 · 17:05 IST after Phase 2 completed, verified clean by a full orphan audit. The cluster only exists while it is being worked on.
 
 What that leaves:
 
 - **`E-00` is resolved.** AWS credentials for `314146298861` (`terraform-learning`) live in **WSL's own `~/.aws/`**, separate from the Windows-side `.aws` holding untouched work profiles. Proven this session by a real `terraform apply`.
-- **`E-02`/`E-03`/`E-04` all landed 2026-08-31.** VPC `vpc-0c3e0c493dec78d8e`, EKS `app-hub-eks` (1.31), 2 nodes in private subnets, image `v1` in ECR, 1 pod `Running`, ClusterIP routing and DNS discovery both confirmed.
+- **Phase 2 complete 2026-08-31** (`E-02`–`E-05`). Provisioned 55 resources, pushed the image, deployed, reached `/health` by Kubernetes DNS name, then exposed publicly via an NLB and verified full CRUD from the internet. Torn down cleanly afterwards — 55 destroyed, no orphans.
 - **Code state:** `C-01`, `D-03`, `D-11` fixed and **verified on the cluster**, not just in a container. `replicas` pinned to 1 (`C-03` stopgap). Remaining: no tests yet (`C-02`), storage still ephemeral until `C-04`–`C-06`.
 - **`kubectl` context:** Windows says `minikube`, WSL says `app-hub-eks`. They are **separate config files**. Run EKS-facing commands from WSL only (`CLAUDE.md § 5`, `learn/11`).
 
@@ -199,6 +193,13 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all five repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-08-31 · 16:45–17:05 IST — Clean teardown; back to $0/hour
+
+- **`Destroy complete! Resources: 55 destroyed.`** Symmetric with the 55 created. Full orphan audit clean: no clusters, NAT gateways, load balancers (v2 or classic), VPC, running EC2, available EBS volumes, or unassociated EIPs. Terraform state empty.
+- **The teardown order proved itself.** Deleting the LoadBalancer Service released the NLB in ~10s. Going straight to `terraform destroy` would have left those ENIs attached, failing VPC deletion with an error that reads like a Terraform bug — while the NAT gateway kept billing.
+- **Found a real gap in my own checklist.** `aws ecr list-images` defaults to `tagStatus=TAGGED`, so the obvious delete loop removed `v1` and **silently left two untagged buildkit attestation digests behind**. Needed `--filter tagStatus=ANY`. `learn/15` and `CLAUDE.md § 9` both corrected — the old wording said "repeat for untagged digests" without warning that the default command skips them.
+- **Cost for the session:** roughly 40 minutes of cluster time, well under a dollar.
 
 ### 2026-08-31 · 16:20–16:35 IST — E-05: service exposed to the internet; Phase 2 complete
 

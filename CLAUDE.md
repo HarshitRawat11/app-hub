@@ -302,10 +302,12 @@ Each of these cost real time to find. They are here so no future session pays fo
 - **ECR needs `force_delete = true` — and it is not always sufficient.** Keep it in `ecr.tf`; without it `terraform destroy` definitely fails once the repository holds images. But it has been **observed not to take effect**, and destroy still failed. Working fallback: delete the images first, then destroy.
 
   ```bash
-  aws ecr batch-delete-image --repository-name app-hub/links-service --region ap-south-1 --image-ids imageTag=v1
+  aws ecr batch-delete-image --repository-name app-hub/links-service --region ap-south-1 --image-ids "$(aws ecr list-images --repository-name app-hub/links-service --region ap-south-1 --filter tagStatus=ANY --query 'imageIds[*]' --output json)"
   ```
 
-  Repeat for any untagged digests. Deleting images by hand is safe — Terraform tracks the *repository*, never the images inside it.
+  **`--filter tagStatus=ANY` is load-bearing.** `list-images` defaults to tagged only, and buildkit pushes untagged attestation manifests with every image — so the obvious version of this command silently leaves them behind (verified 2026-08-31). Confirm with `aws ecr describe-images --repository-name app-hub/links-service --region ap-south-1 --query "length(imageDetails)"` returning `0`.
+
+  Deleting images by hand is safe — Terraform tracks the *repository*, never the images inside it.
 
 - **Kubernetes creates AWS resources Terraform does not know about, and they block or silently outlive `destroy`.** This is the most expensive trap in the project because it fails *quietly*.
   - **EBS volumes** behind PVCs are created by the EBS CSI driver, not Terraform. `terraform destroy` leaves them, and they keep billing.

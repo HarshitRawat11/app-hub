@@ -96,10 +96,24 @@ kubectl get svc --all-namespaces --field-selector spec.type=LoadBalancer
 
 Delete any that appear, and **wait** — the controller needs a moment to remove the ELB and detach its ENIs. Destroying immediately can still hit the dependency error.
 
-**3. Empty the ECR repository:**
+**3. Empty the ECR repository — and mind the default:**
 
 ```bash
 aws ecr batch-delete-image --repository-name app-hub/links-service --region ap-south-1 --image-ids imageTag=v1
+```
+
+**That is not enough.** `aws ecr list-images` defaults to `tagStatus=TAGGED`, so the obvious "list then delete everything" loop **silently skips untagged digests** — and buildkit pushes attestation manifests alongside every tagged image, so there are always some. Verified 2026-08-31: deleting `imageTag=v1` left two untagged digests behind.
+
+Delete everything regardless of tag:
+
+```bash
+aws ecr batch-delete-image --repository-name app-hub/links-service --region ap-south-1 --image-ids "$(aws ecr list-images --repository-name app-hub/links-service --region ap-south-1 --filter tagStatus=ANY --query 'imageIds[*]' --output json)"
+```
+
+Confirm it is actually empty — `0` is the only acceptable answer:
+
+```bash
+aws ecr describe-images --repository-name app-hub/links-service --region ap-south-1 --query "length(imageDetails)" --output text
 ```
 
 **4. Destroy:**
@@ -129,6 +143,8 @@ All three should be **empty**. An `available` EBS volume means "attached to noth
 - **A successful `terraform destroy` does not mean nothing is billing.** Orphaned EBS volumes survive it silently. Always run the verify step.
 - **A *failed* destroy is worse than none**, because the NAT gateway usually survives and you may believe you are done. Re-run destroy until it reports success, then verify.
 - **`force_delete = true` on ECR is necessary but not always sufficient.** Keep it; keep the manual fallback too.
+- **`aws ecr list-images` hides untagged images by default.** `tagStatus` defaults to `TAGGED`. Every buildkit push adds untagged attestation manifests, so a delete loop built on the default silently leaves them behind. Always pass `--filter tagStatus=ANY`, then verify with `describe-images` returning `0`.
+- **Deleting a LoadBalancer Service is fast, but not instant.** Observed 2026-08-31: the NLB disappeared ~10s after `kubectl delete svc`. Confirm it is gone before destroying rather than assuming — the ENIs are what block VPC deletion.
 - **Deleting a LoadBalancer Service is not instant.** Wait for the ENIs to detach before destroying the VPC.
 - **The `persistent/` stack (`C-04`) must never be destroyed.** That is the entire point of splitting it out (`learn/13`). Run destroy in `infra/` only — never a blanket destroy from a parent directory.
 - **`terraform destroy` deletes everything in state, with one confirmation.** There is no per-resource prompt. Read what it lists.
