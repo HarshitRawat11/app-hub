@@ -46,8 +46,10 @@ Every file follows the same shape:
 | 15 | [15-safe-teardown.md](15-safe-teardown.md) | What `terraform destroy` does not know about: ECR images, LoadBalancer ENIs, and orphaned EBS volumes; the drain-then-destroy order; the verify step that catches silent billing |
 | 16 | [16-first-end-to-end-deploy.md](16-first-end-to-end-deploy.md) | The apply dependency order and when billing starts; parallelising the ECR push with cluster creation; `update-kubeconfig`; Endpoints as the "is this Service wired up" check; DNS discovery proven in-cluster |
 | 17 | [17-timestamps-and-the-tz-trap.md](17-timestamps-and-the-tz-trap.md) | Derive timestamps, do not type them; `%at` as an absolute instant; **Git Bash silently ignores `TZ`**; why a self-check that refuses to run beats a silent fallback |
+| 18 | [18-exposing-a-service-externally.md](18-exposing-a-service-externally.md) | ClusterIP → NodePort → LoadBalancer as a ladder; NLB vs ALB vs Classic; `port` vs `targetPort`; the provisioning gap between a hostname and a working endpoint; why one-LB-per-service does not scale; ephemeral state proven by deleting the pod |
 
-*Steps 18 onward get added as we do them.*
+*Steps 19 onward get added as we do them.*
+
 
 ## A note on files 01–07
 

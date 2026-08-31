@@ -12,13 +12,23 @@ Live status board. **Update this at the end of every working session** — statu
 
 ### ⚠️ FIRST: is the cluster still up?
 
-As of **2026-08-31 · 16:15 IST** the cluster was **UP and billing** (`E-02`/`E-03`/`E-04` all landed). If the session ended without a teardown, it has been running ever since at roughly **$0.25–0.30/hour**. Check before anything else:
+As of **2026-08-31 · 16:32 IST** the cluster was **UP and billing**, and Phase 2 is fully complete (`E-02`–`E-05`). There is now also a **live Network Load Balancer** from `E-05`, which bills separately (~$16–20/month) **and will block `terraform destroy` if not removed first**.
+
+Check all three before anything else:
 
 ```bash
-wsl -e bash -lc "aws eks list-clusters --region ap-south-1 --output text; aws ec2 describe-nat-gateways --filter Name=state,Values=available --region ap-south-1 --query 'NatGateways[*].NatGatewayId' --output text"
+wsl -e bash -lc "aws eks list-clusters --region ap-south-1 --output text; aws ec2 describe-nat-gateways --filter Name=state,Values=available --region ap-south-1 --query 'NatGateways[*].NatGatewayId' --output text; aws elbv2 describe-load-balancers --region ap-south-1 --query 'LoadBalancers[*].LoadBalancerName' --output text"
 ```
 
-Empty output = clean, nothing billing. Anything listed = **tear it down using the `learn/15` checklist** before doing anything else.
+All three empty = clean, nothing billing.
+
+**If anything is listed, tear down in this order** — the Service first, or its ENIs block VPC deletion:
+
+```bash
+wsl -e bash -lc "kubectl delete svc links-service --ignore-not-found && sleep 45 && cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub/infra && aws ecr batch-delete-image --repository-name app-hub/links-service --region ap-south-1 --image-ids imageTag=v1 && terraform destroy"
+```
+
+Then verify with the `learn/15` checklist — a successful destroy is not proof that nothing is billing.
 
 ### Then, in priority order
 
@@ -87,7 +97,8 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 | E-02 | Re-provision the infra (VPC + EKS + ECR) | **DONE** 2026-08-31 · ~16:10 IST | None | Owner ran `terraform apply`. Created: VPC `vpc-0c3e0c493dec78d8e`, NAT `nat-007a005277aac306c`, EKS `app-hub-eks` (1.31, platform `eks.68`), node group `default-20260831104239047500000013`, ECR repo. Both nodes `Ready` on `10.0.1.184` / `10.0.2.247` with **no external IP** — confirming private subnets. **Cluster is UP and billing.** 
 | E-03 | Build and push `links-service:v1` to ECR | **DONE** 2026-08-31 · 16:13 IST | None | Built and pushed from **WSL via `docker.exe`**, digest `sha256:d9caf579…`, 70.7 MB. Done in parallel with the EKS control plane still `CREATING` — the push depends only on ECR, not the cluster. Note two **untagged** buildkit attestation digests also landed; `batch-delete-image --image-ids imageTag=v1` will not remove those at teardown (`learn/15`). 
 | E-04 | Deploy manifests to EKS and reach `/health` | **DONE** 2026-08-31 · 16:15 IST | None | `kubectl apply` → 1 pod `Running` on `10.0.2.118`, Service ClusterIP `172.20.10.137`, endpoints resolved correctly. **Verified in-cluster by DNS name**: `curl http://links-service:8000/health` → `{"status":"ok"}`. Full CRUD round-trip passed, and `GET /links` returned `"id":1` — the `C-01` fix confirmed on real EKS. `GET /links/999` → 404. 
-| E-05 | Expose the service outside the cluster | Not started | Depends on `E-04` | Service is `ClusterIP` — nothing reaches it externally. Add an Ingress + AWS Load Balancer Controller, or switch to `type: LoadBalancer`. |
+| E-05 | Expose the service outside the cluster | **DONE** 2026-08-31 · 16:32 IST | None | Switched the Service to `type: LoadBalancer` with the NLB annotation (`99381d0`), listening on port 80. Public at `a79280cd18615491e88aa093ea8dd157-273fe97dadab1bf9.elb.ap-south-1.amazonaws.com`. NLB took ~110s to go `provisioning` → `active`. Verified externally: full CRUD, 404 path, and `/docs` all reachable. **Right-sized for one service only** — see `E-06`. 
+| E-06 | Migrate from per-service LoadBalancer to a shared ALB via Ingress | Not started | **New concept — owner builds by hand.** Wait until `S-01` (`gateway`) exists, so there are actually two services to route between. | Every `type: LoadBalancer` Service provisions its **own** ELB — N services means N load balancers and N bills. An Ingress + the AWS Load Balancer Controller gives one shared ALB with path-based L7 routing. Premature with a single service; the right move once there are two. |
 
 ### Phase 3 — Production readiness
 
@@ -188,6 +199,15 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all five repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-08-31 · 16:20–16:35 IST — E-05: service exposed to the internet; Phase 2 complete
+
+- **`E-05` done** (`99381d0`). Service switched from `ClusterIP` to `type: LoadBalancer` with the NLB annotation, listening on **port 80** so URLs need no `:8000`. Public at `a79280cd18615491e88aa093ea8dd157-273fe97dadab1bf9.elb.ap-south-1.amazonaws.com`. Verified from outside the cluster: full CRUD, the 404 path, and `/docs` all reachable with no `kubectl` involved.
+- **The provisioning gap is real.** The hostname appeared in `kubectl get svc` after ~5s; the first successful request came ~110s later, while the NLB sat in `provisioning`. A hostname existing is not an endpoint working -- check `describe-load-balancers` `State.Code`, not just Kubernetes.
+- **Chose NLB over Ingress deliberately.** An Ingress with a single backend is just a more complicated LoadBalancer -- its value is routing *between* services, and there is one. Logged `E-06` to migrate to a shared ALB once `S-01` (`gateway`) gives it something to route between. Right-sized now, wrong later.
+- **`C-03` demonstrated, not asserted.** With the API public, POSTed two links, deleted the pod, and watched `GET /links` return `[]`. The pod name changed (`5chkn` → `jppz5`) because Kubernetes replaces pods rather than repairing them. This is the concrete case for `C-04`–`C-06`.
+- **Left for the owner by their own rule:** `C-04`/`C-05` (persistent stack + IRSA) and `S-01` (`gateway`) were the other tasks gated on `E-02`. All three are marked owner-builds-by-hand in `CLAUDE.md § 2`, and are now unblocked -- the cluster OIDC provider exists.
+- **⚠️ Teardown is now more involved.** The NLB and its ENIs are Kubernetes-created and invisible to Terraform. `kubectl delete svc links-service` must happen *before* `terraform destroy`. The START HERE block carries the ordered command.
 
 ### 2026-08-31 · 16:07–16:20 IST — Milestone 2: first end-to-end deploy on EKS
 
