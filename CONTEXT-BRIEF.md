@@ -2,7 +2,7 @@
 
 **Purpose of this file:** paste it into a fresh Claude chat before asking questions about this project. Claude chat has no access to my filesystem, so everything it needs is reproduced here — including the actual source of the short files.
 
-**Snapshot date:** 2026-08-29. This is a point-in-time copy. Inside the repo, `CLAUDE.md` and `PROGRESS.md` are authoritative; if they disagree with this file, they win and this file is stale.
+**Snapshot date:** 2026-08-30. This is a point-in-time copy. Inside the repo, `CLAUDE.md` and `PROGRESS.md` are authoritative; if they disagree with this file, they win and this file is stale.
 
 ---
 

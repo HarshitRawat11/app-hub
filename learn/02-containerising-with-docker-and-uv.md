@@ -1,6 +1,6 @@
 # 02 — Containerising the service with Docker and uv
 
-> **Backfilled.** Written from the committed `Dockerfile`. It describes the file **as it stands now**, after the two defects found in the 2026-08-29 audit were fixed (`learn/09`). Where the original differed, that is called out.
+> **Backfilled.** Written from the committed `Dockerfile`. It describes the file **as it stands now**, after the two defects found in the 2026-08-30 audit were fixed (`learn/09`). Where the original differed, that is called out.
 
 ## What we did
 
@@ -123,7 +123,7 @@ Reading the finished file top to bottom, in dependency order:
 
 ## Gotchas
 
-- **Docker runs on Windows, but you can drive it from WSL.** WSL's native `/usr/bin/docker` fails with `Input/output error` — there is no Linux daemon. Use **`docker.exe`**, which WSL interop resolves to the Docker Desktop binary; `/mnt/c/...` build contexts work fine. This means one WSL shell can run `uv`, `terraform`, `kubectl` *and* `docker.exe`, instead of hopping between two shells. Verified 2026-08-29 with a full build of this image.
+- **Docker runs on Windows, but you can drive it from WSL.** WSL's native `/usr/bin/docker` fails with `Input/output error` — there is no Linux daemon. Use **`docker.exe`**, which WSL interop resolves to the Docker Desktop binary; `/mnt/c/...` build contexts work fine. This means one WSL shell can run `uv`, `terraform`, `kubectl` *and* `docker.exe`, instead of hopping between two shells. Verified 2026-08-30 with a full build of this image.
 - **`.dockerignore` does not exist here.** The build context is the whole `links-service/` directory, so `.git`, `.venv`, and `__pycache__` all get sent to the daemon. Harmless at this size, wasteful later. Worth adding.
 - **The image runs as root.** No `USER` instruction. Tracked as `R-02`.
 - **`:latest` on the uv image is unpinned** — a reproducibility hole in an otherwise carefully pinned build.

@@ -47,23 +47,23 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
-| P-01 | Version-control the root docs (`CLAUDE.md`, `README.md`, `PROGRESS.md`, `CONTEXT-BRIEF.md`, `learn/`) | **Done** | None | Done 2026-08-29 (`2dfcc93`). Chose an **umbrella repo at the root** that tracks only the cross-cutting docs and gitignores `infra/`, `links-service/`, `manifests/`, `n8n/` so they stay fully independent. Remote not created yet — see `P-08`. |
-| P-02 | Commit the untracked `links-service/Dockerfile` | **Done** | None | Committed 2026-08-29 as `5e312ef`, after fixing `P-03` and `D-11` in the same file |
-| P-03 | Fix Dockerfile base image / Python version mismatch | **Done** | None | Committed 2026-08-29 as `5e312ef`. Base moved to `python:3.14-slim` (verified to exist, currently 3.14.7) so the tag matches `requires-python >=3.14`. Fixed together with `D-11`. |
-| P-04 | Rename `infra/vairables.tf` → `infra/variables.tf` | **Done** | None | Committed 2026-08-29 as `3cb9e57` via `git mv` (staged as a rename). `terraform validate` passes, `terraform fmt -check` clean. |
-| P-05 | Remove or populate the empty `infra/main.tf` | **Done** | None | Removed 2026-08-29 in `3cb9e57`. Terraform loads all `.tf` files, so `main.tf` is convention only — nothing depended on it. |
-| P-06 | Write `links-service/README.md` | **Done** | None | Committed 2026-08-29 as `f3203de`. Covers the API table, local + Docker run, and an explicit storage caveat pointing at `C-03`. |
-| P-07 | Backfill `learn/` files for the steps done before this folder existed | **Done** | None | Done 2026-08-29: wrote `learn/01`–`07` (FastAPI, Docker/uv, Terraform+state, VPC, EKS, ECR, K8s manifests) from committed code and git history. Renumbered the two recent files to `08`/`09` so the folder reads chronologically. |
-| P-08 | Create the `app-hub` GitHub remote for the umbrella docs repo and push | **Done** | None | Done 2026-08-29. Repo existed but empty and no local remote was configured; wired `origin` and pushed 3 commits. `git@github.com:HarshitRawat11/app-hub.git` |
+| P-01 | Version-control the root docs (`CLAUDE.md`, `README.md`, `PROGRESS.md`, `CONTEXT-BRIEF.md`, `learn/`) | **Done** | None | Done 2026-08-30 (`2dfcc93`). Chose an **umbrella repo at the root** that tracks only the cross-cutting docs and gitignores `infra/`, `links-service/`, `manifests/`, `n8n/` so they stay fully independent. Remote not created yet — see `P-08`. |
+| P-02 | Commit the untracked `links-service/Dockerfile` | **Done** | None | Committed 2026-08-30 as `5e312ef`, after fixing `P-03` and `D-11` in the same file |
+| P-03 | Fix Dockerfile base image / Python version mismatch | **Done** | None | Committed 2026-08-30 as `5e312ef`. Base moved to `python:3.14-slim` (verified to exist, currently 3.14.7) so the tag matches `requires-python >=3.14`. Fixed together with `D-11`. |
+| P-04 | Rename `infra/vairables.tf` → `infra/variables.tf` | **Done** | None | Committed 2026-08-30 as `3cb9e57` via `git mv` (staged as a rename). `terraform validate` passes, `terraform fmt -check` clean. |
+| P-05 | Remove or populate the empty `infra/main.tf` | **Done** | None | Removed 2026-08-30 in `3cb9e57`. Terraform loads all `.tf` files, so `main.tf` is convention only — nothing depended on it. |
+| P-06 | Write `links-service/README.md` | **Done** | None | Committed 2026-08-30 as `f3203de`. Covers the API table, local + Docker run, and an explicit storage caveat pointing at `C-03`. |
+| P-07 | Backfill `learn/` files for the steps done before this folder existed | **Done** | None | Done 2026-08-30: wrote `learn/01`–`07` (FastAPI, Docker/uv, Terraform+state, VPC, EKS, ECR, K8s manifests) from committed code and git history. Renumbered the two recent files to `08`/`09` so the folder reads chronologically. |
+| P-08 | Create the `app-hub` GitHub remote for the umbrella docs repo and push | **Done** | None | Done 2026-08-30. Repo existed but empty and no local remote was configured; wired `origin` and pushed 3 commits. `git@github.com:HarshitRawat11/app-hub.git` |
 | P-09 | Automate the deploy path so `update-kubeconfig` is never a remembered step | Not started | Design agreed 2026-08-31; owner wants this. Not yet built. | A `Makefile` (or shell script) driven from **one WSL shell** — `docker.exe` reaches Docker Desktop, so terraform/aws/kubectl/docker can all run from WSL. Targets: `up` = apply + update-kubeconfig + verify context; `deploy` = build + push + kubectl apply; `down` = the `learn/15` teardown checklist + destroy. Deliberately **not** a Terraform `local-exec` provisioner — HashiCorp treats provisioners as a last resort, they skip on refresh, and they couple Terraform to local tooling. |
 
 ### Phase 1 — Correctness
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
-| C-01 | Fix `POST /links` storing the wrong object | **Done** | None | Committed 2026-08-29 as `7b7b0bd`. Verified by HTTP round-trip: `POST` then `GET /links` now both return `"id":1`. |
+| C-01 | Fix `POST /links` storing the wrong object | **Done** | None | Committed 2026-08-30 as `7b7b0bd`. Verified by HTTP round-trip: `POST` then `GET /links` now both return `"id":1`. |
 | C-02 | Add tests for the links CRUD endpoints | **In progress — owner writing** | None. Held back deliberately: no tests exist yet, so this is a *new concept* and `CLAUDE.md § 2` says the owner writes the first implementation. | ✅ `pytest` + `httpx` added as dev deps. Remaining: create `tests/test_links.py` using FastAPI `TestClient`, covering create → list → get → delete plus the two 404 paths. **The trap:** `links_db` and `next_id` are module-level, so state leaks between tests — needs an `autouse` reset fixture. Full guide in `learn/14`. |
-| C-03 | Decide how link data persists across pods | **Decided** 2026-08-29 | None | **Decision: DynamoDB in a separate persistent Terraform stack, accessed via IRSA.** Rationale: the cluster is destroyed every session, so anything durable must live outside the destroyed stack; DynamoDB on-demand costs ~$0 idle, unlike RDS which bills continuously. Stopgap applied: `replicas` pinned to 1 (`93cea2c`) — removes inconsistent reads, does not add durability. Implementation split into `C-04`–`C-06`. See `learn/13`. |
+| C-03 | Decide how link data persists across pods | **Decided** 2026-08-30 | None | **Decision: DynamoDB in a separate persistent Terraform stack, accessed via IRSA.** Rationale: the cluster is destroyed every session, so anything durable must live outside the destroyed stack; DynamoDB on-demand costs ~$0 idle, unlike RDS which bills continuously. Stopgap applied: `replicas` pinned to 1 (`93cea2c`) — removes inconsistent reads, does not add durability. Implementation split into `C-04`–`C-06`. See `learn/13`. |
 | C-04 | Create the `persistent/` Terraform stack with the DynamoDB table | Not started | **New concept — owner builds by hand** (`CLAUDE.md § 2`). Depends on `E-02` for the OIDC provider. | New directory, own S3 state key (`persistent/terraform.tfstate` — NOT the same key as `infra/`, or they overwrite each other). Declares the table + the IRSA role. Never destroyed. See `learn/13`. |
 | C-05 | Wire IRSA: annotate the ServiceAccount, trust the OIDC provider | Not started | **New concept — owner builds by hand.** Depends on `C-04`. | Cluster needs its OIDC provider enabled; IAM role trust policy scoped to the specific namespace + ServiceAccount; `eks.amazonaws.com/role-arn` annotation on the SA. No stored credential anywhere. |
 | C-06 | Refactor `links-service` to a repository layer and swap to DynamoDB | Not started | **Depends on `C-02`** — do not refactor storage without tests. | Extract `LinkRepository` interface with in-memory + DynamoDB implementations. Move id generation off the `global next_id` counter (UUID/ULID preferred). Then raise `replicas` back above 1. |
@@ -72,9 +72,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
-| E-00 | Configure an AWS profile for the app-hub account | **Done** | None | Resolved 2026-08-29: `aws configure` run **inside WSL** (`~/.aws/`, separate from the Windows-side `.aws`), profile `default`, region `ap-south-1`, user `terraform-learning`, account `314146298861` confirmed via `sts get-caller-identity`. Windows-side `default` (work profiles) verified untouched and still rejected. `terraform init` now succeeds. |
-| E-01 | Confirm whether `terraform apply` has ever run against the S3 backend | **Resolved** | None | **Answered by project history 2026-08-29: yes.** The full loop was proven once — image built, pushed to ECR, deployed to EKS, 2 pods `Running`, ClusterIP routing and Kubernetes DNS discovery confirmed — then torn down with `terraform destroy` per the cost policy. "Nothing deployed" is the normal resting state, not a failure. Live re-verification is blocked on `E-00`. |
-| E-02 | Re-provision the infra (VPC + EKS + ECR) | **Planned — awaiting approval** | Needs explicit owner approval to `apply`; this starts real billing (~$150–200/mo if left up). | `terraform plan` run 2026-08-29: **55 to add, 0 to change, 0 to destroy** (vpc 19, eks 37, ecr/root 3). No `forces replacement`. See `learn/12`. Next: approve, `terraform apply`, then `aws eks update-kubeconfig` **from WSL** (`learn/11`). |
+| E-00 | Configure an AWS profile for the app-hub account | **Done** | None | Resolved 2026-08-30: `aws configure` run **inside WSL** (`~/.aws/`, separate from the Windows-side `.aws`), profile `default`, region `ap-south-1`, user `terraform-learning`, account `314146298861` confirmed via `sts get-caller-identity`. Windows-side `default` (work profiles) verified untouched and still rejected. `terraform init` now succeeds. |
+| E-01 | Confirm whether `terraform apply` has ever run against the S3 backend | **Resolved** | None | **Answered by project history 2026-08-30: yes.** The full loop was proven once — image built, pushed to ECR, deployed to EKS, 2 pods `Running`, ClusterIP routing and Kubernetes DNS discovery confirmed — then torn down with `terraform destroy` per the cost policy. "Nothing deployed" is the normal resting state, not a failure. Live re-verification is blocked on `E-00`. |
+| E-02 | Re-provision the infra (VPC + EKS + ECR) | **Planned — awaiting approval** | Needs explicit owner approval to `apply`; this starts real billing (~$150–200/mo if left up). | `terraform plan` run 2026-08-30: **55 to add, 0 to change, 0 to destroy** (vpc 19, eks 37, ecr/root 3). No `forces replacement`. See `learn/12`. Next: approve, `terraform apply`, then `aws eks update-kubeconfig` **from WSL** (`learn/11`). |
 | E-03 | Build and push `links-service:v1` to ECR | Not started | Depends on `P-03` (image will not build cleanly) and `E-02` (ECR must exist) | Follow README § Quick start step 4 |
 | E-04 | Deploy manifests to EKS and reach `/health` | Not started | Depends on `E-03` | `aws eks update-kubeconfig`, verify context is **not** minikube, `kubectl apply -f manifests/links-service/`, then port-forward and curl |
 | E-05 | Expose the service outside the cluster | Not started | Depends on `E-04` | Service is `ClusterIP` — nothing reaches it externally. Add an Ingress + AWS Load Balancer Controller, or switch to `type: LoadBalancer`. |
@@ -99,12 +99,12 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 |----|------|--------|---------|-----------|
 | N-00 | `cost-watchdog` — ✅ **working, published/active** | None | Schedule Trigger (5 PM + 9 PM, two rules) → HTTP Request → Gmail. Calls `GET https://eks.ap-south-1.amazonaws.com/clusters/app-hub-eks` with Predefined Credential Type → AWS (IAM) → `n8n-readonly`. **On Error must be `Stop Workflow`** — 404 (cluster gone) halts silently, 200 (still up) proceeds to Gmail. Gmail via OAuth2, Google Cloud project `n8n-app-hub`. |
 | N-00b | `destroy-notifier` — 🚧 **in progress** | Owner work; needs the IF node, two Gmail branches, and the local destroy script | Webhook node done: `POST` path `destroy-status`, verified by curl. **Payload arrives nested under `body`, so expressions are `{{ $json.body.status }}` not `{{ $json.status }}`.** Remaining: IF on `body.status == success`; Gmail on both branches (include `{{ $json.body.output }}` on failure); the destroy script; schedule via **Windows Task Scheduler invoking `wsl.exe`** (a WSL cron is unreliable — WSL may not be running). **The destroy stays local, not in n8n**, so destructive AWS credentials are never stored in a long-running app. |
-| N-01 | Scaffold the `n8n/` repo | Done | None | Done 2026-08-29: git repo, `.gitignore`, `.gitattributes` (LF enforcement), `.env.example`, `pull-workflows.sh`, README with security rules |
-| N-02 | Create the `app-hub-n8n` GitHub remote and push | **Done** | None | Done 2026-08-29. The scaffold had **zero commits** — made the initial commit, wired `origin`, pushed. Secret-scanned before pushing; no real `.env` exists. |
+| N-01 | Scaffold the `n8n/` repo | Done | None | Done 2026-08-30: git repo, `.gitignore`, `.gitattributes` (LF enforcement), `.env.example`, `pull-workflows.sh`, README with security rules |
+| N-02 | Create the `app-hub-n8n` GitHub remote and push | **Done** | None | Done 2026-08-30. The scaffold had **zero commits** — made the initial commit, wired `origin`, pushed. Secret-scanned before pushing; no real `.env` exists. |
 | N-03 | Populate `n8n/.env` with the instance URL and API key | **Done** 2026-08-31 | None | Verified: both values populated, `.env` matched by `.gitignore:2`, absent from `git status`. API returns **HTTP 200** and lists both workflows (`eks-cost-watchdog`, `terraform-destroy-notifier`). Key never entered the transcript. |
 | N-04 | Pull the existing workflows into `n8n/workflows/` | **Done** 2026-08-31 | None | Pulled 2 workflows via the API (`065b447`): `eks-cost-watchdog` (active) and `terraform-destroy-notifier` (inactive). Count checked against `jq .data | length` **before** writing — an earlier grep had matched nested node names and suggested 14. Secret-scanned: only credential *references* (`AWS (IAM) account`, `Gmail account`), no values. |
 | N-05 | Back up the n8n encryption key outside the repo | **Done** 2026-08-31 (owner-reported) | None | Owner confirms the key from the `n8n_data` volume (`/home/node/.n8n/config`) is stored in a password manager. Not independently verifiable by design — nothing in this repo should ever be able to see it. Unblocks `N-06`. |
-| N-06 | Move n8n onto the EKS cluster | **Decided: YES** (2026-08-29) | Depends on Phase 2 landing first. Not urgent — local Docker is fine meanwhile. | Needs: a Postgres backing store (n8n defaults to SQLite, unsuitable in a pod), `N8N_ENCRYPTION_KEY` supplied as a Kubernetes Secret (**must be the existing key from `~/.n8n`, or every stored credential becomes undecryptable** — see `N-05`), and persistent storage. Note this interacts with the destroy-every-session policy: the database must live outside the destroyed stack. See the `C-03` note on splitting Terraform into ephemeral and persistent stacks. |
+| N-06 | Move n8n onto the EKS cluster | **Decided: YES** (2026-08-30) | Depends on Phase 2 landing first. Not urgent — local Docker is fine meanwhile. | Needs: a Postgres backing store (n8n defaults to SQLite, unsuitable in a pod), `N8N_ENCRYPTION_KEY` supplied as a Kubernetes Secret (**must be the existing key from `~/.n8n`, or every stored credential becomes undecryptable** — see `N-05`), and persistent storage. Note this interacts with the destroy-every-session policy: the database must live outside the destroyed stack. See the `C-03` note on splitting Terraform into ephemeral and persistent stacks. |
 
 ### Phase 5 — Further services
 
@@ -120,16 +120,16 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 
 | ID | Severity | Where | What is wrong |
 |----|----------|-------|---------------|
-| ~~`D-01`~~ | **RESOLVED** 2026-08-29 (`7b7b0bd`) | [links-service/app/main.py:29](links-service/app/main.py:29) | `createLink` builds `new_link = Link(id=next_id, ...)` but then stores the *incoming* `link` (a `LinkCreate`, which has no `id`). It returns `new_link`, so `POST` looks correct — but `GET /links` and `GET /links/{id}` return records with no `id` field. Fix: store `new_link`. |
-| `D-02` | **Mitigated** (was High) | [manifests/links-service/deployment.yaml](manifests/links-service/deployment.yaml) + [links-service/app/main.py:5](links-service/app/main.py:5) | `links_db` is an in-process dict, but the Deployment runs `replicas: 2`. **Inconsistent-read half fixed 2026-08-29** by pinning `replicas: 1` (`93cea2c`). Data is still lost on restart — durability lands with `C-04`–`C-06`. Do not raise replicas before then. |
-| ~~`D-03`~~ | **RESOLVED** 2026-08-29 (`5e312ef`) | [links-service/Dockerfile:1](links-service/Dockerfile:1) | Base is `python:3.12-slim` while `pyproject.toml` requires `>=3.14` and `.python-version` says `3.14`. `uv sync` will silently download a managed Python 3.14 rather than use the base image's interpreter — bloating the image and making the base tag a lie. Tracked as `P-03`. |
-| ~~`D-04`~~ | **RESOLVED** 2026-08-29 (`5e312ef`) | [links-service/Dockerfile](links-service/Dockerfile) | Untracked in git — the build is not reproducible from a clean clone. Tracked as `P-02`. |
+| ~~`D-01`~~ | **RESOLVED** 2026-08-30 (`7b7b0bd`) | [links-service/app/main.py:29](links-service/app/main.py:29) | `createLink` builds `new_link = Link(id=next_id, ...)` but then stores the *incoming* `link` (a `LinkCreate`, which has no `id`). It returns `new_link`, so `POST` looks correct — but `GET /links` and `GET /links/{id}` return records with no `id` field. Fix: store `new_link`. |
+| `D-02` | **Mitigated** (was High) | [manifests/links-service/deployment.yaml](manifests/links-service/deployment.yaml) + [links-service/app/main.py:5](links-service/app/main.py:5) | `links_db` is an in-process dict, but the Deployment runs `replicas: 2`. **Inconsistent-read half fixed 2026-08-30** by pinning `replicas: 1` (`93cea2c`). Data is still lost on restart — durability lands with `C-04`–`C-06`. Do not raise replicas before then. |
+| ~~`D-03`~~ | **RESOLVED** 2026-08-30 (`5e312ef`) | [links-service/Dockerfile:1](links-service/Dockerfile:1) | Base is `python:3.12-slim` while `pyproject.toml` requires `>=3.14` and `.python-version` says `3.14`. `uv sync` will silently download a managed Python 3.14 rather than use the base image's interpreter — bloating the image and making the base tag a lie. Tracked as `P-03`. |
+| ~~`D-04`~~ | **RESOLVED** 2026-08-30 (`5e312ef`) | [links-service/Dockerfile](links-service/Dockerfile) | Untracked in git — the build is not reproducible from a clean clone. Tracked as `P-02`. |
 | `D-05` | Medium | [manifests/links-service/service.yaml](manifests/links-service/service.yaml) | `ClusterIP` with no Ingress means the app is unreachable from outside the cluster. Fine for now, blocking for "real internal app hub". Tracked as `E-05`. |
-| ~~`D-06`~~ | **RESOLVED** 2026-08-29 (`3cb9e57`) | [infra/vairables.tf](infra/vairables.tf) | Filename typo (`vairables` → `variables`). Terraform loads all `.tf` files so behaviour is unaffected, but it reads as sloppy in a portfolio repo. Tracked as `P-04`. |
-| ~~`D-07`~~ | **RESOLVED** 2026-08-29 (`3cb9e57`) | [infra/main.tf](infra/main.tf) | Empty file (0 bytes). Tracked as `P-05`. |
-| ~~`D-08`~~ | **RESOLVED** 2026-08-29 (`f3203de`) | [links-service/README.md](links-service/README.md) | Empty file (0 bytes), yet referenced as `readme` in `pyproject.toml`. Tracked as `P-06`. |
+| ~~`D-06`~~ | **RESOLVED** 2026-08-30 (`3cb9e57`) | [infra/vairables.tf](infra/vairables.tf) | Filename typo (`vairables` → `variables`). Terraform loads all `.tf` files so behaviour is unaffected, but it reads as sloppy in a portfolio repo. Tracked as `P-04`. |
+| ~~`D-07`~~ | **RESOLVED** 2026-08-30 (`3cb9e57`) | [infra/main.tf](infra/main.tf) | Empty file (0 bytes). Tracked as `P-05`. |
+| ~~`D-08`~~ | **RESOLVED** 2026-08-30 (`f3203de`) | [links-service/README.md](links-service/README.md) | Empty file (0 bytes), yet referenced as `readme` in `pyproject.toml`. Tracked as `P-06`. |
 | `D-09` | Low | [links-service/pyproject.toml:4](links-service/pyproject.toml:4) | `description = "Add your description here"` — leftover scaffold text. |
-| ~~`D-11`~~ | **RESOLVED** 2026-08-29 (`5e312ef`) | [links-service/Dockerfile:8](links-service/Dockerfile:8) + `:14` | Build runs `uv sync --frozen --no-install-project`, but `CMD` uses `uv run`, which re-resolves and installs the project **at container start**. That defeats the build-time sync, moves dependency work into startup (slowing pod readiness, risking a cold-start failure), and will bite when the base image changes. Fix: install the project at build time and invoke `uvicorn` directly in `CMD`. Missed in the 2026-08-29 audit; surfaced from project history. |
+| ~~`D-11`~~ | **RESOLVED** 2026-08-30 (`5e312ef`) | [links-service/Dockerfile:8](links-service/Dockerfile:8) + `:14` | Build runs `uv sync --frozen --no-install-project`, but `CMD` uses `uv run`, which re-resolves and installs the project **at container start**. That defeats the build-time sync, moves dependency work into startup (slowing pod readiness, risking a cold-start failure), and will bite when the base image changes. Fix: install the project at build time and invoke `uvicorn` directly in `CMD`. Missed in the 2026-08-30 audit; surfaced from project history. |
 | `D-10` | Low | [links-service/app/main.py](links-service/app/main.py) | Function names are `camelCase` (`getLinks`, `createLink`, `removeLink`), against PEP 8. Cosmetic, but easy to fix before the file grows. |
 | `D-12` | Low | `infra/`, `links-service/`, `manifests/` | No `.gitattributes`, so git warns `LF will be replaced by CRLF` on every commit. Harmless for Python and exec-form `CMD`, but the same setting that breaks shell scripts under WSL (see `learn/08`). `n8n/` already has one. Add `* text=auto eol=lf` to the other three. |
 
@@ -139,12 +139,12 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-08-29 | **Every step must be taught, not just done** — explained in-session and written up in `learn/`. A step without its learning file is not finished. | Owner started this project learning manually with Claude chat and moved to Claude Code for speed, not to outsource the understanding. Recorded in `CLAUDE.md § 2`. |
-| 2026-08-29 | app-hub is the permanent home for every app the owner builds for daily use — not a one-off project around `links-service` | Owner-confirmed. Means designing for a hub that grows. |
-| 2026-08-29 | app-hub serves three goals at once: learning platform, real daily-use software, and portfolio piece | Owner-confirmed. Sets the quality bar above "works on my machine". |
-| 2026-08-29 | AWS EKS (`ap-south-1`) is the canonical deploy target; minikube is a local sandbox only | Owner-confirmed |
-| 2026-08-29 | **n8n will eventually run on EKS** (`N-06`) | Owner-confirmed. Implies a Postgres backing store and the existing encryption key as a Kubernetes Secret. Also forces the ephemeral-vs-persistent Terraform split, since a nightly-destroyed cluster cannot hold a database. |
-| 2026-08-29 | **Do not build ahead** — the first implementation of each new concept is written by the owner, by hand, even when slower | From project history. A finished artifact that skips the wrestling defeats the reason the project exists. Recorded in `CLAUDE.md § 2`. |
+| 2026-08-30 | **Every step must be taught, not just done** — explained in-session and written up in `learn/`. A step without its learning file is not finished. | Owner started this project learning manually with Claude chat and moved to Claude Code for speed, not to outsource the understanding. Recorded in `CLAUDE.md § 2`. |
+| 2026-08-30 | app-hub is the permanent home for every app the owner builds for daily use — not a one-off project around `links-service` | Owner-confirmed. Means designing for a hub that grows. |
+| 2026-08-30 | app-hub serves three goals at once: learning platform, real daily-use software, and portfolio piece | Owner-confirmed. Sets the quality bar above "works on my machine". |
+| 2026-08-30 | AWS EKS (`ap-south-1`) is the canonical deploy target; minikube is a local sandbox only | Owner-confirmed |
+| 2026-08-30 | **n8n will eventually run on EKS** (`N-06`) | Owner-confirmed. Implies a Postgres backing store and the existing encryption key as a Kubernetes Secret. Also forces the ephemeral-vs-persistent Terraform split, since a nightly-destroyed cluster cannot hold a database. |
+| 2026-08-30 | **Do not build ahead** — the first implementation of each new concept is written by the owner, by hand, even when slower | From project history. A finished artifact that skips the wrestling defeats the reason the project exists. Recorded in `CLAUDE.md § 2`. |
 | — | **EC2 managed node groups, not Fargate** | Fargate does not support DaemonSets, and `kube-prometheus-stack`'s `node-exporter` is one — Fargate would break the Phase 2 observability work outright. Also closer to what a real EC2→EKS migration lands on. |
 | — | **Jenkins builds and bumps a tag; ArgoCD deploys. Jenkins never runs `kubectl apply`.** | Clean separation of CI from CD. Jenkins pushes the image and commits a new tag into the `manifests` repo; ArgoCD notices the commit and reconciles. The cluster's desired state stays exactly what is in git. |
 | — | **Each service must earn its place by teaching something distinct** | The service split exists to give the infra lessons something real to run — not to model a genuine domain. `gateway` teaches routing, `aggregator` teaches internal discovery, `frontend` makes it usable. |
@@ -175,14 +175,18 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 
 Newest first. One entry per working session — what changed, and what it unblocked.
 
-### 2026-08-31 — Workflows versioned, all five repos published
+**Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
+
+**`TIMELINE.md` is the authoritative record** — it is generated from git across all five repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-08-30 · 19:15–19:17 IST — Workflows versioned, all five repos published
 
 - **`N-04` done.** Pulled both workflows via the n8n API (`065b447`): `eks-cost-watchdog` (active) and `terraform-destroy-notifier` (inactive). **Checked the count with `jq '.data | length'` before writing anything** — an earlier `grep` had matched nested node names and reported 14, which would have meant something was wrong with the script. It was 2. Secret scan found only credential *references* by name and id, exactly as `learn/08` predicts.
 - **All five repos now pushed.** `infra` (2), `links-service` (4), `manifests` (2) had local-only commits; reviewed the outgoing diffs, scanned for secrets, pushed. Every repo is at `0 unpushed`.
 - **`N-03` / `N-05` confirmed done.** `.env` populated and verified ignored; API returns 200. Encryption key backed up by the owner — not independently verifiable by design, which is the point.
 - **Added `P-09`** to automate the deploy path, and a **START HERE NEXT SESSION** block at the top of this file at the owner's request: `E-02` is to be raised first thing.
 
-### 2026-08-31 — Reconciled with the second Claude-chat context document
+### 2026-08-30 · 18:52–18:59 IST — Reconciled with the second Claude-chat context document
 
 Absorbed a fuller handoff from the manual sessions. It **corrected one thing I had documented wrongly** and added a cost risk that was not on the board at all.
 
@@ -196,7 +200,7 @@ Absorbed a fuller handoff from the manual sessions. It **corrected one thing I h
 
 **Also recorded:** the `destroy-notifier` webhook payload nests under `body` (`{{ $json.body.status }}`); it will be scheduled via Windows Task Scheduler invoking `wsl.exe`, because a WSL cron is unreliable; the destroy stays local so destructive credentials never live in a long-running app; n8n pinned data can replay frozen output, and a green check means "did not halt", not "got a 200"; the `/etc/resolv.conf` symlink breaks after `wsl --shutdown`; n8n's volume is `n8n_data`, which pins down where the encryption key lives for `N-05`.
 
-### 2026-08-29 — Repos published, infra planned, persistence decided
+### 2026-08-30 · 17:43–18:14 IST — Repos published, infra planned, persistence decided
 
 - **`P-08` / `N-02`** — both GitHub repos existed but were **empty, with no local remote configured**, and `n8n` had **zero commits**. Committed the n8n scaffold, wired `origin` on both, secret-scanned the staged content, pushed. Lesson recorded in `learn/10`: creating the GitHub repo and connecting to it are separate states — check `git remote -v` and `git log @{u}..`, not just the web UI.
 - **`E-02`** — `terraform plan` run with the new credentials: **55 to add, 0 to change, 0 to destroy** (vpc 19, eks 37, ecr/root 3). No `forces replacement`. Confirmed `aws_eks_access_entry.this["cluster_creator"]` is in the plan — the flag that prevents the `Unauthorized` trap. **Not applied** — awaiting explicit approval, since it starts billing.
@@ -205,7 +209,7 @@ Absorbed a fuller handoff from the manual sessions. It **corrected one thing I h
 - **Conformance sweep on the `learn/` rule.** Several completed steps had no learning file. Wrote `learn/10`–`14` to close the gap: polyrepo doc versioning, AWS credentials and the two-kubeconfig split, reading a Terraform plan, the persistence architecture, and the testing guide.
 - **n8n runbooks** — `n8n/README.md` now has explicit numbered steps for `N-03` (fill `.env`) and `N-05` (back up the encryption key), including the check-ignore-before-you-paste ordering and a clipboard route that keeps the key off screen.
 
-### 2026-08-29 — Cleared the ready-now backlog (6 tasks, 4 commits, 2 repos)
+### 2026-08-30 · 06:30 IST — Cleared the ready-now backlog (6 tasks, 4 commits, 2 repos)
 
 - **`C-01`** — fixed `POST /links` storing the `LinkCreate` instead of the constructed `Link` (`7b7b0bd`). Verified by HTTP round-trip, not by reading the POST response: `GET /links` now returns `"id":1`, which it did not before.
 - **`P-03` + `D-11`** — rewrote the Dockerfile (`5e312ef`). Base moved to `python:3.14-slim` (confirmed to exist via the Docker Hub tag API, currently 3.14.7) so the tag no longer lies about the interpreter; `CMD` now calls `uvicorn` from the venv on `PATH` instead of `uv run`, which was re-installing the project at container start.
@@ -219,7 +223,7 @@ Absorbed a fuller handoff from the manual sessions. It **corrected one thing I h
 
 Defects closed: `D-01`, `D-03`, `D-04`, `D-06`, `D-07`, `D-08`, `D-11`. New: `D-12` (missing `.gitattributes` in the three older repos). `learn/09-first-defect-fixes.md` written.
 
-### 2026-08-29 — Reconciled with prior Claude-chat project history
+### 2026-08-30 · 13:33 IST — Reconciled with prior Claude-chat project history
 
 The owner supplied a handoff document summarising the manual sessions that preceded Claude Code. It resolved several things my audit could only guess at, and contradicted my docs in two places.
 
@@ -234,7 +238,7 @@ The owner supplied a handoff document summarising the manual sessions that prece
 
 **Verified live, not assumed:** `kubectl` context is `minikube`. AWS credentials are **rejected** — `InvalidClientTokenId` — and no profile exists for account `314146298861`. Configured profiles are `uzio-nonprod-audit`, `default`, `scripttest`, all work-account, with `default` on `us-east-1`. Logged as `E-00`, now the first blocker in the deploy chain.
 
-### 2026-08-29 — n8n added as a fourth component
+### 2026-08-30 · ~17:00 IST — n8n added as a fourth component
 
 - Owner has a self-hosted n8n instance with an existing workflow, and expects to build more. Confirmed: self-hosted (Docker/local), and it gets its own repo, consistent with the one-repo-per-component pattern.
 - Scaffolded `n8n/` as a git repo on `master`: `workflows/`, `scripts/pull-workflows.sh`, `.env.example`, README, `.gitignore` (blocks `.env` and any credential export), `.gitattributes`.
@@ -244,7 +248,7 @@ The owner supplied a handoff document summarising the manual sessions that prece
 - Docker Desktop was not running, so nothing was pulled from the live instance yet — that is `N-04`.
 - Noted `N-05`: the n8n encryption key in `~/.n8n` needs backing up outside the repo. Losing it makes every stored credential unrecoverable.
 
-### 2026-08-29 — Teaching mandate and the `learn/` folder
+### 2026-08-30 · ~09:30 IST — Teaching mandate and the `learn/` folder
 
 - Owner clarified the working model: this project began as a manual, step-by-step learning exercise with Claude chat, and the move to Claude Code was for **speed, not for outsourcing the understanding**. Claude Code must teach at every step, not silently complete the work.
 - Added `CLAUDE.md § 2 — How we work: teach, don't just ship`, and renumbered the sections that followed. It is placed second, immediately after the objective, because it governs *how* every other task is carried out.
@@ -253,7 +257,7 @@ The owner supplied a handoff document summarising the manual sessions that prece
 - Made the learning file part of the definition of done in `CLAUDE.md § 7` and `README.md § Governance`.
 - Logged `P-07` to backfill learning files for the ~7 steps completed before this folder existed.
 
-### 2026-08-29 — Project documentation and baseline audit
+### 2026-08-30 · ~09:22 IST — Project documentation and baseline audit
 
 - Audited the whole workspace: 3 independent git repos, 6 source files, 2 manifests, 7 Terraform files.
 - Established `CLAUDE.md`, `README.md`, and `PROGRESS.md` at the root to stop objective drift across sessions.

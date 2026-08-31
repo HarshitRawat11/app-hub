@@ -31,6 +31,9 @@ app-hub/
 ├── CLAUDE.md          # Operating manual for Claude Code sessions — objective, constraints, read order
 ├── README.md          # This file
 ├── PROGRESS.md        # Live status board, blockers, known defects, progress log
+├── TIMELINE.md        # GENERATED from git across all 5 repos -- never edit by hand
+├── scripts/
+│   └── timeline.sh        # regenerates TIMELINE.md
 │
 ├── learn/             # Learning record — one file per step performed, with the reasoning behind it
 │   ├── README.md          # Index of learning files, in the order the steps were done

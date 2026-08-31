@@ -109,19 +109,22 @@ Each file follows this structure:
 
 ## 3. Repository layout — read this before any git operation
 
-**The `app-hub/` root directory is NOT a git repository.** It is a plain folder holding three *independent* git repos, each with its own GitHub remote:
+**There are FIVE independent git repositories here.** The root is an *umbrella* repo that tracks only the cross-cutting docs and gitignores the four component directories, so they stay fully independent (see `learn/10`). All five have remotes and are pushed.
 
-| Directory        | Remote                                  | Branch   |
-|------------------|-----------------------------------------|----------|
-| `infra/`         | `HarshitRawat11/app-hub-infra`           | `master` |
-| `links-service/` | `HarshitRawat11/app-hub-links-service`   | `master` |
-| `manifests/`     | `HarshitRawat11/app-hub-manifests`       | `master` |
-| `n8n/`           | `HarshitRawat11/app-hub-n8n` *(remote not created yet)* | `master` |
+| Directory        | Repo                                    | Tracks | Branch   |
+|------------------|-----------------------------------------|--------|----------|
+| `.` (root)       | `HarshitRawat11/app-hub`                 | `CLAUDE.md`, `README.md`, `PROGRESS.md`, `TIMELINE.md`, `CONTEXT-BRIEF.md`, `learn/`, `scripts/` | `master` |
+| `infra/`         | `HarshitRawat11/app-hub-infra`           | Terraform | `master` |
+| `links-service/` | `HarshitRawat11/app-hub-links-service`   | FastAPI service | `master` |
+| `manifests/`     | `HarshitRawat11/app-hub-manifests`       | Kubernetes manifests | `master` |
+| `n8n/`           | `HarshitRawat11/app-hub-n8n`             | Workflow JSON | `master` |
+
+**A bare `git` command at the root now works — but it only sees the docs.** It will never show changes in `infra/`, `links-service/`, `manifests/` or `n8n/`, because those are gitignored by the umbrella. Still use `-C <subdir>` for component work; the risk is no longer "git fails", it is "git succeeds and reports the wrong repo".
 
 Consequences that bite:
 
 - `git` commands **must** be run with `-C <subdir>` or from inside a subdir. A bare `git status` at the root fails, or worse, walks up to a parent repo.
-- **`CLAUDE.md`, `README.md`, and `PROGRESS.md` at the root are currently untracked by any repo.** They are not backed up and not versioned. See PROGRESS.md task `P-01`.
+- **The root docs are versioned** in the umbrella repo as of 2026-08-30 (`P-01`). They were previously untracked and unbacked-up; that is fixed.
 - A change spanning service + manifests is **two commits in two repos**. Mention both in your summary; never claim "committed" when only one landed.
 - **Git identity is set per-repo, never globally.** This is a work-managed laptop and personal commits must not carry the work identity. When creating a new repo, set `user.email` and `user.name` locally *before* the first commit — otherwise it fails with `fatal: empty ident name`.
 - Branch name is `master` everywhere, deliberately not renamed. Nothing in the stack cares.
@@ -178,7 +181,7 @@ This is the single biggest source of confusion in this workspace. **The toolchai
 | `terraform` | **WSL Ubuntu only** (`/usr/bin/terraform`, v1.15.8) | NOT on the Windows PATH |
 | `uv`        | **WSL Ubuntu only** (`~/.local/bin/uv`, v0.11.32)   | NOT on the Windows PATH |
 | `python3`   | **WSL Ubuntu** (`/usr/bin/python3`)                 | Windows `python` is the Store stub — it does not work |
-| `docker`    | Windows (Docker Desktop, v29.5.3) — **but callable from WSL** | WSL's native `/usr/bin/docker` fails (`Input/output error`) because the Linux daemon isn't running. **Use `docker.exe` instead**: WSL interop resolves it at `/Docker/host/bin/docker.exe` and it reaches the Docker Desktop daemon. Verified 2026-08-29: a full `docker.exe build` with a `/mnt/c/...` context works. This means one WSL shell can drive the entire pipeline. |
+| `docker`    | Windows (Docker Desktop, v29.5.3) — **but callable from WSL** | WSL's native `/usr/bin/docker` fails (`Input/output error`) because the Linux daemon isn't running. **Use `docker.exe` instead**: WSL interop resolves it at `/Docker/host/bin/docker.exe` and it reaches the Docker Desktop daemon. Verified 2026-08-30: a full `docker.exe build` with a `/mnt/c/...` context works. This means one WSL shell can drive the entire pipeline. |
 | `kubectl`   | **Both**, but they are two different tools in practice | Windows kubectl → `~/.kube/config` on Windows, context `minikube`. WSL kubectl → its own separate `~/.kube/config`, context `app-hub-eks`. Different files, different clusters. See below. |
 | `helm`      | Windows (winget)                                    | |
 | `aws`       | **Both**, with different accounts on each side       | Windows `~/.aws/` holds the **work** profiles (`default`, `uzio-nonprod-audit`, `scripttest`) — unrelated to app-hub, and `default` there is intentionally left broken. WSL `~/.aws/` holds the **app-hub** credentials (`default` profile, `terraform-learning` user, account `314146298861`). Two entirely separate files — configuring one never touches the other. |
@@ -228,7 +231,7 @@ A fix is already applied and must not be reverted: `generateResolvConf = false` 
 
 ### AWS credentials
 
-**Resolved 2026-08-29.** App-hub credentials are configured in **WSL's `~/.aws/`** (`default` profile, `terraform-learning` user, account `314146298861`, region `ap-south-1`) — a completely separate file from the Windows-side `~/.aws/`, which still holds the unrelated work profiles (`default`, `uzio-nonprod-audit`, `scripttest`) untouched and still intentionally broken.
+**Resolved 2026-08-30.** App-hub credentials are configured in **WSL's `~/.aws/`** (`default` profile, `terraform-learning` user, account `314146298861`, region `ap-south-1`) — a completely separate file from the Windows-side `~/.aws/`, which still holds the unrelated work profiles (`default`, `uzio-nonprod-audit`, `scripttest`) untouched and still intentionally broken.
 
 - Both sides use the profile name `default`, but they are **different files resolving to different accounts.** There is no conflict, because Windows and WSL never share a home directory.
 - Run all `aws`/`terraform` commands for this project from **WSL**. Running `aws sts get-caller-identity` on Windows will still fail — that's the work side, and it's supposed to.
@@ -256,7 +259,24 @@ Work through these in order. Stop as soon as you have what the task needs — do
 ## 7. Before you finish a task
 
 - **Write the `learn/` file for this step** — and add it to `learn/README.md`. Per § 2, the task is not done without it. If the step was too small to warrant its own file, append to the most relevant existing one instead.
-- Update **`PROGRESS.md`**: move the row's status, clear or restate the blocker, write the real next step, and add a dated line to the progress log.
+- Update **`PROGRESS.md`**: move the row's status, clear or restate the blocker, write the real next step, and add a timestamped line to the progress log.
+- **Regenerate the timeline**: `./scripts/timeline.sh`. It rebuilds `TIMELINE.md` from git across all five repos, so the project's chronology is derived rather than typed.
+
+### Timestamps — do not type them from memory
+
+**This has already gone wrong once.** Hand-written dates in `PROGRESS.md` drifted a full day out (36 rows said `2026-08-29` for work git shows on `2026-08-30`). The rule that follows:
+
+- **Never write a date from memory.** Get it from `git log`, or from `date`. If you are recording when something happened, the commit is the evidence.
+- **Always state the timezone.** This machine has two clocks — **Windows runs IST (+05:30), WSL runs UTC**. A bare `14:53` is ambiguous and will be misread later. Write `2026-08-30 14:53 IST`.
+- **Format:** `YYYY-MM-DD HH:MM IST` in prose and table cells; session log headers use `### YYYY-MM-DD · HH:MM–HH:MM IST — title`.
+- **Prefix an estimate with `~`** when there is no commit to anchor to, rather than inventing precision.
+- Look up a commit's real time with:
+
+  ```bash
+  git log --pretty='%h %s' --date=format:'%Y-%m-%d %H:%M' -1 <sha>
+  ```
+
+`TIMELINE.md` is generated and authoritative; `PROGRESS.md` carries the narrative. When they disagree, the timeline is right.
 - State plainly which repos you committed to, and which you did not.
 - If you found a defect you did not fix, add it to the Known Defects table rather than leaving it in chat scrollback.
 - Report failures as failures. A `terraform plan` that errors is not "mostly working".
