@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 29 across 5 repositories |
+| Commits | 30 across 5 repositories |
 | Active days | 6 |
 | First commit | 2026-07-29 12:09 IST |
-| Latest commit | 2026-08-31 16:35 IST |
+| Latest commit | 2026-08-31 17:09 IST |
 
 ---
 
@@ -73,3 +73,4 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 16:24 | `app-hub` | `39c0a6e` | Milestone 2 complete: first end-to-end deploy on EKS |
 | 16:32 | `manifests` | `99381d0` | Expose links-service via an internet-facing NLB |
 | 16:35 | `app-hub` | `f9cb062` | Complete E-05: service exposed via NLB, Phase 2 done |
+| 17:09 | `app-hub` | `de240c0` | Tear down cleanly and correct the ECR deletion gap |

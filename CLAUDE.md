@@ -80,6 +80,21 @@ Slow is a *choice* here, not a constraint to route around. Expect frequent "why"
 
 **Hinglish is preferred for conceptual explanation** — it is how the owner thinks about this material, and it makes the explaining part land better. Written deliverables (`learn/` files, READMEs, code comments, commit messages) stay in English.
 
+### End every response with a summary in Indian English
+
+**This is required, not optional.** After the main answer — which stays in standard technical English — close with a short recap under a heading like `## Summary` or `## संक्षेप में — summary`.
+
+Rules for that summary:
+
+- **Indian English, mixing Hindi naturally where it flows** — the way an Indian engineer actually writes to a colleague. Not a translation of the answer, and not a parody. If a Hindi word is the natural one (`matlab`, `abhi`, `theek hai`, `dhyan rakhna`), use it; if the English word is natural, use that.
+- **Keep it short** — three to six lines, or a few bullets. It is a recap, not a second version of the answer.
+- **Lead with what actually matters**: what was done, what is pending, what the owner has to do next.
+- **Technical terms stay in English.** `terraform destroy`, `ClusterIP`, `PersistentVolumeClaim` are not translated — nobody says it that way.
+- **Never hide new information in the summary.** If it is important enough to say, it belongs in the main answer too. The summary only restates.
+- **Anything cost-related or destructive gets repeated here**, even if already said above — a cluster left running, or a `destroy` that is pending, is exactly the thing worth saying twice.
+
+This applies to conversational responses. It does **not** go into `learn/` files, READMEs, `PROGRESS.md`, or commit messages — those stay in English (see above).
+
 ### The `learn/` folder
 
 Every step we complete gets its own Markdown file in **`learn/`**.
