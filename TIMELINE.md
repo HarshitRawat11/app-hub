@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 30 across 5 repositories |
-| Active days | 6 |
+| Commits | 31 across 5 repositories |
+| Active days | 7 |
 | First commit | 2026-07-29 12:09 IST |
-| Latest commit | 2026-08-31 17:09 IST |
+| Latest commit | 2026-09-02 13:51 IST |
 
 ---
 
@@ -74,3 +74,9 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 16:32 | `manifests` | `99381d0` | Expose links-service via an internet-facing NLB |
 | 16:35 | `app-hub` | `f9cb062` | Complete E-05: service exposed via NLB, Phase 2 done |
 | 17:09 | `app-hub` | `de240c0` | Tear down cleanly and correct the ECR deletion gap |
+
+## 2026-09-02
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 13:51 | `app-hub` | `5aac288` | Require an Indian English summary at the end of every response |

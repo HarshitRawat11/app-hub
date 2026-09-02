@@ -28,6 +28,28 @@ So when the EBS CSI driver creates a volume in response to a PersistentVolumeCla
 
 **The general rule: anything created by a controller *inside* the cluster is outside Terraform's world.** Kubernetes and Terraform are both control loops managing AWS resources, and they do not talk to each other.
 
+### 1a. Why `terraform destroy` cannot just handle this
+
+The obvious objection is "surely `destroy` should delete everything." It does — everything **it owns**. The problem is scope, not completeness.
+
+There are **two control planes both writing to AWS**:
+
+| | Terraform | Kubernetes |
+|---|---|---|
+| Runs | outside, on your laptop | inside the cluster (cloud-controller-manager) |
+| Driven by | `.tf` files + state file | Service / PVC objects |
+| Creates here | VPC, subnets, EKS, nodes, ECR | the NLB and its ENIs, EBS volumes behind PVCs |
+
+A `Service type: LoadBalancer` makes the **cloud-controller-manager running inside your cluster** call the AWS API and attach ENIs to the subnets Terraform owns. Terraform then tries to delete those subnets and **AWS itself refuses** — `DependencyViolation`, because network interfaces are still attached. That is not Terraform failing; it is AWS declining to delete something still in use.
+
+It also explains why the error is so misleading: it names a subnet, not a Kubernetes Service.
+
+**The detail that makes the ordering non-negotiable:** the cluster's own controller is what removes the NLB. Destroy the cluster first and that controller dies, so **the load balancer is orphaned permanently** — nothing will ever clean it up automatically, and it keeps billing until you find it in the console. The same is true of EBS volumes and the EBS CSI driver.
+
+So this is not "a step Terraform should have done." It is **a step that can only happen while the cluster is still alive.** Deleting the Service is asking Kubernetes to clean up its own resources during the window in which it still can.
+
+**Could Terraform own the Kubernetes objects too?** Yes — via the `kubernetes` provider, which would put everything in one dependency graph and make ordering automatic. The trade-off is that it couples application deploys to Terraform runs and conflicts with GitOps: with ArgoCD (`R-07`) reconciling the manifests repo, two systems would claim ownership of the same objects. Not worth it for this project. Automating the teardown order (`P-09`) solves the same problem without the coupling.
+
 ### 2. ECR images — the loud one
 
 Covered in `learn/06`. `force_delete = true` is set in `ecr.tf` and should stay, but **it has been observed not to take effect**, with destroy failing anyway.
