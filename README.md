@@ -4,7 +4,7 @@ A self-hosted hub of small, independently deployed services running on AWS EKS �
 
 The first service, **links-service**, is a FastAPI CRUD API over link records (`name`, `url`, `category`, `icon`) — the data behind an internal "which app lives where" dashboard. More services will join it under the same infra.
 
-> **Status:** early. The service, the cluster definition, and the manifests all exist, but they have not yet been wired together into a deployed, reachable application. See [PROGRESS.md](PROGRESS.md) for exactly where things stand.
+> **Status:** Phase 2 complete. The full loop is proven on real EKS — provision, build, push, deploy, reach `/health` by Kubernetes DNS name, expose publicly, tear down cleanly. Nothing is deployed right now by design; the cluster is destroyed between sessions. See [PROGRESS.md](PROGRESS.md).
 
 ---
 
@@ -24,7 +24,7 @@ That combination sets the bar: working-on-my-machine isn't the finish line. Repr
 
 ## Directory layout
 
-`app-hub/` is a plain container folder. It is **not** a git repository — the three subdirectories are independent repos with their own remotes.
+`app-hub/` is an **umbrella git repository** tracking only the cross-cutting docs. The four component directories are independent repos with their own remotes, and are gitignored here so they stay that way.
 
 ```
 app-hub/
@@ -32,8 +32,10 @@ app-hub/
 ├── README.md          # This file
 ├── PROGRESS.md        # Live status board, blockers, known defects, progress log
 ├── TIMELINE.md        # GENERATED from git across all 5 repos -- never edit by hand
+├── Makefile           # session automation: make status / up / deploy / down / validate
 ├── scripts/
-│   └── timeline.sh        # regenerates TIMELINE.md
+│   ├── timeline.sh        # regenerates TIMELINE.md
+│   └── validate-manifests.py  # offline manifest checks
 │
 ├── learn/             # Learning record — one file per step performed, with the reasoning behind it
 │   ├── README.md          # Index of learning files, in the order the steps were done
@@ -45,23 +47,23 @@ app-hub/
 │   ├── eks.tf             # EKS cluster "app-hub-eks" (k8s 1.31), 2x t3.medium managed node group
 │   ├── ecr.tf             # ECR repo "app-hub/links-service", scan-on-push, force_delete
 │   ├── outputs.tf         # cluster name/endpoint, VPC id, private subnet ids
-│   ├── vairables.tf       # aws_region (default ap-south-1)  [NOTE: filename typo, see PROGRESS P-04]
-│   ├── main.tf            # empty placeholder
+│   ├── variables.tf       # aws_region (default ap-south-1)
 │   └── .terraform/        # ~800 MB vendored providers + upstream modules. Gitignored. Never read this.
 │
 ├── links-service/     # repo: HarshitRawat11/app-hub-links-service — the FastAPI service
 │   ├── app/
 │   │   ├── main.py        # FastAPI app: /health + CRUD on /links
 │   │   └── models.py      # Pydantic models: Link, LinkCreate
-│   ├── Dockerfile         # uv-based image  [NOTE: uncommitted, and base image mismatch — see P-02, P-03]
+│   ├── Dockerfile         # python:3.14-slim, uv, non-root appuser (uid 10001)
 │   ├── pyproject.toml     # requires-python >=3.14; fastapi, uvicorn
 │   ├── uv.lock            # pinned dependency lockfile
 │   └── .python-version    # 3.14
 │
 ├── manifests/         # repo: HarshitRawat11/app-hub-manifests — Kubernetes manifests
 │   └── links-service/
-│       ├── deployment.yaml    # 2 replicas, liveness + readiness on /health:8000
-│       └── service.yaml       # ClusterIP on port 8000
+│       ├── 00-namespace.yaml    # namespace app-hub, restricted Pod Security Standard
+│       ├── deployment.yaml    # 1 replica, securityContext, resource limits, probes on /health:8000
+│       └── service.yaml       # LoadBalancer (NLB), port 80 -> targetPort 8000
 │
 └── n8n/               # repo: HarshitRawat11/app-hub-n8n — workflow automation (self-hosted)
     ├── .env.example       # Template for N8N_BASE_URL / N8N_API_KEY
@@ -86,9 +88,29 @@ app-hub/
 
 ## Quick start
 
+### The short version: use the Makefile
+
+Everything below can be driven from **one WSL shell**:
+
+```bash
+wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub && make"
+```
+
+| Target | Does |
+|---|---|
+| `make status` | What is running right now, and what it costs |
+| `make up` | `terraform apply`, then **refresh the kubeconfig**, then verify nodes |
+| `make deploy` | Build, push a git-SHA-tagged image, pin the manifest, apply, verify |
+| `make down` | Drain Kubernetes, empty ECR, `terraform destroy`, audit for orphans |
+| `make validate` | Offline manifest + Terraform checks — no cluster needed |
+
+`make down` exists because teardown has a **required order**: Kubernetes-created AWS resources (the load balancer, EBS volumes) must be deleted while the cluster is still alive, or they are orphaned permanently. See [learn/15](learn/15-safe-teardown.md).
+
+The manual commands below are the same steps, spelled out.
+
 ### Prerequisites — mind the OS split
 
-**`terraform`, `uv`, and `python3` live in WSL Ubuntu. `docker`, `kubectl`, `helm`, and `aws` live on Windows.** Commands below are marked accordingly. `gh` is not installed anywhere.
+**All of it runs from WSL.** `terraform`, `uv`, `python3`, `jq` and `make` are WSL-native; Docker is reached as **`docker.exe`** through WSL interop. `kubectl` and `aws` exist on both sides but point at **different things** — Windows `kubectl` is minikube and Windows `aws` is your work account. Use WSL for anything touching app-hub. `gh` is not installed anywhere.
 
 ### 1. Run the service locally
 
@@ -108,14 +130,14 @@ Interactive API docs: <http://localhost:8000/docs>
 
 ### 2. Build and run the container
 
-From **Windows**:
+From **WSL**:
 
 ```bash
-docker build -t links-service:dev ./links-service
+docker.exe build -t links-service:dev ./links-service
 ```
 
 ```bash
-docker run --rm -p 8000:8000 links-service:dev
+docker.exe run --rm -p 8000:8000 links-service:dev
 ```
 
 ### 3. Plan infrastructure changes
@@ -130,7 +152,7 @@ wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub/infra 
 
 ### 4. Push an image to ECR
 
-From **Windows**, after the ECR repo exists:
+From **WSL** (`docker.exe` bridges to Docker Desktop), after the ECR repo exists:
 
 ```bash
 aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 314146298861.dkr.ecr.ap-south-1.amazonaws.com
@@ -146,13 +168,13 @@ docker push 314146298861.dkr.ecr.ap-south-1.amazonaws.com/app-hub/links-service:
 
 ### 5. Point kubectl at the cluster and deploy
 
-From **Windows**:
+From **WSL**:
 
 ```bash
 aws eks update-kubeconfig --region ap-south-1 --name app-hub-eks
 ```
 
-Always confirm which cluster you are about to hit — the default context here is `minikube`, not EKS:
+Always confirm which cluster you are about to hit — Windows `kubectl` is minikube; WSL `kubectl` is EKS. They are separate config files:
 
 ```bash
 kubectl config current-context

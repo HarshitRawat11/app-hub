@@ -47,9 +47,9 @@ Every file follows the same shape:
 | 16 | [16-first-end-to-end-deploy.md](16-first-end-to-end-deploy.md) | The apply dependency order and when billing starts; parallelising the ECR push with cluster creation; `update-kubeconfig`; Endpoints as the "is this Service wired up" check; DNS discovery proven in-cluster |
 | 17 | [17-timestamps-and-the-tz-trap.md](17-timestamps-and-the-tz-trap.md) | Derive timestamps, do not type them; `%at` as an absolute instant; **Git Bash silently ignores `TZ`**; why a self-check that refuses to run beats a silent fallback |
 | 18 | [18-exposing-a-service-externally.md](18-exposing-a-service-externally.md) | ClusterIP → NodePort → LoadBalancer as a ladder; NLB vs ALB vs Classic; `port` vs `targetPort`; the provisioning gap between a hostname and a working endpoint; why one-LB-per-service does not scale; ephemeral state proven by deleting the pod |
+| 19 | [19-hardening-and-automating-the-loop.md](19-hardening-and-automating-the-loop.md) | Namespaces and why the file is `00-` prefixed; requests vs limits and the QoS class you get; non-root containers and pod- vs container-level `securityContext`; testing `readOnlyRootFilesystem` before trusting it; immutable tags forcing SHA-based versioning; Make as a task runner |
 
-*Steps 19 onward get added as we do them.*
-
+*Steps 20 onward get added as we do them.*
 
 ## A note on files 01–07
 

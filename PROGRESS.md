@@ -2,7 +2,7 @@
 
 Live status board. **Update this at the end of every working session** — status, blocker, next step, plus a line in the log.
 
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-03
 
 ---
 
@@ -24,15 +24,31 @@ All empty = clean. **To bring it back up**, the whole loop is proven and documen
 
 **When tearing down again, order matters** (`learn/15`): delete LoadBalancer Services first so their ENIs release, then empty ECR **with `--filter tagStatus=ANY`** (the default hides untagged digests), then `terraform destroy`, then audit for orphans.
 
+### There is now a Makefile — use it
+
+Run from **WSL**. `make` on its own prints the targets.
+
+```bash
+wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub && make status"
+```
+
+`make status` replaces the audit above. `make up` provisions **and refreshes the kubeconfig**. `make down` runs the whole teardown in the correct order. `make validate` works with no cluster.
+
+### ⚠️ First thing when the cluster next comes up
+
+`R-01`–`R-04` (namespace, resource limits, securityContext, immutable tags) were all added on 2026-09-03 **without a cluster to test against**. They pass offline validation and the image was verified locally under `docker run --read-only`, but the `securityContext` and the restricted Pod Security Standard have **never been enforced by a real API server**. If `make deploy` fails at admission, that is why — read the rejection message for the specific field.
+
+Also: `R-03` set ECR to `IMMUTABLE`, which only takes effect on the next `terraform apply`.
+
 ### Then, in priority order
 
-1. **`C-02` — teach the testing step.** The owner explicitly wants this *taught*, not written. Explain `TestClient`, fixtures, and the module-level shared-state trap **before** any code is typed; the owner writes `tests/test_links.py`. Deps already installed. Guide: `learn/14`. **Blocks `C-06`.**
+1. **`C-02` — teach the testing step.** The owner wants this *taught*, not written. Explain `TestClient`, fixtures, and the module-level shared-state trap **before** any code is typed; the owner writes `tests/test_links.py`. Deps already installed. Guide: `learn/14`. **Blocks `C-06`.**
 
-2. **`P-09` — automate the deploy path.** Now clearly worth it: this session showed the whole loop runs from one WSL shell (`docker.exe` reaches Docker Desktop). The `down` target matters most — it encodes the `learn/15` teardown checklist so orphans cannot accumulate.
+2. **`S-01` — `gateway`**, owner-built by hand. Needs the cluster up. Proves service-to-service DNS discovery — already demonstrated manually with an in-cluster `curl http://links-service:8000/health`.
 
-3. **`S-01` — `gateway`**, owner-built by hand. Needs the cluster up (~15 min to rebuild). Its purpose is to prove service-to-service DNS discovery — already demonstrated manually with an in-cluster `curl http://links-service:8000/health`.
+3. **`C-04`/`C-05`** — persistent stack + IRSA, owner-built. Needs the cluster up for the OIDC provider. **`C-06` waits for `C-02`** — do not refactor storage without tests.
 
-4. **`C-04`/`C-05`** — persistent stack + IRSA, owner-built. Needs the cluster up for the OIDC provider. **`C-06` should wait for `C-02`** — do not refactor storage without tests.
+4. **`N-00b`** — finish `destroy-notifier`. Low effort, and it closes the cost-safety loop.
 
 ---
 
@@ -69,7 +85,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 | P-06 | Write `links-service/README.md` | **Done** | None | Committed 2026-08-30 as `f3203de`. Covers the API table, local + Docker run, and an explicit storage caveat pointing at `C-03`. |
 | P-07 | Backfill `learn/` files for the steps done before this folder existed | **Done** | None | Done 2026-08-30: wrote `learn/01`–`07` (FastAPI, Docker/uv, Terraform+state, VPC, EKS, ECR, K8s manifests) from committed code and git history. Renumbered the two recent files to `08`/`09` so the folder reads chronologically. |
 | P-08 | Create the `app-hub` GitHub remote for the umbrella docs repo and push | **Done** | None | Done 2026-08-30. Repo existed but empty and no local remote was configured; wired `origin` and pushed 3 commits. `git@github.com:HarshitRawat11/app-hub.git` |
-| P-09 | Automate the deploy path so `update-kubeconfig` is never a remembered step | Not started | Design agreed 2026-08-31; owner wants this. Not yet built. | A `Makefile` (or shell script) driven from **one WSL shell** — `docker.exe` reaches Docker Desktop, so terraform/aws/kubectl/docker can all run from WSL. Targets: `up` = apply + update-kubeconfig + verify context; `deploy` = build + push + kubectl apply; `down` = the `learn/15` teardown checklist + destroy. Deliberately **not** a Terraform `local-exec` provisioner — HashiCorp treats provisioners as a last resort, they skip on refresh, and they couple Terraform to local tooling. |
+| P-09 | Automate the deploy path so `update-kubeconfig` is never a remembered step | **Done** 2026-09-03 · 11:25 IST | `up`/`deploy`/`down` not yet exercised against a live cluster — `status` and `validate` are verified. | Root `Makefile`, run from WSL. `status` (am I billing?), `up` (apply + **update-kubeconfig** + verify nodes), `deploy` (build + push SHA tag + pin the manifest + apply + verify), `down` (delete LB Services → wait → delete PVCs → empty ECR with `tagStatus=ANY` → destroy → audit), `validate` (offline). A `guard` target fails fast with a clear message if run from Windows instead of WSL. Also added `scripts/validate-manifests.py`. See `learn/19`. |
 
 ### Phase 1 — Correctness
 
@@ -98,10 +114,10 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
-| R-01 | Add resource requests and limits to the Deployment | Not started | None | Without them pods are BestEffort and are evicted first under node pressure |
-| R-02 | Add a `securityContext` (non-root, read-only rootfs) | Not started | None | Also add a non-root `USER` to the Dockerfile |
-| R-03 | Replace the mutable `:v1` tag with immutable tags | Not started | None | Tag by git SHA; set `image_tag_mutability = "IMMUTABLE"` in `ecr.tf` |
-| R-04 | Deploy into a dedicated namespace | Not started | None | Manifests currently have no `metadata.namespace`, so they land in `default` |
+| R-01 | Add resource requests and limits to the Deployment | **Done** 2026-09-03 · 11:20 IST | None | `e073761`. requests 50m/64Mi, limits 500m/256Mi → **Burstable** QoS. Previously **BestEffort**, i.e. first evicted under node pressure. Numbers are starting points, not measurements — revisit once `R-05` shows real usage. 
+| R-02 | Add a `securityContext` (non-root, read-only rootfs) | **Done** 2026-09-03 · 11:20 IST | Cluster-side enforcement not yet confirmed — needs a real `make up && make deploy`. | `98f355b` + `e073761`. Dockerfile creates `appuser` uid 10001 and switches to it; Deployment sets `runAsNonRoot`, matching uid, `readOnlyRootFilesystem`, drops ALL capabilities, RuntimeDefault seccomp. **Verified locally**: the image runs as uid 10001 and serves fine under `docker run --read-only` with no tmpfs mounted at all. |
+| R-03 | Replace the mutable `:v1` tag with immutable tags | **Done** 2026-09-03 · 11:20 IST | None | `c06d65f`. `image_tag_mutability = "IMMUTABLE"` in `ecr.tf`; the Makefile derives the tag from the links-service commit SHA (a dirty tree gets a timestamp suffix so the push stays unique). A tag now names exactly the code it was built from. **Takes effect on the next `terraform apply`.** |
+| R-04 | Deploy into a dedicated namespace | **Done** 2026-09-03 · 11:20 IST | None | `e073761`. New `00-namespace.yaml` (the `00-` prefix is load-bearing — `kubectl apply -f dir/` goes in filename order and everything else references the namespace). Enforces the **restricted** Pod Security Standard, so non-compliant manifests are rejected at admission rather than quietly running as root. 
 | R-05 | Observability: **Prometheus / Grafana via `kube-prometheus-stack`** | Not started | Depends on `E-04`. **Phase 2 in the owner roadmap — comes before CI/CD.** | Helm chart. Note this is *why* the node group is EC2 and not Fargate: `node-exporter` is a DaemonSet, which Fargate does not support. First stateful workload — the PVC/EBS teardown checklist in `CLAUDE.md § 9` becomes mandatory from here on. |
 | R-06 | CI: **Jenkins in-cluster via Helm** | Not started | Depends on `R-05` landing first (owner roadmap phase 3) | Build, test, push image, then **commit a bumped image tag into the `manifests` repo**. Jenkins must never run `kubectl apply` — that is ArgoCD deliberately (see Decisions). |
 | R-07 | CD: **ArgoCD, GitOps from `app-hub-manifests`** | Not started | Depends on `R-06` (owner roadmap phase 4) | ArgoCD watches the manifests repo and reconciles. Current state is *GitOps-shaped, not GitOps*: declarative and versioned, but still applied by hand. ArgoCD supplies the missing reconciliation half. |
@@ -194,6 +210,19 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all five repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-03 · 11:00–11:30 IST — Hardening and automation (R-01..R-04, P-09)
+
+All five done with **no cluster running**, so this cost nothing.
+
+- **`R-04`** (`e073761`) — everything moved into an `app-hub` namespace enforcing the **restricted** Pod Security Standard. The file is `00-namespace.yaml` because `kubectl apply -f <dir>/` goes in filename order and every other object references the namespace; alphabetically `deployment` would otherwise have been applied first and failed.
+- **`R-01`** (`e073761`) — requests 50m/64Mi, limits 500m/256Mi. The pod was previously **BestEffort**, meaning first evicted under node pressure; it is now Burstable. Numbers are deliberate starting points, not measurements — revisit when `R-05` can show real usage.
+- **`R-02`** (`98f355b` + `e073761`) — `appuser` uid 10001 in the image, and a Deployment `securityContext` with `runAsNonRoot`, matching uid, `readOnlyRootFilesystem`, all capabilities dropped, RuntimeDefault seccomp. **Tested locally rather than assumed**: `docker run --read-only` with *no* tmpfs works, because the app writes nothing and `PYTHONDONTWRITEBYTECODE` stops `.pyc` creation. A security control you have not tested is a deployment failure scheduled for later.
+- **`R-03`** (`c06d65f`) — ECR set to `IMMUTABLE`. Forces the useful consequence: every build needs a unique tag, so the Makefile derives it from the links-service commit SHA. A tag now names exactly the code it was built from.
+- **`P-09`** — root `Makefile` with `status`/`up`/`deploy`/`down`/`validate`, plus `scripts/validate-manifests.py` for offline checks. `guard` fails fast if run from Windows rather than WSL. `make deploy` deliberately rewrites the image tag *in* the manifest, because ArgoCD (`R-07`) will apply this repo verbatim — desired state must live in git, not be injected at deploy time. That is precisely the step Jenkins (`R-06`) will automate.
+- **`CONTEXT-BRIEF.md` regenerated** — it was stale on nearly every fact (claimed nothing deployed, the `POST` bug live, the Dockerfile uncommitted, four repos instead of five).
+
+**Verified:** `make validate` passes (manifests + `terraform fmt` + `validate`), `make status` reports everything empty, Makefile has 77 tab-indented recipe lines and 0 space-indented. **Not verified:** the `securityContext`, the restricted PSS enforcement, and `make up`/`deploy`/`down` against a live cluster — that is the first thing to check next time it comes up.
 
 ### 2026-08-31 · 16:45–17:05 IST — Clean teardown; back to $0/hour
 

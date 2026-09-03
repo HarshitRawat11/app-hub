@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 31 across 5 repositories |
-| Active days | 7 |
+| Commits | 36 across 5 repositories |
+| Active days | 8 |
 | First commit | 2026-07-29 12:09 IST |
-| Latest commit | 2026-09-02 13:51 IST |
+| Latest commit | 2026-09-03 11:22 IST |
 
 ---
 
@@ -80,3 +80,13 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
 | 13:51 | `app-hub` | `5aac288` | Require an Indian English summary at the end of every response |
+| 13:54 | `app-hub` | `de73a96` | Explain why terraform destroy cannot clean up Kubernetes-created AWS resources |
+| 13:54 | `app-hub` | `d29591d` | Update learn index entry for 15 to lead with the why |
+
+## 2026-09-03
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 11:22 | `links-service` | `98f355b` | Run as a non-root user and stop writing bytecode |
+| 11:22 | `manifests` | `e073761` | Add namespace, resource limits and securityContext |
+| 11:22 | `infra` | `c06d65f` | Make ECR image tags immutable |
