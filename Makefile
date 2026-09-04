@@ -128,7 +128,9 @@ down: guard
 	    aws ecr batch-delete-image --repository-name $(ECR_REPO) --region $(REGION) --image-ids "$$IDS" --query 'length(imageIds)' --output text; \
 	  else echo "   already empty"; fi
 	@echo "== 4/5 terraform destroy =="
-	cd infra && terraform destroy
+	@# AUTO=1 skips the confirmation prompt. Only for the scheduled unattended
+	@# destroy (scripts/scheduled-destroy.sh) -- interactively you want the prompt.
+	cd infra && terraform destroy $(if $(AUTO),-auto-approve -input=false,)
 	@echo "== 5/5 orphan audit =="
 	@$(MAKE) --no-print-directory status
 
