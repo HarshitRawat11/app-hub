@@ -50,7 +50,9 @@ Every file follows the same shape:
 | 19 | [19-hardening-and-automating-the-loop.md](19-hardening-and-automating-the-loop.md) | Namespaces and why the file is `00-` prefixed; requests vs limits and the QoS class you get; non-root containers and pod- vs container-level `securityContext`; testing `readOnlyRootFilesystem` before trusting it; immutable tags forcing SHA-based versioning; Make as a task runner |
 | 20 | [20-testing-a-workflow-and-a-silently-dead-monitor.md](20-testing-a-workflow-and-a-silently-dead-monitor.md) | Why a webhook 200 is not a success; using `runData` to prove which branch ran; the `$json.body` nesting; OAuth's three tokens and which one expires; **why a monitor fails invisibly — silence and death look identical** |
 
-*Steps 21 onward get added as we do them.*
+| 21 | [21-gateway-service-to-service-calls.md](21-gateway-service-to-service-calls.md) | **Guide, not a record** — a service that is also a client; `async def` + a blocking library as the worst available mistake; why the HTTP client outlives the request; the `LINKS_SERVICE_URL` config boundary; timeouts and 502/503/504; why `/health` must not check the upstream |
+
+*Steps 22 onward get added as we do them.*
 
 ## A note on files 01–07
 
