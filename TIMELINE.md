@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 41 across 5 repositories |
+| Commits | 44 across 5 repositories |
 | Active days | 10 |
 | First commit | 2026-07-29 12:09 IST |
-| Latest commit | 2026-09-05 15:53 IST |
+| Latest commit | 2026-09-05 16:15 IST |
 
 ---
 
@@ -105,3 +105,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 |---|---|---|---|
 | 15:50 | `n8n` | `0b84e25` | Add the completed destroy-notifier workflow |
 | 15:53 | `app-hub` | `8da8954` | Record destroy-notifier verification and log D-13 |
+| 15:59 | `app-hub` | `3810077` | Add the gateway mechanism guide ahead of S-01 |
+| 15:59 | `app-hub` | `6f74463` | Index learn/21 in the learn README |
+| 16:15 | `n8n` | `51a7aab` | Switch both workflows from Gmail OAuth to SMTP |

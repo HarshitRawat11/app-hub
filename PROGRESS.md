@@ -24,13 +24,13 @@ All empty = clean. **To bring it back up**, the whole loop is proven and documen
 
 **When tearing down again, order matters** (`learn/15`): delete LoadBalancer Services first so their ENIs release, then empty ECR **with `--filter tagStatus=ANY`** (the default hides untagged digests), then `terraform destroy`, then audit for orphans.
 
-### 🔴 The cost safety net is currently BROKEN (`D-13`)
+### ✅ The email path is fixed — but `cost-watchdog` is still unproven
 
-**Both n8n workflows fail at their Gmail node.** The OAuth refresh token expired, and `cost-watchdog` shares that credential — so it is `active` but **cannot email**. If a cluster is left running, **nothing will warn you.**
+`D-13` is **resolved** (2026-09-05). Both workflows moved off Gmail OAuth to `emailSend` with an SMTP credential, which removes the ~7-day refresh-token expiry for good. `destroy-notifier` is verified end to end: both branches route correctly and SMTP reported the mail accepted.
 
-Until the owner reconnects it: **verify teardown with `make status`, never by waiting for an email.** Say this out loud whenever a cluster goes up.
+**Still outstanding (`N-01b`):** `cost-watchdog` has the same fix applied but has **never actually sent an email**, because it cannot be tested without a cluster. It has no manual-run endpoint (the public API returns `405`), and with no cluster the EKS call 404s and `onError: stopWorkflow` halts it before the email node — which is correct behaviour, not a fault.
 
-Fix (owner, in the n8n UI at `localhost:5678`): Credentials → `Gmail account` → Reconnect. Then publish the `n8n-app-hub` OAuth consent screen in Google Cloud, or it expires again in ~7 days.
+**So the next time a cluster is up, click "Test workflow" on `cost-watchdog` in the n8n UI.** Thirty seconds, and it closes the last gap in the cost safety net. Until then, still verify teardown with `make status` rather than trusting an email that has never been observed to arrive.
 
 ### There is now a Makefile — use it
 
@@ -56,7 +56,7 @@ Also: `R-03` set ECR to `IMMUTABLE`, which only takes effect on the next `terraf
 
 3. **`C-04`/`C-05`** — persistent stack + IRSA, owner-built. Needs the cluster up for the OIDC provider. **`C-06` waits for `C-02`** — do not refactor storage without tests.
 
-4. **`N-00b`** — reconnect Gmail (`D-13`), then re-test `destroy-notifier` and schedule `scripts/scheduled-destroy.sh`. The workflow itself is **built and both branches are verified**; only the credential blocks it.
+4. **`N-01b`** — when a cluster is next up, click **Test workflow** on `cost-watchdog` in the n8n UI to prove it actually emails. `destroy-notifier` is **done and verified** (`51a7aab`); only the watchdog remains unproven.
 
 ---
 
@@ -137,7 +137,8 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
 | N-00 | `cost-watchdog` — ✅ **working, published/active** | None | Schedule Trigger (5 PM + 9 PM, two rules) → HTTP Request → Gmail. Calls `GET https://eks.ap-south-1.amazonaws.com/clusters/app-hub-eks` with Predefined Credential Type → AWS (IAM) → `n8n-readonly`. **On Error must be `Stop Workflow`** — 404 (cluster gone) halts silently, 200 (still up) proceeds to Gmail. Gmail via OAuth2, Google Cloud project `n8n-app-hub`. |
-| N-00b | `destroy-notifier` — **built and routing-verified; blocked on Gmail** | **Gmail OAuth refresh token expired** — the credential needs reconnecting in the n8n UI. Not a workflow fault. | All four nodes exist and are wired: `Webhook → If → Success/Failure`, active. The `If` reads `{{ $json.body.status }}`, matching the nesting the webhook delivers. **Both branches verified 2026-09-05 with fake payloads** — success routed to `Success`, failure routed to `Failure`. Both then died at Gmail with *"The credential Gmail account needs to be reconnected"*. Committed as `0b84e25`. Remaining: reconnect Gmail, re-test, then schedule `scripts/scheduled-destroy.sh` via Windows Task Scheduler. |
+| N-00b | `destroy-notifier` | **Done** 2026-09-05 · 16:25 IST | None | All four nodes wired (`Webhook → If → Success/Failure`), active, using `emailSend` + SMTP. **Verified end to end:** success payload → `Success` node, failure payload → `Failure` node, both with SMTP reporting `accepted:[...], rejected:[]`. Committed `51a7aab`. Remaining follow-up: schedule `scripts/scheduled-destroy.sh` via Windows Task Scheduler. |
+| N-01b | Prove `cost-watchdog` actually sends its email | **Needs verification** | Cannot be tested without a cluster — no manual-run endpoint (API returns `405`), and with no cluster the EKS call 404s and `onError: stopWorkflow` halts before the email node. | **Next time a cluster is up**, click **Test workflow** on `eks-cost-watchdog` in the n8n UI. The HTTP Request should get a 200 and the email should fire. Thirty seconds, and it closes the last gap in the cost safety net. |
 | N-01 | Scaffold the `n8n/` repo | Done | None | Done 2026-08-30: git repo, `.gitignore`, `.gitattributes` (LF enforcement), `.env.example`, `pull-workflows.sh`, README with security rules |
 | N-02 | Create the `app-hub-n8n` GitHub remote and push | **Done** | None | Done 2026-08-30. The scaffold had **zero commits** — made the initial commit, wired `origin`, pushed. Secret-scanned before pushing; no real `.env` exists. |
 | N-03 | Populate `n8n/.env` with the instance URL and API key | **Done** 2026-08-31 | None | Verified: both values populated, `.env` matched by `.gitignore:2`, absent from `git status`. API returns **HTTP 200** and lists both workflows (`eks-cost-watchdog`, `terraform-destroy-notifier`). Key never entered the transcript. |
@@ -170,7 +171,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | `D-09` | Low | [links-service/pyproject.toml:4](links-service/pyproject.toml:4) | `description = "Add your description here"` — leftover scaffold text. |
 | ~~`D-11`~~ | **RESOLVED** 2026-08-30 (`5e312ef`) | [links-service/Dockerfile:8](links-service/Dockerfile:8) + `:14` | Build runs `uv sync --frozen --no-install-project`, but `CMD` uses `uv run`, which re-resolves and installs the project **at container start**. That defeats the build-time sync, moves dependency work into startup (slowing pod readiness, risking a cold-start failure), and will bite when the base image changes. Fix: install the project at build time and invoke `uvicorn` directly in `CMD`. Missed in the 2026-08-30 audit; surfaced from project history. |
 | `D-10` | Low | [links-service/app/main.py](links-service/app/main.py) | Function names are `camelCase` (`getLinks`, `createLink`, `removeLink`), against PEP 8. Cosmetic, but easy to fix before the file grows. |
-| `D-13` | **HIGH — cost safety** | n8n credential `Gmail account` | **The Gmail OAuth refresh token has expired, so BOTH n8n workflows fail at their Gmail node.** Discovered 2026-09-05 while testing `destroy-notifier`: every execution errors with *"The credential Gmail account needs to be reconnected."* **`cost-watchdog` shares that credential**, so it is `active` but cannot email — meaning **a cluster left running would generate no warning at all.** Root cause is Google-side: OAuth apps in *Testing* publishing status expire refresh tokens after ~7 days. Fix: reconnect the credential in the n8n UI, then **publish the `n8n-app-hub` OAuth consent screen** (Google Cloud → APIs & Services → OAuth consent screen → Publish App) so it stops recurring. Until then, **verify teardown manually with `make status`** — do not rely on the email. |
+| ~~`D-13`~~ | **RESOLVED** 2026-09-05 (`51a7aab`) | n8n credential | Was: the Gmail OAuth refresh token expired, silently disabling **both** workflows -- `cost-watchdog` shared the credential, so it reported `active` but could not email. **Fixed by moving both workflows off Gmail OAuth to `emailSend` nodes with an SMTP credential**, which removes the ~7-day refresh-token expiry entirely. Verified: `destroy-notifier` executions now report `status=success`, and the SMTP server returned `accepted:[harshitrawat2011@gmail.com], rejected:[]` on both branches. **`cost-watchdog` remains unverified end to end** -- see `N-01b`. |
 | `D-12` | Low | `infra/`, `links-service/`, `manifests/` | No `.gitattributes`, so git warns `LF will be replaced by CRLF` on every commit. Harmless for Python and exec-form `CMD`, but the same setting that breaks shell scripts under WSL (see `learn/08`). `n8n/` already has one. Add `* text=auto eol=lf` to the other three. |
 
 ---
@@ -219,6 +220,13 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all five repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-05 · 16:10–16:30 IST — SMTP replaces Gmail OAuth; destroy-notifier verified
+
+- **`D-13` resolved (`51a7aab`).** Owner moved both workflows off Gmail OAuth to `emailSend` nodes with an SMTP credential. That removes the ~7-day refresh-token expiry entirely rather than resetting the clock on it — the better fix, since reconnecting would have failed again next week.
+- **`destroy-notifier` verified end to end.** Success payload routed to `Success`, failure payload to `Failure`, and this time both executions reported `status=success`. The SMTP server returned `accepted:[harshitrawat2011@gmail.com], rejected:[]` on both — the mail server taking delivery responsibility, not just n8n not erroring. `N-00b` is **done**.
+- **`N-01b` opened.** `cost-watchdog` has the same fix but has still **never sent an email**. It cannot be tested without a cluster: no manual-run endpoint (public API returns `405`), and with no cluster the EKS call 404s and `onError: stopWorkflow` halts it before the email node — correct behaviour, but it means the path is unproven. Next cluster session: click **Test workflow** in the UI.
+- **Process note:** the first pull attempt ran the script from Git Bash with `2>/dev/null`, so it failed silently (no `jq` on Windows) and git reported nothing to commit. Suppressing stderr hid the failure — the same anti-pattern `learn/20` warns about, committed by me one message after writing it down.
 
 ### 2026-09-05 · 15:30–15:55 IST — destroy-notifier verified; a dead monitor found
 
