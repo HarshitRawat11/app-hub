@@ -48,8 +48,9 @@ Every file follows the same shape:
 | 17 | [17-timestamps-and-the-tz-trap.md](17-timestamps-and-the-tz-trap.md) | Derive timestamps, do not type them; `%at` as an absolute instant; **Git Bash silently ignores `TZ`**; why a self-check that refuses to run beats a silent fallback |
 | 18 | [18-exposing-a-service-externally.md](18-exposing-a-service-externally.md) | ClusterIP → NodePort → LoadBalancer as a ladder; NLB vs ALB vs Classic; `port` vs `targetPort`; the provisioning gap between a hostname and a working endpoint; why one-LB-per-service does not scale; ephemeral state proven by deleting the pod |
 | 19 | [19-hardening-and-automating-the-loop.md](19-hardening-and-automating-the-loop.md) | Namespaces and why the file is `00-` prefixed; requests vs limits and the QoS class you get; non-root containers and pod- vs container-level `securityContext`; testing `readOnlyRootFilesystem` before trusting it; immutable tags forcing SHA-based versioning; Make as a task runner |
+| 20 | [20-testing-a-workflow-and-a-silently-dead-monitor.md](20-testing-a-workflow-and-a-silently-dead-monitor.md) | Why a webhook 200 is not a success; using `runData` to prove which branch ran; the `$json.body` nesting; OAuth's three tokens and which one expires; **why a monitor fails invisibly — silence and death look identical** |
 
-*Steps 20 onward get added as we do them.*
+*Steps 21 onward get added as we do them.*
 
 ## A note on files 01–07
 

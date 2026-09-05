@@ -2,7 +2,7 @@
 
 Live status board. **Update this at the end of every working session** — status, blocker, next step, plus a line in the log.
 
-**Last updated:** 2026-09-03
+**Last updated:** 2026-09-05
 
 ---
 
@@ -24,6 +24,14 @@ All empty = clean. **To bring it back up**, the whole loop is proven and documen
 
 **When tearing down again, order matters** (`learn/15`): delete LoadBalancer Services first so their ENIs release, then empty ECR **with `--filter tagStatus=ANY`** (the default hides untagged digests), then `terraform destroy`, then audit for orphans.
 
+### 🔴 The cost safety net is currently BROKEN (`D-13`)
+
+**Both n8n workflows fail at their Gmail node.** The OAuth refresh token expired, and `cost-watchdog` shares that credential — so it is `active` but **cannot email**. If a cluster is left running, **nothing will warn you.**
+
+Until the owner reconnects it: **verify teardown with `make status`, never by waiting for an email.** Say this out loud whenever a cluster goes up.
+
+Fix (owner, in the n8n UI at `localhost:5678`): Credentials → `Gmail account` → Reconnect. Then publish the `n8n-app-hub` OAuth consent screen in Google Cloud, or it expires again in ~7 days.
+
 ### There is now a Makefile — use it
 
 Run from **WSL**. `make` on its own prints the targets.
@@ -44,11 +52,11 @@ Also: `R-03` set ECR to `IMMUTABLE`, which only takes effect on the next `terraf
 
 1. **`C-02` — teach the testing step.** The owner wants this *taught*, not written. Explain `TestClient`, fixtures, and the module-level shared-state trap **before** any code is typed; the owner writes `tests/test_links.py`. Deps already installed. Guide: `learn/14`. **Blocks `C-06`.**
 
-2. **`S-01` — `gateway`**, owner-built by hand. Needs the cluster up. Proves service-to-service DNS discovery — already demonstrated manually with an in-cluster `curl http://links-service:8000/health`.
+2. **`S-01` — `gateway`**, owner-built by hand. **No cluster needed to start** — build it local-first, the same three stages `links-service` used (local FastAPI → local Docker → only then ECR/EKS). The one design point that matters: read the links-service address from `LINKS_SERVICE_URL`, defaulting to `http://localhost:8000`, so local vs cluster is config and never code. This is the next core-app task in the owner roadmap.
 
 3. **`C-04`/`C-05`** — persistent stack + IRSA, owner-built. Needs the cluster up for the OIDC provider. **`C-06` waits for `C-02`** — do not refactor storage without tests.
 
-4. **`N-00b`** — finish `destroy-notifier`. Low effort, and it closes the cost-safety loop.
+4. **`N-00b`** — reconnect Gmail (`D-13`), then re-test `destroy-notifier` and schedule `scripts/scheduled-destroy.sh`. The workflow itself is **built and both branches are verified**; only the credential blocks it.
 
 ---
 
@@ -129,7 +137,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
 | N-00 | `cost-watchdog` — ✅ **working, published/active** | None | Schedule Trigger (5 PM + 9 PM, two rules) → HTTP Request → Gmail. Calls `GET https://eks.ap-south-1.amazonaws.com/clusters/app-hub-eks` with Predefined Credential Type → AWS (IAM) → `n8n-readonly`. **On Error must be `Stop Workflow`** — 404 (cluster gone) halts silently, 200 (still up) proceeds to Gmail. Gmail via OAuth2, Google Cloud project `n8n-app-hub`. |
-| N-00b | `destroy-notifier` — 🚧 **in progress** | Owner work; needs the IF node, two Gmail branches, and the local destroy script | Webhook node done: `POST` path `destroy-status`, verified by curl. **Payload arrives nested under `body`, so expressions are `{{ $json.body.status }}` not `{{ $json.status }}`.** Remaining: IF on `body.status == success`; Gmail on both branches (include `{{ $json.body.output }}` on failure); the destroy script; schedule via **Windows Task Scheduler invoking `wsl.exe`** (a WSL cron is unreliable — WSL may not be running). **The destroy stays local, not in n8n**, so destructive AWS credentials are never stored in a long-running app. |
+| N-00b | `destroy-notifier` — **built and routing-verified; blocked on Gmail** | **Gmail OAuth refresh token expired** — the credential needs reconnecting in the n8n UI. Not a workflow fault. | All four nodes exist and are wired: `Webhook → If → Success/Failure`, active. The `If` reads `{{ $json.body.status }}`, matching the nesting the webhook delivers. **Both branches verified 2026-09-05 with fake payloads** — success routed to `Success`, failure routed to `Failure`. Both then died at Gmail with *"The credential Gmail account needs to be reconnected"*. Committed as `0b84e25`. Remaining: reconnect Gmail, re-test, then schedule `scripts/scheduled-destroy.sh` via Windows Task Scheduler. |
 | N-01 | Scaffold the `n8n/` repo | Done | None | Done 2026-08-30: git repo, `.gitignore`, `.gitattributes` (LF enforcement), `.env.example`, `pull-workflows.sh`, README with security rules |
 | N-02 | Create the `app-hub-n8n` GitHub remote and push | **Done** | None | Done 2026-08-30. The scaffold had **zero commits** — made the initial commit, wired `origin`, pushed. Secret-scanned before pushing; no real `.env` exists. |
 | N-03 | Populate `n8n/.env` with the instance URL and API key | **Done** 2026-08-31 | None | Verified: both values populated, `.env` matched by `.gitignore:2`, absent from `git status`. API returns **HTTP 200** and lists both workflows (`eks-cost-watchdog`, `terraform-destroy-notifier`). Key never entered the transcript. |
@@ -162,6 +170,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | `D-09` | Low | [links-service/pyproject.toml:4](links-service/pyproject.toml:4) | `description = "Add your description here"` — leftover scaffold text. |
 | ~~`D-11`~~ | **RESOLVED** 2026-08-30 (`5e312ef`) | [links-service/Dockerfile:8](links-service/Dockerfile:8) + `:14` | Build runs `uv sync --frozen --no-install-project`, but `CMD` uses `uv run`, which re-resolves and installs the project **at container start**. That defeats the build-time sync, moves dependency work into startup (slowing pod readiness, risking a cold-start failure), and will bite when the base image changes. Fix: install the project at build time and invoke `uvicorn` directly in `CMD`. Missed in the 2026-08-30 audit; surfaced from project history. |
 | `D-10` | Low | [links-service/app/main.py](links-service/app/main.py) | Function names are `camelCase` (`getLinks`, `createLink`, `removeLink`), against PEP 8. Cosmetic, but easy to fix before the file grows. |
+| `D-13` | **HIGH — cost safety** | n8n credential `Gmail account` | **The Gmail OAuth refresh token has expired, so BOTH n8n workflows fail at their Gmail node.** Discovered 2026-09-05 while testing `destroy-notifier`: every execution errors with *"The credential Gmail account needs to be reconnected."* **`cost-watchdog` shares that credential**, so it is `active` but cannot email — meaning **a cluster left running would generate no warning at all.** Root cause is Google-side: OAuth apps in *Testing* publishing status expire refresh tokens after ~7 days. Fix: reconnect the credential in the n8n UI, then **publish the `n8n-app-hub` OAuth consent screen** (Google Cloud → APIs & Services → OAuth consent screen → Publish App) so it stops recurring. Until then, **verify teardown manually with `make status`** — do not rely on the email. |
 | `D-12` | Low | `infra/`, `links-service/`, `manifests/` | No `.gitattributes`, so git warns `LF will be replaced by CRLF` on every commit. Harmless for Python and exec-form `CMD`, but the same setting that breaks shell scripts under WSL (see `learn/08`). `n8n/` already has one. Add `* text=auto eol=lf` to the other three. |
 
 ---
@@ -210,6 +219,15 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all five repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-05 · 15:30–15:55 IST — destroy-notifier verified; a dead monitor found
+
+- **`N-00b` workflow is built and both branches are verified.** Owner added the `If` + two Gmail nodes and activated it. Tested with fake payloads rather than a real teardown: a `success` payload routed to the `Success` node, a `failure` payload routed to `Failure`. Confirmed via `runData`, not by assuming. Pulled and committed as `0b84e25`.
+- **The `If` condition is right:** `{{ $json.body.status }}`. The Webhook node wraps the POSTed JSON under `body`, and a wrong expression there does not error -- it silently routes everything to the false branch.
+- **Neither branch sent an email.** Both died at Gmail: *"The credential Gmail account needs to be reconnected."* The OAuth refresh token expired -- a Google policy, since apps in *Testing* publishing status expire refresh tokens after ~7 days. Not a workflow fault.
+- **The finding that actually matters (`D-13`, HIGH):** `cost-watchdog` shares that credential. It reports `active: true` and looks healthy, but **it cannot email** -- so a cluster left running would produce no warning at all. Nothing surfaced this because a workflow that never fires never errors. **A monitor's normal state is silence, so a dead one and a working one look identical from outside.**
+- **Also confirmed rather than assumed:** the n8n public API has no manual-run endpoint (`POST /workflows/{id}/run` returns **405**), so `cost-watchdog` can only be triggered by its schedule or the UI. And even with a working credential it would send nothing today -- with no cluster the EKS call 404s and `onError: stopWorkflow` halts it before Gmail. That is the design working.
+- **Until the credential is reconnected: verify teardown with `make status`, never by waiting for an email.**
 
 ### 2026-09-03 · 11:00–11:30 IST — Hardening and automation (R-01..R-04, P-09)
 

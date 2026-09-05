@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 36 across 5 repositories |
-| Active days | 8 |
+| Commits | 40 across 5 repositories |
+| Active days | 10 |
 | First commit | 2026-07-29 12:09 IST |
-| Latest commit | 2026-09-03 11:22 IST |
+| Latest commit | 2026-09-05 15:50 IST |
 
 ---
 
@@ -90,3 +90,17 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 11:22 | `links-service` | `98f355b` | Run as a non-root user and stop writing bytecode |
 | 11:22 | `manifests` | `e073761` | Add namespace, resource limits and securityContext |
 | 11:22 | `infra` | `c06d65f` | Make ECR image tags immutable |
+| 11:29 | `app-hub` | `9c944ae` | Add Makefile automation, regenerate CONTEXT-BRIEF, refresh README |
+
+## 2026-09-04
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 12:04 | `n8n` | `ff474a8` | Document the destroy-notifier webhook URL in the env template |
+| 12:04 | `app-hub` | `7cb8890` | Add unattended teardown script for the destroy-notifier |
+
+## 2026-09-05
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 15:50 | `n8n` | `0b84e25` | Add the completed destroy-notifier workflow |
