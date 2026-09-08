@@ -8,12 +8,18 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 44 across 5 repositories |
-| Active days | 10 |
-| First commit | 2026-07-29 12:09 IST |
-| Latest commit | 2026-09-05 16:15 IST |
+| Commits | 54 across 6 repositories |
+| Active days | 13 |
+| First commit | 2026-07-28 15:27 IST |
+| Latest commit | 2026-09-07 18:35 IST |
 
 ---
+
+## 2026-07-28
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 15:27 | `links-service` | `a048c10` | Initial uv project setup with FastAPI dependency |
 
 ## 2026-07-29
 
@@ -31,10 +37,12 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
+| 00:00 | `infra` | `c8f6c12` | Initial Terraform project scaffolld |
 | 01:25 | `infra` | `66f8f16` | Add VPC module with public/private subnets, IGW, NAT gateway |
 | 12:59 | `infra` | `838d446` | Added AWS EKS cluster and its admin access |
 | 13:14 | `infra` | `009bd10` | Add outputs.tf for cluster and VPC values |
 | 15:55 | `infra` | `19f7a5e` | Add ECR repository for links-service |
+| 16:37 | `manifests` | `a933c2a` | Add links-service Deployment and Service |
 
 ## 2026-08-04
 
@@ -53,8 +61,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 14:52 | `infra` | `dd3c025` | Add .gitattributes to force LF line endings |
 | 14:52 | `links-service` | `73ddaf6` | Add .gitattributes to force LF line endings |
 | 14:52 | `manifests` | `ce67c58` | Add .gitattributes to force LF line endings |
+| 14:53 | `app-hub` | `2dfcc93` | Add umbrella repo for cross-cutting project docs |
 | 15:00 | `app-hub` | `2b995c0` | Backfill learn/ files 01-07 and record P-01, P-07, N-06 outcomes |
 | 19:03 | `app-hub` | `78e9788` | Record E-00 resolved and document the two-kubeconfig split |
+| 23:13 | `n8n` | `1c24503` | Add n8n workflow repo scaffold |
 | 23:15 | `manifests` | `93cea2c` | Pin links-service to a single replica until persistence lands |
 | 23:21 | `app-hub` | `fe85d08` | Publish repos, plan infra, decide persistence, and close learn/ gaps |
 | 23:44 | `app-hub` | `c71ef9e` | Correct the docker-from-WSL claim and harden the kubeconfig rule |
@@ -108,3 +118,18 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 15:59 | `app-hub` | `3810077` | Add the gateway mechanism guide ahead of S-01 |
 | 15:59 | `app-hub` | `6f74463` | Index learn/21 in the learn README |
 | 16:15 | `n8n` | `51a7aab` | Switch both workflows from Gmail OAuth to SMTP |
+| 16:17 | `app-hub` | `6b1efdb` | Resolve D-13 and record the SMTP switch |
+
+## 2026-09-06
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 12:22 | `gateway` | `36feb40` | Setup gateway repo |
+
+## 2026-09-07
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 11:27 | `gateway` | `7c52711` | Wrote async getLinks function |
+| 13:27 | `gateway` | `1d5c088` | Add /links endpoint proxying to links-service with a shared async client |
+| 18:35 | `gateway` | `261e5db` | Handle upstream failures with 502/503/504 and an explicit client timeout |

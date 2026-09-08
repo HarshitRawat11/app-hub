@@ -24,14 +24,14 @@ That combination sets the bar: working-on-my-machine isn't the finish line. Repr
 
 ## Directory layout
 
-`app-hub/` is an **umbrella git repository** tracking only the cross-cutting docs. The four component directories are independent repos with their own remotes, and are gitignored here so they stay that way.
+`app-hub/` is an **umbrella git repository** tracking only the cross-cutting docs. The five component directories are independent repos with their own remotes, and are gitignored here so they stay that way.
 
 ```
 app-hub/
 ├── CLAUDE.md          # Operating manual for Claude Code sessions — objective, constraints, read order
 ├── README.md          # This file
 ├── PROGRESS.md        # Live status board, blockers, known defects, progress log
-├── TIMELINE.md        # GENERATED from git across all 5 repos -- never edit by hand
+├── TIMELINE.md        # GENERATED from git across all 6 repos -- never edit by hand
 ├── Makefile           # session automation: make status / up / deploy / down / validate
 ├── scripts/
 │   ├── timeline.sh        # regenerates TIMELINE.md
@@ -58,6 +58,12 @@ app-hub/
 │   ├── pyproject.toml     # requires-python >=3.14; fastapi, uvicorn
 │   ├── uv.lock            # pinned dependency lockfile
 │   └── .python-version    # 3.14
+│
+├── gateway/           # repo: HarshitRawat11/app-hub-gateway — the entry-point service (S-01, in progress)
+│   ├── app/
+│   │   └── main.py        # FastAPI app: /health + /links proxied to links-service on 8001
+│   ├── pyproject.toml     # requires-python >=3.14; fastapi, uvicorn, httpx
+│   └── uv.lock            # pinned dependency lockfile
 │
 ├── manifests/         # repo: HarshitRawat11/app-hub-manifests — Kubernetes manifests
 │   └── links-service/

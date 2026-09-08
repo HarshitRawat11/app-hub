@@ -14,3 +14,4 @@ n8n/
 # OS/editor cruft
 .DS_Store
 *.swp
+gateway/

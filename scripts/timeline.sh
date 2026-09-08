@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Generate TIMELINE.md from git history across all five app-hub repositories.
+# Generate TIMELINE.md from git history across all six app-hub repositories.
 #
 # Git already timestamps every commit, so this derives the project timeline
 # rather than asking anyone to maintain one by hand. Hand-typed dates drift;
@@ -18,7 +18,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-REPOS=(. infra links-service manifests n8n)
+# Add every new component repo here, or its history is silently omitted from
+# the timeline -- the script cannot tell the difference between "no commits"
+# and "not in this list".
+REPOS=(. infra links-service gateway manifests n8n)
 OUT="TIMELINE.md"
 [[ "${1:-}" == "--stdout" ]] && OUT=/dev/stdout
 
@@ -53,7 +56,18 @@ fi
 collect() {
   for d in "${REPOS[@]}"; do
     [[ -d "$d/.git" ]] || continue
-    git -C "$d" log --pretty=format:"%at|%H|%h|%s" 2>/dev/null | while IFS='|' read -r epoch full short subj; do
+    # tformat:, NOT format: -- this is load-bearing.
+    #
+    # `format:` has SEPARATOR semantics: it puts a newline BETWEEN entries but
+    # none after the last one. `while read` returns false on a final line with
+    # no terminator, so the loop body never runs for it and that commit is
+    # silently dropped. Because `git log` is newest-first, the dropped line is
+    # each repo's ROOT commit -- so the timeline lost its own origin story,
+    # once per repo, and the totals looked plausible throughout.
+    #
+    # `tformat:` has TERMINATOR semantics and appends the trailing newline.
+    # Found 2026-09-08, after six root commits went missing across six repos.
+    git -C "$d" log --pretty=tformat:"%at|%H|%h|%s" 2>/dev/null | while IFS='|' read -r epoch full short subj; do
       # %at is an absolute UTC epoch, independent of the committer's timezone.
       printf '%s|%s|%s|%s|%s\n' "$epoch" "$(to_ist "$epoch")" "$(repo_name "$d")" "$short" "$subj"
     done

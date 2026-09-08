@@ -124,17 +124,18 @@ Each file follows this structure:
 
 ## 3. Repository layout — read this before any git operation
 
-**There are FIVE independent git repositories here.** The root is an *umbrella* repo that tracks only the cross-cutting docs and gitignores the four component directories, so they stay fully independent (see `learn/10`). All five have remotes and are pushed.
+**There are SIX independent git repositories here.** The root is an *umbrella* repo that tracks only the cross-cutting docs and gitignores the five component directories, so they stay fully independent (see `learn/10`). All six have remotes and are pushed.
 
 | Directory        | Repo                                    | Tracks | Branch   |
 |------------------|-----------------------------------------|--------|----------|
 | `.` (root)       | `HarshitRawat11/app-hub`                 | `CLAUDE.md`, `README.md`, `PROGRESS.md`, `TIMELINE.md`, `CONTEXT-BRIEF.md`, `learn/`, `scripts/` | `master` |
 | `infra/`         | `HarshitRawat11/app-hub-infra`           | Terraform | `master` |
 | `links-service/` | `HarshitRawat11/app-hub-links-service`   | FastAPI service | `master` |
+| `gateway/`       | `HarshitRawat11/app-hub-gateway`         | FastAPI service (entry point) | `master` |
 | `manifests/`     | `HarshitRawat11/app-hub-manifests`       | Kubernetes manifests | `master` |
 | `n8n/`           | `HarshitRawat11/app-hub-n8n`             | Workflow JSON | `master` |
 
-**A bare `git` command at the root now works — but it only sees the docs.** It will never show changes in `infra/`, `links-service/`, `manifests/` or `n8n/`, because those are gitignored by the umbrella. Still use `-C <subdir>` for component work; the risk is no longer "git fails", it is "git succeeds and reports the wrong repo".
+**A bare `git` command at the root now works — but it only sees the docs.** It will never show changes in `infra/`, `links-service/`, `gateway/`, `manifests/` or `n8n/`, because those are gitignored by the umbrella. Still use `-C <subdir>` for component work; the risk is no longer "git fails", it is "git succeeds and reports the wrong repo".
 
 Consequences that bite:
 
@@ -263,8 +264,9 @@ Work through these in order. Stop as soon as you have what the task needs — do
 3. **`README.md`** — directory layout, quick start commands, governance. Read when you need to *run* something or are unsure of a workflow.
 4. **`learn/README.md`** — the index of what has already been taught. Skim it before explaining anything: if a concept already has a file, build on it and link to it rather than re-explaining from scratch. If the current task extends an earlier step, read that step's file too.
 5. Then, task-dependent only:
-   - Service work → `links-service/app/main.py`, `links-service/app/models.py`, `links-service/pyproject.toml`, `links-service/Dockerfile`
-   - Infra work → `infra/providers.tf`, `infra/vpc.tf`, `infra/eks.tf`, `infra/ecr.tf`, `infra/outputs.tf`, `infra/vairables.tf` *(yes, the filename is misspelled — see `P-04`)*
+   - `links-service` work → `links-service/app/main.py`, `links-service/app/models.py`, `links-service/pyproject.toml`, `links-service/Dockerfile`
+   - `gateway` work → `gateway/app/main.py`, `gateway/pyproject.toml`, and `learn/21` for the design rationale
+   - Infra work → `infra/providers.tf`, `infra/vpc.tf`, `infra/eks.tf`, `infra/ecr.tf`, `infra/outputs.tf`, `infra/variables.tf`
    - Deploy work → `manifests/links-service/deployment.yaml`, `manifests/links-service/service.yaml`
    - n8n work → `n8n/README.md` first (it carries the security rules), then `n8n/workflows/*.json`
 6. **Never read `infra/.terraform/`.** It is ~800 MB of vendored provider binaries and upstream module source. It is gitignored, it is not our code, and reading it wastes the entire context window.
@@ -275,7 +277,7 @@ Work through these in order. Stop as soon as you have what the task needs — do
 
 - **Write the `learn/` file for this step** — and add it to `learn/README.md`. Per § 2, the task is not done without it. If the step was too small to warrant its own file, append to the most relevant existing one instead.
 - Update **`PROGRESS.md`**: move the row's status, clear or restate the blocker, write the real next step, and add a timestamped line to the progress log.
-- **Regenerate the timeline**: `./scripts/timeline.sh`. It rebuilds `TIMELINE.md` from git across all five repos, so the project's chronology is derived rather than typed.
+- **Regenerate the timeline**: `./scripts/timeline.sh`. It rebuilds `TIMELINE.md` from git across all six repos, so the project's chronology is derived rather than typed.
 
 ### Timestamps — do not type them from memory
 

@@ -40,15 +40,16 @@ Of the three, **learning dominates**. When speed and understanding conflict, und
 
 ---
 
-## 3. Structure — FIVE git repos
+## 3. Structure — SIX git repos
 
-The root is an **umbrella repo** tracking only cross-cutting docs; it gitignores the four component directories so they stay independent.
+The root is an **umbrella repo** tracking only cross-cutting docs; it gitignores the five component directories so they stay independent.
 
 | Directory | Remote | Tracks |
 |---|---|---|
 | `.` (root) | `HarshitRawat11/app-hub` | `CLAUDE.md`, `README.md`, `PROGRESS.md`, `TIMELINE.md`, this file, `learn/`, `scripts/`, `Makefile` |
 | `infra/` | `HarshitRawat11/app-hub-infra` | Terraform |
 | `links-service/` | `HarshitRawat11/app-hub-links-service` | FastAPI service |
+| `gateway/` | `HarshitRawat11/app-hub-gateway` | FastAPI service (entry point, port 8001) |
 | `manifests/` | `HarshitRawat11/app-hub-manifests` | Kubernetes manifests |
 | `n8n/` | `HarshitRawat11/app-hub-n8n` | Workflow JSON |
 
@@ -192,7 +193,7 @@ Three files in `manifests/links-service/`, applied in filename order:
 ### Tooling at the root
 
 - `Makefile` — `make status | up | deploy | down | validate`. Run from WSL. `down` encodes the teardown order.
-- `scripts/timeline.sh` — generates `TIMELINE.md` from git across all five repos.
+- `scripts/timeline.sh` — generates `TIMELINE.md` from git across all six repos.
 - `scripts/validate-manifests.py` — offline manifest checks.
 
 ### n8n
@@ -205,7 +206,9 @@ Self-hosted in Docker (`-v n8n_data:/home/node/.n8n`). Two workflows, both versi
 
 ## 6. Open work
 
-**Mine to write by hand:** `C-02` tests (deps installed, files not written — blocks `C-06`), `S-01` gateway, `C-04` persistent DynamoDB stack, `C-05` IRSA, `C-06` repository refactor, `E-06` Ingress, `N-00b` finish destroy-notifier.
+**Mine to write by hand:** `S-01` gateway — **in progress, steps 1–3 of 6 done**; step 4 (`LINKS_SERVICE_URL`) and step 5 (Dockerfile) need no cluster, step 6 deploys it. Then `C-02` tests (deps installed, files not written — blocks `C-06`), `C-04` persistent DynamoDB stack (no cluster needed), `C-05` IRSA (needs the cluster's OIDC provider), `C-06` repository refactor, `E-06` Ingress.
+
+**Done since this brief was last regenerated:** `N-00b` destroy-notifier is finished and verified; `D-13` resolved by moving both n8n workflows to SMTP. `N-01b` remains — `cost-watchdog` has the fix but has never actually sent an email, and needs a cluster to prove it.
 
 **Decided, not built:** persistence goes to **DynamoDB in a separate `persistent/` Terraform stack via IRSA** — because the cluster is destroyed nightly, anything durable must live outside the destroyed stack, and DynamoDB on-demand costs ~$0 idle where RDS bills continuously.
 

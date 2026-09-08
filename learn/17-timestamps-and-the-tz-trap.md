@@ -133,6 +133,17 @@ git log --pretty='%h %ad %s' --date=format:'%Y-%m-%d %H:%M' -1 <sha>
 - **`#` is a terrible sed delimiter for markdown.** `sed 's#.*#### heading#'` collides with `###` headings and blanked four lines before I noticed. Use `|`.
 - **Backticks in shell command substitution eat markdown.** Passing a line containing `` `D-05` `` through `$(...)` executed it as a command and produced an empty cell. Round-trip such text through a file, or use a tool that does not go via the shell.
 - **The offset trick is DST-unsafe.** Correct for IST; wrong for any zone that shifts.
+- **`git log --pretty=format:` silently drops the last line when piped into `while read`.** Found 2026-09-08. `format:` is a *separator*: it puts a newline **between** entries and none after the final one. `while read` returns false when it hits EOF without a terminator, so the loop body never runs for that line. Since `git log` is newest-first, the line lost is always the repo's **root commit** — so this generator had been omitting the first commit of every repo since it was written: six missing commits across six repos, and the project's start date reported a day late. Use **`--pretty=tformat:`**, which terminates rather than separates. (Bare `--pretty="%h"` with no prefix is also treated as `tformat:`; only an explicit `format:` has the separator behaviour.)
+
+  **The lesson underneath it is the one worth keeping:** the script's whole purpose was to be authoritative, and it was quietly wrong. Nothing errored, the commit count looked plausible, and the only way to find it was to *count the same thing two ways and compare*:
+
+  ```bash
+  for d in . infra links-service gateway manifests n8n; do git -C "$d" log --pretty=tformat:"%h"; done | sort > /tmp/git.txt
+  grep -o '`[0-9a-f]\{7\}`' TIMELINE.md | tr -d '`' | sort -u > /tmp/tl.txt
+  comm -23 /tmp/git.txt /tmp/tl.txt      # in git, missing from the timeline
+  ```
+
+  Same shape as `learn/20`'s dead monitor: a thing whose normal output is "looks fine" cannot be verified by looking at it.
 
 ## Verify it yourself
 

@@ -2,7 +2,7 @@
 
 Live status board. **Update this at the end of every working session** — status, blocker, next step, plus a line in the log.
 
-**Last updated:** 2026-09-05
+**Last updated:** 2026-09-08
 
 ---
 
@@ -50,11 +50,11 @@ Also: `R-03` set ECR to `IMMUTABLE`, which only takes effect on the next `terraf
 
 ### Then, in priority order
 
-1. **`C-02` — teach the testing step.** The owner wants this *taught*, not written. Explain `TestClient`, fixtures, and the module-level shared-state trap **before** any code is typed; the owner writes `tests/test_links.py`. Deps already installed. Guide: `learn/14`. **Blocks `C-06`.**
+1. **`S-01` — `gateway`, IN PROGRESS. Steps 1–3 of 6 are done and committed; step 4 is next.** Owner writes every line by hand; Claude reviews and verifies. Steps 4 (`LINKS_SERVICE_URL`) and 5 (Dockerfile) need **no cluster** — finish those before spending money. Step 6 (ECR + manifests + deploy) belongs in a session where the cluster is coming up anyway. Full state in the `S-01` row below; build order and rationale in `learn/21`.
 
-2. **`S-01` — `gateway`**, owner-built by hand. **No cluster needed to start** — build it local-first, the same three stages `links-service` used (local FastAPI → local Docker → only then ECR/EKS). The one design point that matters: read the links-service address from `LINKS_SERVICE_URL`, defaulting to `http://localhost:8000`, so local vs cluster is config and never code. This is the next core-app task in the owner roadmap.
+2. **`C-02` — teach the testing step.** The owner wants this *taught*, not written. Explain `TestClient`, fixtures, and the module-level shared-state trap **before** any code is typed; the owner writes `tests/test_links.py`. Deps already installed. Guide: `learn/14`. **Blocks `C-06`.**
 
-3. **`C-04`/`C-05`** — persistent stack + IRSA, owner-built. Needs the cluster up for the OIDC provider. **`C-06` waits for `C-02`** — do not refactor storage without tests.
+3. **`C-04`/`C-05`** — persistent stack + IRSA, owner-built. `C-04` (the DynamoDB table) needs **no cluster**; `C-05` (IRSA) does, because the trust policy names the cluster's OIDC provider. **`C-06` waits for `C-02`** — do not refactor storage without tests.
 
 4. **`N-01b`** — when a cluster is next up, click **Test workflow** on `cost-watchdog` in the n8n UI to prove it actually emails. `destroy-notifier` is **done and verified** (`51a7aab`); only the watchdog remains unproven.
 
@@ -73,7 +73,9 @@ What that leaves:
 - **Code state:** `C-01`, `D-03`, `D-11` fixed and **verified on the cluster**, not just in a container. `replicas` pinned to 1 (`C-03` stopgap). Remaining: no tests yet (`C-02`), storage still ephemeral until `C-04`–`C-06`.
 - **`kubectl` context:** Windows says `minikube`, WSL says `app-hub-eks`. They are **separate config files**. Run EKS-facing commands from WSL only (`CLAUDE.md § 5`, `learn/11`).
 
-**Next milestone — make it durable and repeatable:** `C-02` (tests) → `C-04`/`C-05` (persistent DynamoDB stack + IRSA) → `C-06` (repository refactor, then raise replicas). `P-09` automates the loop so teardown is never skipped.
+- **`gateway` is half built** (`S-01`, steps 1–3 of 6). It runs locally on port 8001, proxies `GET /links` to `links-service`, and maps upstream failures to `502`/`503`/`504` — all verified live. Not containerised and not deployed yet.
+
+**Next milestone — make it durable and repeatable:** finish `S-01` steps 4–5 (no cluster, no cost) → `C-02` (tests) → `C-04`/`C-05` (persistent DynamoDB stack + IRSA) → `C-06` (repository refactor, then raise replicas). `P-09` automates the loop so teardown is never skipped. `S-01` step 6 and `E-06` (shared ALB) fold into whichever session next brings the cluster up.
 
 ---
 
@@ -150,7 +152,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
-| S-01 | Build `gateway` — entry point, routes to `links-service` by Kubernetes DNS name | Not started | **No cluster needed to start.** Owner builds this by hand (`CLAUDE.md § 2`). Only the final deploy stage needs EKS. | **Next core-app task (owner roadmap phase 0b).** Repo `app-hub-gateway` does not exist yet. **Build it local-first, the same three stages `links-service` used:** (1) `uv init` + FastAPI, run with `uvicorn --reload`, no Docker, no AWS; (2) `docker.exe build` + run locally; (3) only then ECR + EKS. **The one design decision that matters:** `gateway` must read the links-service address from an environment variable — `LINKS_SERVICE_URL`, defaulting to `http://localhost:8000` — because it is `http://links-service:8000` on the cluster. Then local vs EKS is a config change in the Deployment's `env:` block, never a code change. |
+| S-01 | Build `gateway` — entry point, routes to `links-service` by Kubernetes DNS name | **In progress — owner writing.** Steps 1–3 of 6 done 2026-09-06/07 | None for steps 4–5. Step 6 needs a cluster. | **Repo `app-hub-gateway` exists and is pushed** (sixth repo — `CLAUDE.md § 3`). Owner writes every line; Claude reviews and verifies. Six-step build order and rationale in `learn/21`. <br><br>**Done:** (1) skeleton + `/health` on port **8001** — `36feb40`, 2026-09-06 · 12:22 IST. (2) `GET /links` calling `links-service`, `async def` + `httpx.AsyncClient`, client moved to app scope via `lifespan` — `7c52711`/`1d5c088`, 2026-09-07 · 11:27–13:27 IST. (3) explicit 3s client timeout + upstream failure mapping — `261e5db`, 2026-09-07 · 18:35 IST. **All four paths verified live** against a fake upstream: nothing listening → `503`; hangs 30s → `504` at 3.01s; upstream 4xx/5xx → `502`; healthy → `200`. <br><br>**Next: step 4** — replace the hardcoded `http://localhost:8000` with `os.getenv("LINKS_SERVICE_URL", "http://localhost:8000")`. Then step 5 (Dockerfile, copy the `links-service` one, port 8001), then step 6 (ECR repo + manifests + deploy — the only step that costs money). <br><br>**Carried forward:** `detail=str(e)` on the `503`/`504` handlers leaks the upstream URL to the caller — becomes `links-service:8000` in the cluster. Replace with fixed strings **before step 6**, when the endpoint stops being local-only. |
 | S-02 | Build `aggregator` — calls `links-service` internally; **the service that truly proves discovery** | Not started | Deferred until infra is solid (owner roadmap phase 5) | Distinct from `gateway`: `gateway` is the external entry point, `aggregator` exercises purely internal pod-to-pod discovery. |
 | S-03 | Build `frontend` — static page / SPA talking to the gateway | Not started | Depends on `S-01` | The actual dashboard UI. This is what makes app-hub a usable daily start page rather than an API. |
 
@@ -164,7 +166,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | `D-02` | **Mitigated** (was High) | [manifests/links-service/deployment.yaml](manifests/links-service/deployment.yaml) + [links-service/app/main.py:5](links-service/app/main.py:5) | `links_db` is an in-process dict, but the Deployment runs `replicas: 2`. **Inconsistent-read half fixed 2026-08-30** by pinning `replicas: 1` (`93cea2c`). Data is still lost on restart — durability lands with `C-04`–`C-06`. Do not raise replicas before then. |
 | ~~`D-03`~~ | **RESOLVED** 2026-08-30 (`5e312ef`) | [links-service/Dockerfile:1](links-service/Dockerfile:1) | Base is `python:3.12-slim` while `pyproject.toml` requires `>=3.14` and `.python-version` says `3.14`. `uv sync` will silently download a managed Python 3.14 rather than use the base image's interpreter — bloating the image and making the base tag a lie. Tracked as `P-03`. |
 | ~~`D-04`~~ | **RESOLVED** 2026-08-30 (`5e312ef`) | [links-service/Dockerfile](links-service/Dockerfile) | Untracked in git — the build is not reproducible from a clean clone. Tracked as `P-02`. |
-| `D-05` | Medium | [manifests/links-service/service.yaml](manifests/links-service/service.yaml) | `ClusterIP` with no Ingress means the app is unreachable from outside the cluster. Fine for now, blocking for "real internal app hub". Tracked as `E-05`. |
+| ~~`D-05`~~ | **RESOLVED** 2026-08-31 (`99381d0`) | [manifests/links-service/service.yaml](manifests/links-service/service.yaml) | Was: `ClusterIP` with no Ingress meant the app was unreachable from outside the cluster. Fixed by `E-05` — the Service is now `type: LoadBalancer` with the NLB annotation, and full CRUD was verified from the internet. **Note the follow-on cost concern, tracked separately as `E-06`:** one LoadBalancer Service means one ELB and one bill, so this does not scale past a couple of services. |
 | ~~`D-06`~~ | **RESOLVED** 2026-08-30 (`3cb9e57`) | [infra/vairables.tf](infra/vairables.tf) | Filename typo (`vairables` → `variables`). Terraform loads all `.tf` files so behaviour is unaffected, but it reads as sloppy in a portfolio repo. Tracked as `P-04`. |
 | ~~`D-07`~~ | **RESOLVED** 2026-08-30 (`3cb9e57`) | [infra/main.tf](infra/main.tf) | Empty file (0 bytes). Tracked as `P-05`. |
 | ~~`D-08`~~ | **RESOLVED** 2026-08-30 (`f3203de`) | [links-service/README.md](links-service/README.md) | Empty file (0 bytes), yet referenced as `readme` in `pyproject.toml`. Tracked as `P-06`. |
@@ -219,7 +221,31 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
-**`TIMELINE.md` is the authoritative record** — it is generated from git across all five repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+**`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-06/07 — `S-01` started: `gateway` steps 1–3, owner-written
+
+Four commits in the new `app-hub-gateway` repo, all owner-written; Claude explained the mechanisms first, then reviewed and verified. `learn/21` was written before any code existed, which is what the "do not build ahead" rule is for.
+
+- **Step 1 (`36feb40`, 2026-09-06 · 12:22 IST)** — skeleton + `/health` on port **8001**. Plain `def`, correctly: it waits on nothing. Port 8001 is load-bearing — `links-service` owns 8000 and both run at once from step 2.
+- **Step 2 (`7c52711` → `1d5c088`, 2026-09-07 · 11:27–13:27 IST)** — `GET /links` calling `links-service`. `async def` + `httpx.AsyncClient` + `await`, then the client moved off per-request creation to app scope via FastAPI `lifespan`, so connections pool. Verified by POSTing a link to 8000 and reading it back through 8001 — an empty `[]` proves nothing, since a working gateway and several broken ones both return it.
+- **Step 3 (`261e5db`, 2026-09-07 · 18:35 IST)** — explicit 3s timeout on the client, and upstream failures mapped to the codes that name the right service. **All four paths verified live** against a purpose-built fake upstream: nothing listening → `503`; hangs 30s → `504` at 3.01s; upstream 4xx/5xx → `502`; healthy → `200`. `/health` deliberately does **not** check the upstream — that would let one outage kill gateway too.
+- **The instructive bug:** the upstream-error case initially returned `200` with the error body passed through, then `500`, before reaching `502` — three different causes in sequence. The last was `detail=str(e)` in a block where `e` did not exist: **Python 3 deletes the `except ... as e` variable at the end of its block** ([PEP 3110](https://peps.python.org/pep-3110/)), to break the exception→traceback→frame→`e` reference cycle. So `e` is usable only inside its own `except`.
+- **A near-miss worth recording:** an upstream returning `500` with an HTML body produced a `500` from gateway that *looked* correct, but came from `.json()` raising `JSONDecodeError` — right answer, wrong reason. Testing only that case would have hidden the missing `502` entirely. The `404`-with-JSON-body case is what exposed it.
+- **Also caught:** two "done" reports were made against an unsaved editor buffer — file `mtime` was 2.5 hours stale. `uvicorn --reload` prints `StatReload detected changes` on every real save, so it is a free save-confirmation. Related: **under `--reload`, a syntax error makes the server *hang* rather than refuse connections**, because the reloader parent keeps the listening socket open while the worker is dead.
+- **Carried forward:** `detail=str(e)` on the `503`/`504` handlers leaks the upstream URL to the caller. Harmless locally, becomes internal topology disclosure in the cluster — fix before step 6.
+
+### 2026-09-08 · 12:00 IST — Documentation drift corrected
+
+No code changed. Six places had gone stale while `gateway` was being built:
+
+- **`CLAUDE.md § 3` said FIVE repos.** There are six — added the `gateway/` row, corrected the count and the gitignore list.
+- **`CLAUDE.md § 6` still warned that `infra/vairables.tf` is misspelled.** `P-04` renamed it to `variables.tf` on 2026-08-30, so the note was actively misleading. Also added a `gateway` line to the read order.
+- **`scripts/timeline.sh` had a hardcoded five-repo array**, so every gateway commit was being silently omitted from `TIMELINE.md`. The script cannot distinguish "no commits" from "not in the list" — added a comment saying so.
+- **Then a real bug in the same script, found by checking rather than trusting.** After adding `gateway`, the timeline reported 48 commits where git had 54. Diffing the SHAs showed the six missing ones were **the first commit of every repo**. Cause: `git log --pretty=format:` has *separator* semantics — a newline between entries but none after the last — and `while read` returns false on an unterminated final line, so the loop body never runs for it. `git log` being newest-first, the dropped line is always the **root commit**. Fixed by switching to `--pretty=tformat:`, which terminates. **The timeline now carries all 54 commits, 13 active days, and the project's true start date is 2026-07-28 — a day earlier than it had been claiming.** This is the same failure shape as `D-13` and `learn/20`: nothing errored, the numbers looked plausible, and the loss was invisible until something was counted.
+- **`PROGRESS.md` said `S-01` was "Not started"** when it was three commits in.
+- **`D-05` was still listed as an open Medium defect.** `E-05` fixed it on 2026-08-31 (`99381d0`); marked resolved, with the per-service-ELB cost concern left where it belongs, on `E-06`.
+- **The umbrella `.gitignore` had the `gateway/` line on disk but uncommitted**, so a fresh clone would have tried to track the gateway repo.
 
 ### 2026-09-05 · 16:10–16:30 IST — SMTP replaces Gmail OAuth; destroy-notifier verified
 
