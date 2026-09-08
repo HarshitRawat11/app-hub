@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 54 across 6 repositories |
-| Active days | 13 |
+| Commits | 55 across 6 repositories |
+| Active days | 14 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-07 18:35 IST |
+| Latest commit | 2026-09-08 12:05 IST |
 
 ---
 
@@ -133,3 +133,9 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 11:27 | `gateway` | `7c52711` | Wrote async getLinks function |
 | 13:27 | `gateway` | `1d5c088` | Add /links endpoint proxying to links-service with a shared async client |
 | 18:35 | `gateway` | `261e5db` | Handle upstream failures with 502/503/504 and an explicit client timeout |
+
+## 2026-09-08
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 12:05 | `app-hub` | `8841f54` | Correct documentation drift and fix a silent data loss in timeline.sh |
