@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 55 across 6 repositories |
-| Active days | 14 |
+| Commits | 57 across 6 repositories |
+| Active days | 15 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-08 12:05 IST |
+| Latest commit | 2026-09-09 12:45 IST |
 
 ---
 
@@ -139,3 +139,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
 | 12:05 | `app-hub` | `8841f54` | Correct documentation drift and fix a silent data loss in timeline.sh |
+| 12:07 | `app-hub` | `bcf7915` | Refresh TIMELINE.md to include the drift-fix commit |
+
+## 2026-09-09
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 12:45 | `app-hub` | `940d8a6` | Replace the work split: hand-build the learning, delegate the scaffolding |
