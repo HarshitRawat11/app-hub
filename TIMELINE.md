@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 64 across 6 repositories |
+| Commits | 66 across 6 repositories |
 | Active days | 15 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-09 13:46 IST |
+| Latest commit | 2026-09-09 17:03 IST |
 
 ---
 
@@ -153,3 +153,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 13:39 | `app-hub` | `6da7e8f` | Revise the learn/ rule to two tiers; record S-01 step 5 |
 | 13:45 | `links-service` | `2c35edf` | Add .dockerignore |
 | 13:46 | `app-hub` | `52e0523` | Make the ECR teardown cover every repository, not just links-service |
+| 14:46 | `app-hub` | `d947e06` | Locate persistent/ in the infra repo; stop make status from lying |
+| 17:03 | `infra` | `233d48b` | Commit .terraform.lock.hcl instead of ignoring it |
