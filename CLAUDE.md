@@ -147,16 +147,34 @@ Rules for that summary:
 
 This applies to conversational responses. It does **not** go into `learn/` files, READMEs, `PROGRESS.md`, or commit messages — those stay in English (see above).
 
-### The `learn/` folder — for hand-built work only
+### The `learn/` folder — two tiers
 
-**Revised 2026-09-09.** `learn/` is the record of what the owner actually *learned*, not an index of everything that happened. So:
+**Revised 2026-09-09.** Every step gets a `learn/` file, but the depth depends on who wrote it. The folder stays a continuous record with no gaps where Claude worked — the owner should still be able to read it top to bottom and follow the whole project.
 
-- **Work on the hand-write list gets a `learn/` file.** Terraform, PromQL, Helm values, ArgoCD, Jenkins, n8n, a new Kubernetes object type, and any infra failure that was debugged.
-- **Delegated work does not.** It gets a short note in `PROGRESS.md` instead. A `learn/` file about a Dockerfile the owner never wrote is documentation of nothing.
-- Files 01–09 predate this rule and cover application work. Leave them — they are accurate history, and `learn/01`, `02` and `09` still carry the FastAPI/Docker/uv concepts the delegated work builds on.
-- `learn/14` (testing) and `learn/21` (gateway) were written as *"guide, not a record — for the owner to write"*. That premise is now void, since both are delegated. **The content is still correct; treat them as reference, not as pending assignments.**
+**Hand-built work gets the full file.** The seven-section structure below. Terraform, PromQL, Helm values, ArgoCD, Jenkins, n8n, a new Kubernetes object type, and any infra failure that was debugged.
 
-Every hand-built step gets its own Markdown file in **`learn/`**.
+**Delegated work gets a short note — three sections, under a page:**
+
+```markdown
+# NN — Step name  ·  *delegated, short note*
+
+## What it does           (a paragraph — what changed and what it now does)
+## Why it is this way     (the decisions that actually mattered; skip the ceremony)
+## The one thing to know  (the gotcha, or the non-obvious bit that would bite a reader)
+```
+
+Rules for the short note:
+
+- **Under a page.** If it is running long, it is turning into a walkthrough — cut it.
+- **Write it for a reader who did not watch you work.** Not a diff summary; the reasoning.
+- **Cover the surprise, not the syntax.** Nobody needs `COPY` explained. They need to know why the base image tag has to satisfy `requires-python`.
+- **One file may cover several delegated steps** if they are one coherent piece of work — do not manufacture separate files per commit.
+
+Files 01–09 predate this rule and cover application work. Leave them — they are accurate history, and `learn/01`, `02` and `09` still carry the FastAPI/Docker/uv concepts the delegated work builds on.
+
+`learn/14` (testing) and `learn/21` (gateway) were written as *"guide, not a record — for the owner to write"*. That premise is now void, since both subjects are delegated. **The content is still correct; treat them as reference, not as pending assignments.**
+
+Every step gets its own Markdown file in **`learn/`**.
 
 - **Naming:** `NN-kebab-case-step-name.md`, numbered in the order the steps were performed — e.g. `01-fastapi-service-basics.md`, `02-containerising-with-docker.md`.
 - **Index:** keep `learn/README.md` current — one line per file, in order, saying what it covers.
@@ -177,7 +195,7 @@ Each file follows this structure:
 ## Going deeper         (what to read next, if curious)
 ```
 
-**A hand-built step is not done until its `learn/` file exists.** Delegated work is exempt — see § 7.
+**No step is done until its `learn/` file exists** — the full seven sections if the owner built it, the three-section short note if you did. See § 7.
 
 ---
 
@@ -334,8 +352,7 @@ Work through these in order. Stop as soon as you have what the task needs — do
 
 ## 7. Before you finish a task
 
-- **If the step was hand-built by the owner, write its `learn/` file** — and add it to `learn/README.md`. Per § 2, such a task is not done without it. If the step was too small to warrant its own file, append to the most relevant existing one instead.
-- **If the step was delegated to you, skip the `learn/` file.** A short `PROGRESS.md` note carries it. Do not manufacture a learning record for work the owner did not do.
+- **Write the `learn/` file** and add it to `learn/README.md`. Per § 2, no task is done without it — the **full seven sections** if the owner built it, the **three-section short note** if you did. If the step was too small to warrant its own file, append to the most relevant existing one instead.
 - **State which side of the § 2 split the work fell on**, and for delegated work, whether it was *verified* or merely *written*.
 - Update **`PROGRESS.md`**: move the row's status, clear or restate the blocker, write the real next step, and add a timestamped line to the progress log.
 - **Regenerate the timeline**: `./scripts/timeline.sh`. It rebuilds `TIMELINE.md` from git across all six repos, so the project's chronology is derived rather than typed.

@@ -50,9 +50,19 @@ Every file follows the same shape:
 | 19 | [19-hardening-and-automating-the-loop.md](19-hardening-and-automating-the-loop.md) | Namespaces and why the file is `00-` prefixed; requests vs limits and the QoS class you get; non-root containers and pod- vs container-level `securityContext`; testing `readOnlyRootFilesystem` before trusting it; immutable tags forcing SHA-based versioning; Make as a task runner |
 | 20 | [20-testing-a-workflow-and-a-silently-dead-monitor.md](20-testing-a-workflow-and-a-silently-dead-monitor.md) | Why a webhook 200 is not a success; using `runData` to prove which branch ran; the `$json.body` nesting; OAuth's three tokens and which one expires; **why a monitor fails invisibly — silence and death look identical** |
 
-| 21 | [21-gateway-service-to-service-calls.md](21-gateway-service-to-service-calls.md) | **Guide, not a record** — a service that is also a client; `async def` + a blocking library as the worst available mistake; why the HTTP client outlives the request; the `LINKS_SERVICE_URL` config boundary; timeouts and 502/503/504; why `/health` must not check the upstream |
+| 21 | [21-gateway-service-to-service-calls.md](21-gateway-service-to-service-calls.md) | A service that is also a client; `async def` + a blocking library as the worst available mistake; why the HTTP client outlives the request; the `LINKS_SERVICE_URL` config boundary; timeouts and 502/503/504; why `/health` must not check the upstream |
+| 22 | [22-gateway-config-and-container.md](22-gateway-config-and-container.md) | **Short note — delegated work** — why the default matters as much as the env var; reading config once at module scope; `str(e)` as an information leak; **`localhost` inside a container is the container**; proving service-to-service by DNS name on a Docker network before paying for EKS; `.dockerignore` is about the build context, not the image |
 
-*Steps 22 onward get added as we do them.*
+*Steps 23 onward get added as we do them.*
+
+## Two tiers, from 2026-09-09
+
+`CLAUDE.md § 2` splits the work: infrastructure the owner is learning is hand-built, application scaffolding is delegated. The `learn/` folder follows that split in **depth, not coverage** — every step still gets a file, so this folder reads continuously top to bottom.
+
+- **Full files** (seven sections) for hand-built work — Terraform, PromQL, Helm, ArgoCD, Jenkins, n8n, a new Kubernetes object type, and any infra failure that was debugged.
+- **Short notes** (three sections, under a page) for delegated work — what it does, why it is that way, and the one thing that would bite a reader. Marked in the title.
+
+Files 14 and 21 were written as *"guide, not a record"* before this split, intending the owner to implement them; both subjects are now delegated. **Their content stands as reference — they are not pending assignments.**
 
 ## A note on files 01–07
 
