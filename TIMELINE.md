@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 57 across 6 repositories |
+| Commits | 59 across 6 repositories |
 | Active days | 15 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-09 12:45 IST |
+| Latest commit | 2026-09-09 13:05 IST |
 
 ---
 
@@ -146,3 +146,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
 | 12:45 | `app-hub` | `940d8a6` | Replace the work split: hand-build the learning, delegate the scaffolding |
+| 12:45 | `app-hub` | `c5eeee6` | Refresh TIMELINE.md |
+| 13:05 | `gateway` | `cb39f11` | Read links-service address from LINKS_SERVICE_URL, stop leaking it on errors |
