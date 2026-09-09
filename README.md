@@ -12,7 +12,7 @@ The first service, **links-service**, is a FastAPI CRUD API over link records (`
 
 app-hub is deliberately three things at once:
 
-- **A learning platform** — the full production path exercised by hand: service → container → ECR → EKS → CI/CD → observability.
+- **A learning platform** — the full production path: service → container → ECR → EKS → CI/CD → observability. The **infrastructure** half is hand-built deliberately; the application half is scaffolding for it. See [CLAUDE.md § 2](CLAUDE.md).
 - **A real internal tool** — the link catalogue is meant to actually get used, not just to compile.
 - **A portfolio piece** — it should be legible and deployable by someone who has never seen it before.
 
@@ -200,13 +200,13 @@ kubectl port-forward svc/links-service 8000:8000
 
 ## Governance
 
-### Working across three repos
+### Working across six repos
 
-There is no root repository, so there is no single commit that captures a cross-cutting change. Rules:
+The root is an umbrella repo that tracks only the cross-cutting docs, so no single commit captures a change spanning components. Rules:
 
-- Run git with an explicit target: `git -C links-service status`. Never a bare `git` at the root.
+- Run git with an explicit target: `git -C links-service status`. A bare `git` at the root works but **only sees the docs** — the risk is not that it fails, it is that it succeeds and reports the wrong repo.
 - A change touching a service **and** its manifests is two commits in two repos. Land both, and say so.
-- Keep the three repos independently valid — someone cloning only `manifests/` should still find it coherent.
+- Keep each repo independently valid — someone cloning only `manifests/` should still find it coherent.
 
 ### Commit messages
 
@@ -224,13 +224,15 @@ A task is done when all of these hold:
 
 1. The code works and has been *actually run*, not just written.
 2. It is committed to the right repo (and pushed, if the owner asked).
-3. **The step is written up in [`learn/`](learn/README.md)** and added to that folder's index.
+3. **If the step was hand-built, it is written up in [`learn/`](learn/README.md)** and added to that folder's index. Delegated work is exempt — a `PROGRESS.md` note carries it instead.
 4. `PROGRESS.md` reflects the new reality — status moved, blocker cleared or restated, next step written, log line added.
 5. Anything discovered but not fixed is recorded in `PROGRESS.md § Known Defects`, not left in chat history.
 
 ### Learning as a deliverable
 
-This project is built to be understood, not just to ship. Every step gets explained in [`learn/`](learn/README.md) — what we did, why, the concepts underneath, and how to verify it yourself. That is a requirement of the work, not a nice-to-have: a step without its learning file is not finished. See [CLAUDE.md § 2](CLAUDE.md) for the full rule.
+This project is built to be understood, not just to ship — but the understanding is **targeted**. The owner is the Principal SRE who has to own EKS, Terraform, Prometheus/Grafana, Jenkins and ArgoCD at work, so those are hand-built: the concept is explained first, the owner writes it, then it is reviewed. Application code, Dockerfiles, tests and tooling are scaffolding for that and are written for them.
+
+Every **hand-built** step gets explained in [`learn/`](learn/README.md) — what we did, why, the concepts underneath, and how to verify it yourself. Such a step is not finished without its learning file. Delegated work does not get one: `learn/` records what the owner actually learned, not an index of everything that happened. See [CLAUDE.md § 2](CLAUDE.md) for the full split.
 
 ### Infrastructure discipline
 

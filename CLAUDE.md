@@ -12,11 +12,11 @@ This is not a throwaway exercise. It is infrastructure the owner intends to *liv
 
 The owner has confirmed it serves three purposes *at the same time*, and all three are real — none is a pretext:
 
-1. **Learning vehicle** — and specifically, learning **the toolset the owner's organisation is migrating toward**: AWS EKS, Terraform, Grafana/Prometheus. That is why the stack is what it is. It is not incidental, and it is why "just use a simpler tool" is rarely the right suggestion here.
+1. **Learning vehicle** — and specifically, learning **the toolset the owner's organisation is migrating toward**: AWS EKS, Terraform, Prometheus/Grafana, Jenkins, ArgoCD, n8n. The owner is the **Principal SRE who has to own that stack at work**, which is why it is what it is. It is not incidental, and it is why "just use a simpler tool" is rarely the right suggestion here.
 2. **Real, daily-use software** — the apps hosted here get used, by the owner, every day. They have to actually work and stay up.
 3. **Portfolio piece** — the finished thing should read as competent, documented, and deployable by someone else.
 
-Of the three, **learning dominates**. When speed and understanding conflict, understanding wins — see § 2.
+Of the three, **learning dominates** — but it is targeted, not universal. When speed and understanding conflict **on the infra stack above**, understanding wins. On the application layer, speed wins, because the application was never the lesson. § 2 draws that line precisely; read it before deciding who writes what.
 
 `links-service` is service #1: a CRUD API over link records (`name`, `url`, `category`, `icon`) — the catalogue of what lives where. `gateway` is next (it exists to prove service-to-service calls by Kubernetes DNS name), `aggregator` is future.
 
@@ -32,49 +32,101 @@ If no — say so before doing the work. Suggesting a better-scoped alternative i
 
 ---
 
-## 2. How we work — teach, don't just ship
+## 2. How we work — hand-build the learning, delegate the scaffolding
 
 **This is the most important rule in this file. It governs *how* every other task gets done.**
 
 ### The owner's context, in their words
 
-This project started as a deliberate, manual learning exercise — every step worked through one at a time with Claude chat, so the owner actually understood what they were building. Time pressure forced the move to Claude Code, because the hub is meant for daily use and it has to get finished.
+This is a learning project. The goal is not to ship app-hub — it is for the owner to learn **Terraform, EKS, Prometheus/Grafana, Jenkins, ArgoCD and n8n**, because their organisation is migrating to that stack and **they are the Principal SRE who has to own it.**
 
-**The move to Claude Code was for speed, not for outsourcing the understanding.** The owner has been explicit: they do not want Claude Code to blindly complete this project for them. They want to learn everything that happens in it.
+The project originally ran a stricter rule: the owner hand-wrote everything, application code included. **They have since judged that a misallocation, and the evidence supports them.** Real time went into debugging Python fundamentals — variable scoping, dict versus set syntax, list append — and none of it taught anything about infrastructure. Meanwhile every durable lesson in `learn/` came from an infra failure they had to debug themselves: a rebuilt EKS cluster issuing a new endpoint hostname, ECR refusing to be destroyed while it held images, WSL DNS breaking, an n8n `onError` setting behaving unexpectedly.
+
+**The application was never the point. It exists so the cluster has something real to run.**
 
 ### The standing rule
 
-> **Never just do the work. Do the work *and* teach it.**
-> The owner should finish every step able to redo it themselves, without you.
+> **Hand-build what the owner is trying to learn. Delegate what is merely scaffolding for it.**
 
-In practice:
+Revised **2026-09-09**. This **replaces** the earlier "do not build ahead" rule, which applied to everything and is now wrong for the application layer. Do not reintroduce it.
 
-- **Explain before you act** on anything non-trivial — what you are about to do, why this approach, what the alternatives were and why they lost.
-- **Explain while you act.** When you write a config value, say what it controls and what happens if it changes. When you pick a flag, say why that flag.
-- **Never hand over a black box.** If the owner could not explain your change to someone else afterwards, you have not finished the task.
-- **Separate the load-bearing from the boilerplate.** Say which two lines actually matter and which fifteen are ceremony — that distinction is most of the learning.
-- **Name the mental model, not just the syntax.** "A Service is a stable virtual IP that load-balances across whichever pods currently match its selector" beats "add a service.yaml".
-- **Surface the failure modes.** What breaks this, what the error message will look like, how to tell it apart from a similar-looking failure.
-- If the owner says "just do it" for a specific step, respect that — but still write the `learn/` file so the explanation is there when they want it.
+### Write these yourself, completely, without asking
 
-Teaching is not a separate deliverable bolted on at the end. It is part of doing the task.
+Treat them as patterns, not lessons. Do the work, then say what you did and why in a few lines.
 
-### Do not build ahead
+- **Application code** — FastAPI services, routes, models, storage layers. Includes the upcoming `gateway` and `aggregator`.
+- **Dockerfiles**
+- **Kubernetes manifests that are a second instance of an object type the owner has already written** — see the line below
+- **Tests**
+- **Makefile targets, shell scripts, helper tooling**
+- **Boilerplate refactors**, file moves, renames, formatting
+- **Anything that is the second instance of a pattern the owner has already hand-written once**
+- **The docs themselves** — this file, `PROGRESS.md`, `TIMELINE.md`, `README.md`, `CONTEXT-BRIEF.md`
 
-**The single easiest way to ruin this project is to hand over a finished artifact.**
+**Keep the explanation short.** No Dockerfile walkthroughs. The owner does not need a tour of boilerplate they asked you to write.
 
-The first implementation of any *new concept* is done by the owner, by hand, deliberately — even when that is slower. A working thing that skipped the wrestling has negative value here: it looks like progress and removes the reason the project exists.
+### Do not write these — explain, let the owner write, then review
 
-So before writing code for something new, stop and ask whether the owner wants to write it. The honest split:
+- **Terraform resources and modules they have not written before**
+- **Kubernetes manifests introducing an object type they have not written before** — `Ingress`, `ServiceAccount` (IRSA), `ConfigMap`/`Secret`, `PersistentVolumeClaim`/`StatefulSet`/`StorageClass`, CRDs such as `ServiceMonitor`, `NetworkPolicy`, `HorizontalPodAutoscaler`, RBAC `Role`/`RoleBinding`
+- **Prometheus alert rules and PromQL** — especially translations of Nagios checks the owner already knows from work, because that is where their existing expertise compounds
+- **Grafana dashboard definitions**
+- **Helm values files**
+- **ArgoCD `Application` definitions**
+- **Jenkins pipeline definitions**
+- **n8n workflow construction in the GUI** (API read/inspect/verify stays yours)
+- **Anything that broke in the *infra* layer and needs debugging**
 
-| Genuinely helpful | Actively harmful |
-|---|---|
-| Reviewing code they already wrote | Scaffolding a concept they have not met yet |
-| Rubber-ducking a specific error | "I went ahead and set it up for you" |
-| Scaffolding *repetitive* work, **after** the concept is learned once by hand | Filling in the interesting part and leaving the boilerplate |
-| Explaining a mechanism before they implement it | Optimising away the slow part |
+For these: **explanation first, then they write, then you review.** Explain the *why* before the implementation — the reasoning behind a technical direction matters more here than reaching a working state fast. Say what the file needs to contain and why each part matters, then stop.
 
-Slow is a *choice* here, not a constraint to route around. Expect frequent "why" questions and pushback when things move too fast — that is the project working as intended, not friction to reduce.
+> **Never hand over a finished infra artifact and explain it afterwards.** That is backwards for everything on this list.
+
+### The manifest line, and why it is drawn per object type
+
+Kubernetes is item 2 on the learning list. Delegating *all* manifests would hand away every object type the owner has not yet met — including the IRSA `ServiceAccount` and the `Ingress`, two of the more instructive ones. So the line is **per object type, not per file**. `Deployment` and `Service` are learned; everything above is not.
+
+### A new concept inside an otherwise-delegated file
+
+`gateway`'s `deployment.yaml` is a second instance — except for the `env:` block injecting `LINKS_SERVICE_URL`, which is the one genuinely new Kubernetes idea in it.
+
+Write the file, then **flag the new part in two or three lines.** No walkthrough. This stops concepts hiding inside repeat files.
+
+### The Makefile is where infra knowledge goes to hide
+
+`make down` encodes the teardown *ordering* — LoadBalancer Services first so their ENIs release, then empty ECR with `--filter tagStatus=ANY`, then `terraform destroy`, then the orphan audit. That is `learn/15`, one of the most expensive lessons in the project.
+
+The targets are yours to maintain. But **when a new ordering or teardown constraint appears, state the constraint before encoding it.** Otherwise the next hard-won rule disappears into a target nobody reads.
+
+### Failures and errors — the most valuable moments here
+
+When something breaks in the infra layer, **do not just fix it.**
+
+- Say what the error actually **means**
+- Give **one or two things to check**, and let the owner check them
+- **If they are wrong about the cause, say so directly**
+- When handed a broken infra thing, **ask whether they want it fixed or want to debug it. Default to debugging.**
+
+**The 20-minute time-box.** Socratic debugging and cost discipline pull against each other — the cluster bills roughly **$0.20–0.30/hour**. So while the cluster is **up**, walk them toward it for 20 minutes, then say the box is up and give the answer. **Announce the switch; do not slide into it quietly.** With the cluster **down**, or for anything reproducible locally, there is no clock.
+
+**Bugs in code you wrote are yours to fix.** Making the owner debug a defect in delegated application code is precisely the misallocation this section exists to remove. Fix it and say what it was.
+
+### Verified versus written
+
+For delegated work, **state plainly which it is.** "Builds and runs read-only, tested" and "written, never applied to a cluster" are different claims — `R-01`–`R-04` are still the second one.
+
+An earlier session claimed a scoped IAM user existed when it had never been created, and the owner caught it. With more delegated output there is less surface for them to catch that, so the burden shifts to you to be explicit.
+
+### Tests
+
+You write them. **The owner reviews the coverage list, not the code** — which cases are covered and which are not. That preserves tests-as-specification without spending their time on `assert` syntax.
+
+### The escape hatch
+
+If the owner is stuck on something from the hand-write list and asks you to write it, **write it.** Being blocked teaches nothing. Say what you wrote, and flag which concept got skipped so it can be revisited.
+
+### Push back
+
+Say so when the owner is about to do something that will cost them later — in money, in rework, or in a lesson skipped. Flag trade-offs explicitly, **with the option you would pick and why.** They want the reasoning, not just a recommendation.
 
 ### Register
 
@@ -87,7 +139,7 @@ Slow is a *choice* here, not a constraint to route around. Expect frequent "why"
 Rules for that summary:
 
 - **Indian English, mixing Hindi naturally where it flows** — the way an Indian engineer actually writes to a colleague. Not a translation of the answer, and not a parody. If a Hindi word is the natural one (`matlab`, `abhi`, `theek hai`, `dhyan rakhna`), use it; if the English word is natural, use that.
-- **Keep it short** — three to six lines, or a few bullets. It is a recap, not a second version of the answer.
+- **Five to seven pointers.** It is a recap, not a second version of the answer. The register stays colloquial as described above — the length is fixed, the tone is not formalised.
 - **Lead with what actually matters**: what was done, what is pending, what the owner has to do next.
 - **Technical terms stay in English.** `terraform destroy`, `ClusterIP`, `PersistentVolumeClaim` are not translated — nobody says it that way.
 - **Never hide new information in the summary.** If it is important enough to say, it belongs in the main answer too. The summary only restates.
@@ -95,9 +147,16 @@ Rules for that summary:
 
 This applies to conversational responses. It does **not** go into `learn/` files, READMEs, `PROGRESS.md`, or commit messages — those stay in English (see above).
 
-### The `learn/` folder
+### The `learn/` folder — for hand-built work only
 
-Every step we complete gets its own Markdown file in **`learn/`**.
+**Revised 2026-09-09.** `learn/` is the record of what the owner actually *learned*, not an index of everything that happened. So:
+
+- **Work on the hand-write list gets a `learn/` file.** Terraform, PromQL, Helm values, ArgoCD, Jenkins, n8n, a new Kubernetes object type, and any infra failure that was debugged.
+- **Delegated work does not.** It gets a short note in `PROGRESS.md` instead. A `learn/` file about a Dockerfile the owner never wrote is documentation of nothing.
+- Files 01–09 predate this rule and cover application work. Leave them — they are accurate history, and `learn/01`, `02` and `09` still carry the FastAPI/Docker/uv concepts the delegated work builds on.
+- `learn/14` (testing) and `learn/21` (gateway) were written as *"guide, not a record — for the owner to write"*. That premise is now void, since both are delegated. **The content is still correct; treat them as reference, not as pending assignments.**
+
+Every hand-built step gets its own Markdown file in **`learn/`**.
 
 - **Naming:** `NN-kebab-case-step-name.md`, numbered in the order the steps were performed — e.g. `01-fastapi-service-basics.md`, `02-containerising-with-docker.md`.
 - **Index:** keep `learn/README.md` current — one line per file, in order, saying what it covers.
@@ -118,7 +177,7 @@ Each file follows this structure:
 ## Going deeper         (what to read next, if curious)
 ```
 
-**A step is not done until its `learn/` file exists.** See § 7.
+**A hand-built step is not done until its `learn/` file exists.** Delegated work is exempt — see § 7.
 
 ---
 
@@ -154,7 +213,7 @@ Consequences that bite:
 - **Never run `terraform apply`, `terraform destroy`, or any state-mutating Terraform command without explicit approval in the current session.** Prior approval does not carry over.
 - `terraform plan`, `validate`, `fmt`, and `show` are fine unprompted.
 - Running infra is not free. EKS control plane + 2× `t3.medium` + a NAT gateway is roughly **$150–200/month if left up 24×7** in `ap-south-1`. Treat that as an order-of-magnitude estimate, not a quote — verify against AWS pricing before relying on it.
-- **Standing policy: the cluster is destroyed at the end of every session.** The NAT gateway is the main cost driver and bills whether or not anything runs on it. So "nothing is deployed" is the *normal* resting state of this project, not a sign something went wrong. Two n8n workflows back this up: `cost-watchdog` (emails at 5 PM and 9 PM if EKS is still up — working) and `destroy-notifier` (posts destroy success/failure to an n8n webhook — in progress).
+- **Standing policy: the cluster is destroyed at the end of every session.** The NAT gateway is the main cost driver and bills whether or not anything runs on it. So "nothing is deployed" is the *normal* resting state of this project, not a sign something went wrong. Two n8n workflows back this up: `cost-watchdog` (emails at 5 PM and 9 PM if EKS is still up — wired and active, but **has never actually sent an email**; see `N-01b`) and `destroy-notifier` (posts destroy success/failure to an n8n webhook — **done and verified end to end** 2026-09-05). Both now use SMTP rather than Gmail OAuth, which removed a ~7-day token expiry that had silently killed both.
 - Because of that policy, **`terraform apply` and `terraform destroy` are routine here, not exceptional** — but they still need explicit approval each session, because they cost money and the owner may not want the cluster up yet.
 - **Never run `aws` commands that create, modify, or delete resources without approval.** Read-only calls (`describe-*`, `get-*`, `list-*`) are fine.
 
@@ -184,7 +243,7 @@ Consequences that bite:
 ### Scope
 
 - Do not introduce a new service, database, cloud provider, or framework without asking. The stack is deliberately small.
-- Do not refactor code you were not asked to touch. Note it in PROGRESS.md instead.
+- Do not refactor code you were not asked to touch. Note it in `PROGRESS.md` instead. § 2 delegates *boilerplate refactors* to you — that is permission to do them when they are part of the task, not licence to wander through unrelated files.
 
 ---
 
@@ -259,8 +318,8 @@ A fix is already applied and must not be reverted: `generateResolvConf = false` 
 
 Work through these in order. Stop as soon as you have what the task needs — don't read the whole list reflexively.
 
-1. **`CLAUDE.md`** (this file) — objective, constraints, environment. Always.
-2. **`PROGRESS.md`** — status table, blockers, known defects, next steps. Always. This is where you find out what is half-finished.
+1. **`CLAUDE.md`** (this file) — objective, constraints, environment. Always. **§ 2 decides who writes the thing you are about to write** — check it before starting, not after.
+2. **`PROGRESS.md`** — status table, blockers, known defects, next steps. Always. This is where you find out what is half-finished, and each open task names which side of the § 2 split it falls on.
 3. **`README.md`** — directory layout, quick start commands, governance. Read when you need to *run* something or are unsure of a workflow.
 4. **`learn/README.md`** — the index of what has already been taught. Skim it before explaining anything: if a concept already has a file, build on it and link to it rather than re-explaining from scratch. If the current task extends an earlier step, read that step's file too.
 5. Then, task-dependent only:
@@ -275,7 +334,9 @@ Work through these in order. Stop as soon as you have what the task needs — do
 
 ## 7. Before you finish a task
 
-- **Write the `learn/` file for this step** — and add it to `learn/README.md`. Per § 2, the task is not done without it. If the step was too small to warrant its own file, append to the most relevant existing one instead.
+- **If the step was hand-built by the owner, write its `learn/` file** — and add it to `learn/README.md`. Per § 2, such a task is not done without it. If the step was too small to warrant its own file, append to the most relevant existing one instead.
+- **If the step was delegated to you, skip the `learn/` file.** A short `PROGRESS.md` note carries it. Do not manufacture a learning record for work the owner did not do.
+- **State which side of the § 2 split the work fell on**, and for delegated work, whether it was *verified* or merely *written*.
 - Update **`PROGRESS.md`**: move the row's status, clear or restate the blocker, write the real next step, and add a timestamped line to the progress log.
 - **Regenerate the timeline**: `./scripts/timeline.sh`. It rebuilds `TIMELINE.md` from git across all six repos, so the project's chronology is derived rather than typed.
 

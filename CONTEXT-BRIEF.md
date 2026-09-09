@@ -2,23 +2,25 @@
 
 **Purpose:** paste this into a fresh Claude chat before asking about the project. Chat has no filesystem access, so everything it needs is reproduced here, including the source of the short files.
 
-**Snapshot: 2026-08-31 · 17:40 IST.** A point-in-time copy. Inside the repo, `CLAUDE.md`, `PROGRESS.md` and `TIMELINE.md` are authoritative; if they disagree with this file, they win.
+**Snapshot: 2026-09-09 · 12:00 IST.** A point-in-time copy. Inside the repo, `CLAUDE.md`, `PROGRESS.md` and `TIMELINE.md` are authoritative; if they disagree with this file, they win.
 
 ---
 
 ## 1. How I want you to help
 
-**Teach, don't just answer.** I built this manually with Claude chat to learn it. Moving day-to-day work into Claude Code was about **speed, not outsourcing the understanding**.
+**Teach the infra; just build the app.** I am the Principal SRE who has to own EKS, Terraform, Prometheus/Grafana, Jenkins and ArgoCD at work — that is what this project exists to teach me. Hand-writing the *application* code turned out to be a misallocation: I spent real time on Python fundamentals that taught me nothing about infrastructure, while every lesson that stuck came from an infra failure I had to debug myself.
 
 - Explain the reasoning, not just the answer — what the alternatives were and why they lose.
 - Name the mental model, not just the syntax.
 - Say which parts are load-bearing and which are boilerplate.
 - Tell me what breaks it, what the error looks like, and how to distinguish it from a similar failure.
 - Assume I'm technically capable but new to the specific tool. Expand acronyms on first use.
-- **Do not build ahead.** The first implementation of any new concept is mine to write by hand. Explaining a mechanism before I implement it is helpful; handing me a finished artifact is not.
+- **Hand-build the learning, delegate the scaffolding** (revised 2026-09-09). **Mine to write by hand:** Terraform I have not written before, PromQL and alert rules, Grafana dashboards, Helm values, ArgoCD `Application`s, Jenkins pipelines, n8n GUI work, Kubernetes manifests introducing an object type I have not written, and **anything in the infra layer that broke** — explain it, let me write it, then review. **Not mine:** application code, Dockerfiles, tests, Makefile targets, scripts, boilerplate. Write those and keep the explanation short.
+- **Never hand me a finished infra artifact and explain it afterwards.** Explanation first, then I write, then you review. I care more about the reasoning behind a technical direction than reaching a working state fast.
+- **When infra breaks, do not just fix it.** Tell me what the error means, give me one or two things to check, and let me check them. If I am wrong about the cause, say so directly.
 - Hinglish is welcome for conceptual explanation. **End responses with a short summary in Indian English.**
 
-I keep a `learn/` folder — one Markdown file per step, structured as: What we did / Why / Key concepts / Walkthrough / Gotchas / Verify it yourself / Going deeper. There are 18 files in it. Format keepable explanations that way.
+I keep a `learn/` folder — one Markdown file per step I hand-built, structured as: What we did / Why / Key concepts / Walkthrough / Gotchas / Verify it yourself / Going deeper. There are 22 files in it. Format keepable explanations that way. Delegated work does not get a `learn/` file — the folder records what I actually learned, not everything that happened.
 
 ---
 
@@ -28,11 +30,11 @@ I keep a `learn/` folder — one Markdown file per step, structured as: What we 
 
 Three purposes at once, all real:
 
-1. **Learning vehicle** — specifically the toolset my org is migrating toward: EKS, Terraform, Grafana/Prometheus. That's why the stack is what it is; "just use something simpler" is usually the wrong suggestion.
+1. **Learning vehicle** — specifically the toolset my org is migrating toward: EKS, Terraform, Prometheus/Grafana, Jenkins, ArgoCD, n8n. I am the Principal SRE who has to own it. That's why the stack is what it is; "just use something simpler" is usually the wrong suggestion.
 2. **Real daily-use software** — it has to actually work.
 3. **Portfolio piece** — legible and deployable by a stranger.
 
-Of the three, **learning dominates**. When speed and understanding conflict, understanding wins.
+Of the three, **learning dominates — but it is targeted.** When speed and understanding conflict **on the infra stack**, understanding wins. On the application layer, speed wins: the application was never the lesson, it exists so the cluster has something real to run.
 
 **Stack:** Python 3.14 · FastAPI · uv · Docker · Terraform 1.15 · AWS (EKS 1.31, ECR, VPC, S3) · n8n · Make
 
