@@ -18,6 +18,18 @@ ACCOUNT   := 314146298861
 CLUSTER   := app-hub-eks
 NAMESPACE := app-hub
 ECR_REPO  := app-hub/links-service
+# Every ECR repository the teardown must empty. ECR_REPO above is only the one
+# `deploy` builds today; this list is what `down` walks.
+#
+# app-hub/gateway is listed BEFORE it exists (S-01 step 6 creates it). That is
+# deliberate: `terraform destroy` fails once a repository holds images, and
+# force_delete has been observed not to take effect here (CLAUDE.md 9). So the
+# cleanup for a resource lands before the resource does -- otherwise the first
+# time you find out is a failed destroy, with the cluster still billing.
+#
+# ADD EVERY NEW REPOSITORY HERE. A missing entry fails silently: destroy simply
+# breaks later, on an error about the repository not being empty.
+ECR_REPOS := app-hub/links-service app-hub/gateway
 ECR_HOST  := $(ACCOUNT).dkr.ecr.$(REGION).amazonaws.com
 IMAGE     := $(ECR_HOST)/$(ECR_REPO)
 DOCKER    := docker.exe
@@ -123,10 +135,30 @@ down: guard
 	@echo "== 2/5 deleting PVCs (their EBS volumes are invisible to Terraform) =="
 	-kubectl delete pvc --all --all-namespaces --ignore-not-found
 	@echo "== 3/5 emptying ECR — tagStatus=ANY, because the default hides untagged digests =="
-	-@IDS=$$(aws ecr list-images --repository-name $(ECR_REPO) --region $(REGION) --filter tagStatus=ANY --query 'imageIds[*]' --output json 2>/dev/null); \
+	@# Walk ECR_REPOS, not just the one `deploy` builds. A repository holding
+	@# images blocks `terraform destroy`, and force_delete has been observed not
+	@# to help (CLAUDE.md 9).
+	@#
+	@# "does not exist" is reported separately from "already empty" on purpose.
+	@# Swallowing the RepositoryNotFoundException would make a typo'd repo name
+	@# look like a clean one -- a check that passes because it never checked.
+	@for repo in $(ECR_REPOS); do \
+	  if ! aws ecr describe-repositories --repository-names $$repo --region $(REGION) >/dev/null 2>&1; then \
+	    echo "   $$repo: does not exist yet — nothing to empty"; continue; \
+	  fi; \
+	  IDS=$$(aws ecr list-images --repository-name $$repo --region $(REGION) --filter tagStatus=ANY --query 'imageIds[*]' --output json); \
 	  if [ -n "$$IDS" ] && [ "$$IDS" != "[]" ]; then \
-	    aws ecr batch-delete-image --repository-name $(ECR_REPO) --region $(REGION) --image-ids "$$IDS" --query 'length(imageIds)' --output text; \
-	  else echo "   already empty"; fi
+	    n=$$(aws ecr batch-delete-image --repository-name $$repo --region $(REGION) --image-ids "$$IDS" --query 'length(imageIds)' --output text); \
+	    echo "   $$repo: deleted $$n image(s)"; \
+	  else \
+	    echo "   $$repo: already empty"; \
+	  fi; \
+	  left=$$(aws ecr describe-images --repository-name $$repo --region $(REGION) --query 'length(imageDetails)' --output text 2>/dev/null || echo 0); \
+	  if [ "$$left" != "0" ]; then \
+	    echo "   WARNING: $$repo still holds $$left image(s) — destroy would fail. Stopping rather than proceeding blindly."; \
+	    exit 1; \
+	  fi; \
+	done
 	@echo "== 4/5 terraform destroy =="
 	@# AUTO=1 skips the confirmation prompt. Only for the scheduled unattended
 	@# destroy (scripts/scheduled-destroy.sh) -- interactively you want the prompt.

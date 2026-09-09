@@ -162,6 +162,9 @@ All three should be **empty**. An `available` EBS volume means "attached to noth
 
 ## Gotchas
 
+- **The ECR step has to cover *every* repository, not the one you were thinking about.** Added 2026-09-09. `make down` originally emptied only `app-hub/links-service`, because that was the only repository at the time. A second service means a second repository, and one repository still holding images is enough to fail the whole `destroy` — with the cluster still billing while you work out why. The Makefile now walks an `ECR_REPOS` list, and `app-hub/gateway` went into it **before** the repository existed: **the cleanup for a resource should land before the resource does.** Otherwise the first time you learn the teardown was incomplete is during a teardown.
+- **Distinguish "does not exist" from "already empty".** The obvious way to make the loop tolerate a missing repository is `2>/dev/null`, which then reports a typo'd or not-yet-created repository as clean. That is a check that passes because it never checked — the same shape as the dead monitor in `learn/20`. Test for the repository explicitly, and say which case you are in.
+
 - **A successful `terraform destroy` does not mean nothing is billing.** Orphaned EBS volumes survive it silently. Always run the verify step.
 - **A *failed* destroy is worse than none**, because the NAT gateway usually survives and you may believe you are done. Re-run destroy until it reports success, then verify.
 - **`force_delete = true` on ECR is necessary but not always sufficient.** Keep it; keep the manual fallback too.

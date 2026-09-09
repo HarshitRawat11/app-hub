@@ -190,7 +190,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 | ~~`D-11`~~ | **RESOLVED** 2026-08-30 (`5e312ef`) | [links-service/Dockerfile:8](links-service/Dockerfile:8) + `:14` | Build runs `uv sync --frozen --no-install-project`, but `CMD` uses `uv run`, which re-resolves and installs the project **at container start**. That defeats the build-time sync, moves dependency work into startup (slowing pod readiness, risking a cold-start failure), and will bite when the base image changes. Fix: install the project at build time and invoke `uvicorn` directly in `CMD`. Missed in the 2026-08-30 audit; surfaced from project history. |
 | `D-10` | Low | [links-service/app/main.py](links-service/app/main.py) | Function names are `camelCase` (`getLinks`, `createLink`, `removeLink`), against PEP 8. Cosmetic, but easy to fix before the file grows. |
 | ~~`D-13`~~ | **RESOLVED** 2026-09-05 (`51a7aab`) | n8n credential | Was: the Gmail OAuth refresh token expired, silently disabling **both** workflows -- `cost-watchdog` shared the credential, so it reported `active` but could not email. **Fixed by moving both workflows off Gmail OAuth to `emailSend` nodes with an SMTP credential**, which removes the ~7-day refresh-token expiry entirely. Verified: `destroy-notifier` executions now report `status=success`, and the SMTP server returned `accepted:[harshitrawat2011@gmail.com], rejected:[]` on both branches. **`cost-watchdog` remains unverified end to end** -- see `N-01b`. |
-| `D-14` | Low | `links-service/`, and `infra/` | No `.dockerignore` in `links-service`, so the whole directory — including a ~17 MB `.venv` — is tar'd and shipped to the Docker daemon as build context on every build. Harmless today because the `COPY` lines are specific, so nothing extra reaches the *image*; it is wasted transfer plus a missing safety net for the day someone writes `COPY . .`. `gateway/.dockerignore` was added 2026-09-09; copy it across. Found while doing `S-01` step 5. |
+| ~~`D-14`~~ | **RESOLVED** 2026-09-09 | [links-service/.dockerignore](links-service/.dockerignore) | Was: no `.dockerignore` in `links-service`, so the whole directory — including a ~17 MB `.venv` — was tar'd and shipped to the Docker daemon as build context on every build. Nothing extra reached the *image* (the `COPY` lines are specific), so this was wasted transfer plus a missing safety net for the day someone writes `COPY . .`. Fixed by adding the same file `gateway/` got. Found while doing `S-01` step 5. |
 | `D-12` | Low | `infra/`, `links-service/`, `manifests/` | No `.gitattributes`, so git warns `LF will be replaced by CRLF` on every commit. Harmless for Python and exec-form `CMD`, but the same setting that breaks shell scripts under WSL (see `learn/08`). `n8n/` already has one. Add `* text=auto eol=lf` to the other three. |
 
 ---
@@ -243,6 +243,23 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-09 · ~14:15 IST — Closed both items flagged at step 5
+
+Both were deliberately left open at step 5 rather than fixed silently; the owner asked for them done.
+
+**`D-14` resolved.** `links-service/.dockerignore` added — the same file `gateway/` got. Neither service had one. It changes nothing about what reaches the image (the `COPY` lines are specific), but the whole directory including a ~17 MB `.venv` was tar'd and shipped to the Docker daemon on every build, and it is the safety net against a future `COPY . .`. Committed `2c35edf` in `app-hub-links-service`.
+
+**The teardown hazard is now encoded, per the `CLAUDE.md § 2` Makefile rule** — constraint stated first, then implemented. `make down` emptied only `app-hub/links-service`, because that was the only repository when it was written. It now walks a new `ECR_REPOS` variable, and **`app-hub/gateway` went into that list before the repository exists** (`S-01` step 6 creates it). That ordering is the point: `terraform destroy` fails once a repository holds images, `force_delete` has been observed not to help here, and the alternative is discovering the gap *during* a teardown with the cluster still billing. **The cleanup for a resource should land before the resource does.**
+
+Two details in that loop worth keeping:
+
+- It reports **"does not exist yet"** separately from **"already empty"**. The easy way to tolerate a missing repository is `2>/dev/null`, which then reports a typo'd or not-yet-created repository as clean — a check that passes because it never checked. Fourth appearance of that shape in this project.
+- After deleting, it re-reads `describe-images` and **aborts** if anything remains, rather than proceeding into a `destroy` that will fail. `CLAUDE.md § 9` already recommended that confirmation manually; it is now automatic.
+
+Verified: `make -n down` parses, and the loop run against real AWS reports both repositories as *"does not exist yet"* — correct, since the infra is destroyed. That also confirms the existence check works rather than silently claiming they were empty.
+
+`CLAUDE.md § 9` and `learn/15` updated with the per-repository rule. `learn/22` corrected, since it said `links-service` still lacked the file.
 
 ### 2026-09-09 · ~13:40 IST — `learn/` rule revised to two tiers; `S-01` step 5
 

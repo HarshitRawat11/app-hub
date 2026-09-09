@@ -404,6 +404,8 @@ Each of these cost real time to find. They are here so no future session pays fo
 
   Deleting images by hand is safe — Terraform tracks the *repository*, never the images inside it.
 
+  **This applies to every repository, and `make down` now walks `ECR_REPOS` in the Makefile rather than a single hardcoded name.** Add each new repository to that variable when you create it — a missing entry does not fail loudly, it just breaks a later `destroy` with an error about the repository not being empty. The Makefile also reports *"does not exist yet"* separately from *"already empty"*, because swallowing `RepositoryNotFoundException` would make a typo'd repository name look like a clean one.
+
 - **Kubernetes creates AWS resources Terraform does not know about, and they block or silently outlive `destroy`.** This is the most expensive trap in the project because it fails *quietly*.
   - **EBS volumes** behind PVCs are created by the EBS CSI driver, not Terraform. `terraform destroy` leaves them, and they keep billing.
   - **ENIs and load balancers** from `Service type: LoadBalancer` or an Ingress can block VPC deletion outright.

@@ -16,7 +16,7 @@ LINKS_SERVICE_URL = os.getenv("LINKS_SERVICE_URL", "http://localhost:8000").rstr
 
 and builds the URL as `f"{LINKS_SERVICE_URL}/links"`. Same change also removed `detail=str(e)` from the `503`/`504` handlers — those now return fixed strings and log the real exception instead.
 
-**Step 5 — the Dockerfile.** Near-identical to `links-service/Dockerfile`, with port `8001` and a `.dockerignore` that `links-service` still lacks.
+**Step 5 — the Dockerfile.** Near-identical to `links-service/Dockerfile`, with port `8001`, plus a `.dockerignore` that neither service had.
 
 ## Why it is this way
 
@@ -54,7 +54,7 @@ curl -s localhost:8001/links
 
 That returned the seeded record through `gateway`, both containers read-only and non-root. **The Kubernetes version differs only in who provides the DNS name** — a Service instead of a Docker network alias. Worth knowing that you can de-risk an EKS deploy on a laptop before paying for the cluster.
 
-Second thing, smaller: **a `.dockerignore` is about the build context, not the image.** The `COPY` lines here are specific, so `.venv` could never reach the image anyway — but the whole directory is tar'd and shipped to the Docker daemon before the build starts regardless. That was 17 MB of `.venv` on every build. It is also a safety net for the day someone writes `COPY . .`. **`links-service` still has no `.dockerignore` — tracked as `D-14`.**
+Second thing, smaller: **a `.dockerignore` is about the build context, not the image.** The `COPY` lines here are specific, so `.venv` could never reach the image anyway — but the whole directory is tar'd and shipped to the Docker daemon before the build starts regardless. That was 17 MB of `.venv` on every build. It is also a safety net for the day someone writes `COPY . .`. `links-service` had none either; it got the same file the same day (`D-14`, resolved).
 
 ## Verify it yourself
 
