@@ -206,7 +206,7 @@ Each file follows this structure:
 | Directory        | Repo                                    | Tracks | Branch   |
 |------------------|-----------------------------------------|--------|----------|
 | `.` (root)       | `HarshitRawat11/app-hub`                 | `CLAUDE.md`, `README.md`, `PROGRESS.md`, `TIMELINE.md`, `CONTEXT-BRIEF.md`, `learn/`, `scripts/` | `master` |
-| `infra/`         | `HarshitRawat11/app-hub-infra`           | Terraform | `master` |
+| `infra/`         | `HarshitRawat11/app-hub-infra`           | Terraform — **two stacks**, see below | `master` |
 | `links-service/` | `HarshitRawat11/app-hub-links-service`   | FastAPI service | `master` |
 | `gateway/`       | `HarshitRawat11/app-hub-gateway`         | FastAPI service (entry point) | `master` |
 | `manifests/`     | `HarshitRawat11/app-hub-manifests`       | Kubernetes manifests | `master` |
@@ -221,6 +221,23 @@ Consequences that bite:
 - A change spanning service + manifests is **two commits in two repos**. Mention both in your summary; never claim "committed" when only one landed.
 - **Git identity is set per-repo, never globally.** This is a work-managed laptop and personal commits must not carry the work identity. When creating a new repo, set `user.email` and `user.name` locally *before* the first commit — otherwise it fails with `fatal: empty ident name`.
 - Branch name is `master` everywhere, deliberately not renamed. Nothing in the stack cares.
+
+### Two Terraform stacks, one repo
+
+**Decided 2026-09-09.** `app-hub-infra` holds two independent Terraform stacks:
+
+| Directory | Lifecycle | Holds |
+|---|---|---|
+| `infra/` | **ephemeral** — destroyed every session | VPC, EKS, ECR, and the IRSA role (`C-05`) |
+| `infra/persistent/` | **never destroyed** | the DynamoDB table (`C-04`) |
+
+A Terraform "stack" is not a language feature — it is just a directory with its own backend configuration and therefore **its own state file**. `infra/` uses state key `infra/terraform.tfstate`; the persistent stack uses a *different* key in the same bucket. **Sharing a key would make each stack plan to destroy the other's resources, silently.**
+
+Consequences:
+
+- `cd infra && terraform destroy` **does not recurse into subdirectories**, so `make down` cannot touch the persistent stack by construction rather than by care. `prevent_destroy` on the table is the second line of defence.
+- The layout is deliberately asymmetric — the ephemeral stack sits at the repo root rather than in an `infra/ephemeral/` sibling. Moving it would touch the `Makefile`, `scripts/scheduled-destroy.sh`, the READMEs and several `learn/` files, to break a teardown path that is already proven. Not worth it for symmetry.
+- One repo, so a change spanning both stacks is **one commit**, unlike the service/manifests split.
 
 ---
 
@@ -343,7 +360,7 @@ Work through these in order. Stop as soon as you have what the task needs — do
 5. Then, task-dependent only:
    - `links-service` work → `links-service/app/main.py`, `links-service/app/models.py`, `links-service/pyproject.toml`, `links-service/Dockerfile`
    - `gateway` work → `gateway/app/main.py`, `gateway/pyproject.toml`, and `learn/21` for the design rationale
-   - Infra work → `infra/providers.tf`, `infra/vpc.tf`, `infra/eks.tf`, `infra/ecr.tf`, `infra/outputs.tf`, `infra/variables.tf`
+   - Infra work → `infra/providers.tf`, `infra/vpc.tf`, `infra/eks.tf`, `infra/ecr.tf`, `infra/outputs.tf`, `infra/variables.tf`. **Persistent-data work → `infra/persistent/` instead** — a separate stack with its own state file (§ 3).
    - Deploy work → `manifests/links-service/deployment.yaml`, `manifests/links-service/service.yaml`
    - n8n work → `n8n/README.md` first (it carries the security rules), then `n8n/workflows/*.json`
 6. **Never read `infra/.terraform/`.** It is ~800 MB of vendored provider binaries and upstream module source. It is gitignored, it is not our code, and reading it wastes the entire context window.

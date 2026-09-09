@@ -42,6 +42,9 @@ app-hub/
 │   └── NN-*.md            # e.g. 00-project-setup-and-governance.md
 │
 ├── infra/             # repo: HarshitRawat11/app-hub-infra    — AWS infrastructure (Terraform)
+│   #                     TWO STACKS: this directory is EPHEMERAL (destroyed every
+│   #                     session); infra/persistent/ is never destroyed. Separate
+│   #                     state files -- terraform does not recurse into subdirs.
 │   ├── providers.tf       # Terraform + AWS provider versions; S3 remote state backend
 │   ├── vpc.tf             # VPC 10.0.0.0/16, 2 AZs, public + private subnets, single NAT gateway
 │   ├── eks.tf             # EKS cluster "app-hub-eks" (k8s 1.31), 2x t3.medium managed node group

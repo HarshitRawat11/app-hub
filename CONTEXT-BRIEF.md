@@ -49,7 +49,7 @@ The root is an **umbrella repo** tracking only cross-cutting docs; it gitignores
 | Directory | Remote | Tracks |
 |---|---|---|
 | `.` (root) | `HarshitRawat11/app-hub` | `CLAUDE.md`, `README.md`, `PROGRESS.md`, `TIMELINE.md`, this file, `learn/`, `scripts/`, `Makefile` |
-| `infra/` | `HarshitRawat11/app-hub-infra` | Terraform |
+| `infra/` | `HarshitRawat11/app-hub-infra` | Terraform — **two stacks**: `infra/` is ephemeral (destroyed every session), `infra/persistent/` is never destroyed. Separate state keys in the same S3 bucket; `terraform` does not recurse into subdirectories, so `make down` cannot reach the persistent one. |
 | `links-service/` | `HarshitRawat11/app-hub-links-service` | FastAPI service |
 | `gateway/` | `HarshitRawat11/app-hub-gateway` | FastAPI service (entry point, port 8001) |
 | `manifests/` | `HarshitRawat11/app-hub-manifests` | Kubernetes manifests |

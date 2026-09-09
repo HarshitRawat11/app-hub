@@ -8,6 +8,14 @@
 #   make deploy   build + push (git-SHA tag) + apply manifests + verify
 #   make down     drain Kubernetes, empty ECR, terraform destroy, audit orphans
 #
+# TWO TERRAFORM STACKS, both in the app-hub-infra repo:
+#   infra/             ephemeral -- destroyed every session. This is what up/down drive.
+#   infra/persistent/  never destroyed -- the DynamoDB table (C-04).
+#
+# `cd infra && terraform destroy` does NOT recurse into subdirectories, so the
+# persistent stack is safe from `make down` by construction, not by care. Its
+# table also carries prevent_destroy as a second line of defence.
+#
 # Why a Makefile and not a Terraform local-exec provisioner: provisioners are a
 # documented last resort, they do not re-run on refresh, and a failed one taints
 # the resource -- so a trivial local command failing makes Terraform want to
@@ -71,7 +79,16 @@ status:
 	@echo "== Orphaned EBS ==";        aws ec2 describe-volumes --filters Name=status,Values=available --region $(REGION) --query 'Volumes[*].[VolumeId,Size]' --output text
 	@echo "== Unassociated EIPs ==";   aws ec2 describe-addresses --region $(REGION) --query 'Addresses[?AssociationId==null].PublicIp' --output text
 	@echo ""
-	@echo "All empty = nothing is billing you."
+	@echo "-- everything above is EPHEMERAL: all empty = nothing is billing you --"
+	@echo ""
+	@# Below the line: resources that are SUPPOSED to exist between sessions.
+	@# Listed separately because "all empty" is the pass condition above and
+	@# emphatically not down here -- an empty list after C-04 means the
+	@# persistent stack was destroyed, which is a much worse problem than a bill.
+	@echo "== DynamoDB tables (PERSISTENT — these are meant to survive) =="
+	@aws dynamodb list-tables --region $(REGION) --query 'TableNames' --output text
+	@echo ""
+	@echo "-- on-demand DynamoDB costs ~\$$0 idle; storage is \$$0.25/GB-month --"
 
 ## up — provision, then make kubectl actually work
 up: guard
@@ -174,3 +191,15 @@ destroy-only: guard
 validate:
 	python3 scripts/validate-manifests.py $(MANIFESTS)
 	cd infra && terraform fmt -check -recursive . && terraform validate
+	@# The persistent stack (C-04) lives in the infra REPO but is a separate
+	@# Terraform stack -- its own directory, its own state file. `terraform
+	@# validate` above only covers infra/ itself; it does not recurse.
+	@#
+	@# -backend=false initialises providers WITHOUT touching S3, so this stays
+	@# offline and needs no credentials.
+	@if [ -d infra/persistent ]; then \
+	  echo "== validating the persistent stack =="; \
+	  cd infra/persistent && terraform fmt -check . && terraform init -backend=false -input=false >/dev/null && terraform validate; \
+	else \
+	  echo "== infra/persistent/ does not exist yet (C-04) — skipping =="; \
+	fi
