@@ -94,7 +94,7 @@ LINKS_SERVICE_URL = os.getenv("LINKS_SERVICE_URL", "http://localhost:8000")
 ```
 
 Locally `links-service` is at `http://localhost:8000`. In the cluster it is
-`http://links-service:8000` (same namespace) or
+`http://links-service:80` (same namespace — **80, the Service's port, not 8000 which is the container's**) or
 `http://links-service.app-hub.svc.cluster.local:8000` (fully qualified).
 
 **Hardcode either one and the other becomes impossible.** Hardcode the DNS name and you
@@ -145,7 +145,7 @@ endpoint, precisely because readiness removes a pod from load balancing without 
 From `learn/07`: a Service gets a DNS name. The short form works **within a namespace**:
 
 ```
-http://links-service:8000                            # same namespace only
+http://links-service:80                              # same namespace only -- Service port, not container port
 http://links-service.app-hub.svc.cluster.local:8000  # from anywhere in the cluster
 ```
 
@@ -207,7 +207,7 @@ Expect `502` or `503`, **quickly**. If it hangs, your timeout is missing. If it 
 Later, in the cluster, the claim this service exists to prove:
 
 ```bash
-kubectl -n app-hub exec deploy/gateway -- curl -sS http://links-service:8000/health
+kubectl -n app-hub exec deploy/gateway -- curl -sS http://links-service:80/health
 ```
 
 ## Going deeper

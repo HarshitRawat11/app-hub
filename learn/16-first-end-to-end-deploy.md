@@ -156,6 +156,9 @@ This sequence is what `P-09` will encode as `make up` / `make deploy`.
 - **`kubectl rollout status` blocks until ready or timeout.** Useful in scripts; give it `--timeout`.
 - **One replica means no redundancy during a rollout.** Deliberate here (`C-03`), but there is a window with zero pods.
 
+
+> **Port correction, 2026-09-10.** This says `links-service:8000`, which was true when written: during `E-04` the Service was `ClusterIP` on port **8000**. `E-05` changed it to `type: LoadBalancer` with `port: 80` → `targetPort: 8000`, and **nothing consumed it from inside the cluster for ten days**, so the change went unnoticed. The in-cluster address is now **`http://links-service:80`**. A Service's `port` and its `targetPort` are different numbers, and a consumer must use the first.
+
 ## Verify it yourself
 
 Is a cluster running right now — i.e. am I being charged?

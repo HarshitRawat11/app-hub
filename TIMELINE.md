@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 85 across 6 repositories |
+| Commits | 88 across 6 repositories |
 | Active days | 16 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-10 16:23 IST |
+| Latest commit | 2026-09-10 17:30 IST |
 
 ---
 
@@ -179,3 +179,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 15:57 | `app-hub` | `716dbe8` | Add a doc-drift checker; fix ten stale documentation items |
 | 16:23 | `gateway` | `42ec560` | Move to httpx2 (D-17) |
 | 16:23 | `links-service` | `701a6fd` | POST /links returns 201 Created with a Location header (D-16) |
+| 16:25 | `app-hub` | `21bb878` | Clear every no-cluster decision; prepare the scheduled teardown |
+| 17:30 | `gateway` | `1d78307` | Correct the in-cluster address to links-service:80 |
+| 17:30 | `manifests` | `94e7d55` | Fix gateway's LINKS_SERVICE_URL port, and pin both image tags |

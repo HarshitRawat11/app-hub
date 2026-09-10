@@ -169,6 +169,9 @@ kubectl apply -f manifests/links-service/
 - **Always check `kubectl config current-context` first.** Default here is `minikube`, not EKS.
 - **Delete `LoadBalancer` Services before `terraform destroy`.** They create AWS load balancers Terraform does not track, which can block VPC deletion.
 
+
+> **Port correction, 2026-09-10.** This says `links-service:8000`, which was true when written: during `E-04` the Service was `ClusterIP` on port **8000**. `E-05` changed it to `type: LoadBalancer` with `port: 80` → `targetPort: 8000`, and **nothing consumed it from inside the cluster for ten days**, so the change went unnoticed. The in-cluster address is now **`http://links-service:80`**. A Service's `port` and its `targetPort` are different numbers, and a consumer must use the first.
+
 ## Verify it yourself
 
 Confirm you are pointed at the right cluster — do this every time:

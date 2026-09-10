@@ -170,13 +170,25 @@ verify:
 	kubectl -n $(NAMESPACE) get endpoints
 	@echo ""
 	@echo "== service discovery by DNS name, from inside the cluster =="
-	kubectl -n $(NAMESPACE) run verify-$$$$ --image=curlimages/curl --restart=Never --rm -i --quiet -- \
-	  sh -c "curl -sS --max-time 10 http://links-service:8000/health; echo; curl -sS --max-time 10 http://gateway:8001/health; echo" || true
+	@# Was: `kubectl run` a throwaway curlimages/curl pod. That is rejected by
+	@# the restricted Pod Security Standard the namespace enforces (R-04) --
+	@# the throwaway pod sets none of runAsNonRoot, allowPrivilegeEscalation,
+	@# capabilities.drop or seccompProfile. Verified live 2026-09-10: the
+	@# policy is real, and it broke the verification rather than the workload.
+	@#
+	@# Exec into gateway instead. It is already running, already compliant, and
+	@# it is a BETTER test: it proves the real pod can resolve the name, not
+	@# that a freshly-created one can.
+	kubectl -n $(NAMESPACE) exec deploy/gateway -- python -c \
+	  "import httpx2, os; u=os.environ['LINKS_SERVICE_URL']; \
+	   print('links-service by DNS name ->', httpx2.get(u+'/health', timeout=5).text); \
+	   print('gateway by DNS name       ->', httpx2.get('http://gateway:8001/health', timeout=5).text)" || true
 	@echo ""
-	@# The claim gateway exists to prove: one pod reaching another by name.
-	@echo "== gateway -> links-service, through gateway itself =="
-	kubectl -n $(NAMESPACE) exec deploy/gateway -- \
-	  python -c "import httpx,os;print(httpx.get(os.environ['LINKS_SERVICE_URL']+'/links',timeout=5).text)" || true
+	@# The claim gateway exists to prove: one pod reaching another by name,
+	@# through the gateway's own configured URL rather than a hand-typed one.
+	@echo "== a real request through gateway, end to end =="
+	kubectl -n $(NAMESPACE) exec deploy/gateway -- python -c \
+	  "import httpx2; print(httpx2.get('http://gateway:8001/links', timeout=5).text)" || true
 	@echo ""
 	@echo "== external endpoint for links-service (blank until the NLB provisions, ~2 min) =="
 	@kubectl -n $(NAMESPACE) get svc links-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'; echo
