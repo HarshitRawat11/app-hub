@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 66 across 6 repositories |
-| Active days | 15 |
+| Commits | 70 across 6 repositories |
+| Active days | 16 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-09 17:03 IST |
+| Latest commit | 2026-09-10 12:57 IST |
 
 ---
 
@@ -155,3 +155,12 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 13:46 | `app-hub` | `52e0523` | Make the ECR teardown cover every repository, not just links-service |
 | 14:46 | `app-hub` | `d947e06` | Locate persistent/ in the infra repo; stop make status from lying |
 | 17:03 | `infra` | `233d48b` | Commit .terraform.lock.hcl instead of ignoring it |
+| 17:04 | `app-hub` | `c708aa4` | Close D-15 |
+
+## 2026-09-10
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 11:15 | `app-hub` | `8a3039a` | Close D-12 -- the row was stale, not the defect |
+| 12:57 | `links-service` | `fc753f8` | Add tests for the links CRUD endpoints; snake_case the handlers |
+| 12:57 | `gateway` | `c921f03` | Rename getLinks to get_links |

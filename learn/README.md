@@ -53,7 +53,9 @@ Every file follows the same shape:
 | 21 | [21-gateway-service-to-service-calls.md](21-gateway-service-to-service-calls.md) | A service that is also a client; `async def` + a blocking library as the worst available mistake; why the HTTP client outlives the request; the `LINKS_SERVICE_URL` config boundary; timeouts and 502/503/504; why `/health` must not check the upstream |
 | 22 | [22-gateway-config-and-container.md](22-gateway-config-and-container.md) | **Short note — delegated work** — why the default matters as much as the env var; reading config once at module scope; `str(e)` as an information leak; **`localhost` inside a container is the container**; proving service-to-service by DNS name on a Docker network before paying for EKS; `.dockerignore` is about the build context, not the image |
 
-*Steps 23 onward get added as we do them.*
+| 23 | [23-testing-the-links-api.md](23-testing-the-links-api.md) | **Short note — delegated work** — the 14-test coverage list; `TestClient` over ASGI rather than a real port; the module-level shared-state trap and why its failures are order-dependent; why a test asserting only on the `POST` response would have missed `D-01` entirely; `pythonpath` in `pyproject.toml` and the `ModuleNotFoundError` that looks like a broken install |
+
+*Steps 24 onward get added as we do them.*
 
 ## Two tiers, from 2026-09-09
 
