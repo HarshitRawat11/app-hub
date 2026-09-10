@@ -156,7 +156,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 |----|------|--------|---------|-----------|
 | N-00 | `cost-watchdog` — ✅ **working, published/active** | None | Schedule Trigger (5 PM + 9 PM, two rules) → HTTP Request → Gmail. Calls `GET https://eks.ap-south-1.amazonaws.com/clusters/app-hub-eks` with Predefined Credential Type → AWS (IAM) → `n8n-readonly`. **On Error must be `Stop Workflow`** — 404 (cluster gone) halts silently, 200 (still up) proceeds to Gmail. Gmail via OAuth2, Google Cloud project `n8n-app-hub`. |
 | N-00b | `destroy-notifier` | **Done** 2026-09-05 · 16:25 IST | None | All four nodes wired (`Webhook → If → Success/Failure`), active, using `emailSend` + SMTP. **Verified end to end:** success payload → `Success` node, failure payload → `Failure` node, both with SMTP reporting `accepted:[...], rejected:[]`. Committed `51a7aab`. Remaining follow-up: schedule `scripts/scheduled-destroy.sh` via Windows Task Scheduler. |
-| N-01b | Prove `cost-watchdog` actually sends its email | **Ready to verify — OWNER** (n8n GUI). Cluster UP and n8n running, so conditions are right for the first time | Cannot be tested without a cluster — no manual-run endpoint (API returns `405`), and with no cluster the EKS call 404s and `onError: stopWorkflow` halts before the email node. | **Next time a cluster is up**, click **Test workflow** on `eks-cost-watchdog` in the n8n UI. The HTTP Request should get a 200 and the email should fire. Thirty seconds, and it closes the last gap in the cost safety net. |
+| N-01b | Prove `cost-watchdog` actually sends its email | **STILL OPEN — OWNER** (n8n GUI). **Does NOT need a cluster** — corrected 2026-09-10 | Cannot be tested without a cluster — no manual-run endpoint (API returns `405`), and with no cluster the EKS call 404s and `onError: stopWorkflow` halts before the email node. | **Correction 2026-09-10: this does not need a cluster, and saying so for a week is why it kept slipping.** The *end-to-end* path does — the HTTP Request node 404s without a cluster and `onError: stopWorkflow` halts there, which executions 29 and 33 both confirm (`node: HTTP Request, msg: The resource you are requesting could not be found`). But the **unproven** part is narrower than that: *does the email node actually send?* In n8n you can **execute a single node** — open the workflow, select the email node, run just that step. No cluster involved. <br><br>That will not exercise the 404-halts-silently branch, but executions 29 and 33 already prove it. It will prove the only thing that has never been proven: **that the mail leaves.** `destroy-notifier` established the SMTP credential works; what is untested is whether *this* workflow's email node is wired correctly. <br><br>Attempted 2026-09-10 with a live cluster and **no email arrived, and no execution was recorded.** Manual executions *are* persisted on this instance (ids 28 and 29 are `mode=manual`), so a click that reached the engine would have left a record — meaning the workflow did not run rather than ran and failed. |
 | N-01 | Scaffold the `n8n/` repo | Done | None | Done 2026-08-30: git repo, `.gitignore`, `.gitattributes` (LF enforcement), `.env.example`, `pull-workflows.sh`, README with security rules |
 | N-02 | Create the `app-hub-n8n` GitHub remote and push | **Done** | None | Done 2026-08-30. The scaffold had **zero commits** — made the initial commit, wired `origin`, pushed. Secret-scanned before pushing; no real `.env` exists. |
 | N-03 | Populate `n8n/.env` with the instance URL and API key | **Done** 2026-08-31 | None | Verified: both values populated, `.env` matched by `.gitignore:2`, absent from `git status`. API returns **HTTP 200** and lists both workflows (`eks-cost-watchdog`, `terraform-destroy-notifier`). Key never entered the transcript. |
@@ -247,6 +247,43 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-10 — Teardown: clean, but only because the check ran twice
+
+`make down` completed. **56 destroyed**, orphan audit empty across clusters, NAT gateways, load balancers, EC2, EBS and EIPs. **The `app-hub-links` DynamoDB table survived**, which is the persistent stack working exactly as designed — `terraform` does not recurse into subdirectories, so `make down` cannot reach it.
+
+**It took two attempts, and the first failure was the valuable one.**
+
+Attempt 1 stopped at stage 3 with:
+
+```
+app-hub/links-service: deleted 1 image(s)
+WARNING: still holds 2 image(s) — destroy would fail. Stopping rather than proceeding blindly.
+```
+
+**buildkit pushes a manifest *index* plus the child manifests it points at** (the image, and an attestation). `list-images` shows the index; **deleting it makes the children visible as newly-untagged digests that were not in the first listing.** So `--filter tagStatus=ANY` is necessary but not sufficient — one pass never empties a buildkit-pushed repository.
+
+Confirmed on the second run, which loops to convergence:
+
+```
+app-hub/gateway: pass 1 deleted 1
+app-hub/gateway: pass 2 deleted 2      <- the children the index was hiding
+app-hub/gateway: empty (confirmed, 3 deleted)
+```
+
+**The single-pass command documented in `CLAUDE.md § 9` has always been incomplete.** It simply never failed loudly, because until yesterday nothing re-checked afterwards. `make down` now loops until `describe-images` returns `0` and aborts if it has not converged in five passes.
+
+**The general point is worth more than the fix:** without the re-check, this run would have proceeded into a `terraform destroy` that failed twenty minutes later — with the cluster billing throughout, and an error about a repository not being empty that points nowhere near buildkit. **The verification was worth more than the action it guarded.** Same shape as the `--filter tagStatus=ANY` discovery and the drift checker: a step that looked like it worked, and only a second look proved otherwise.
+
+**`N-01b` is still open, and I had it wrong for a week.**
+
+Attempted with a live cluster. No email arrived, and **no execution was recorded at all.** Manual executions *are* persisted on this instance — ids 28 and 29 are `mode=manual` — so a click that reached the engine would have left a record. The workflow did not run, rather than ran and failed.
+
+**Correction: `N-01b` does not need a cluster, and repeating that it did is why it kept slipping.** The *end-to-end* path does — without a cluster the HTTP Request node 404s and `onError: stopWorkflow` halts there, which executions 29 and 33 both confirm (`node: HTTP Request, msg: The resource you are requesting could not be found`). But the **unproven** part is narrower: *does the email node actually send?* n8n can **execute a single node**, which bypasses the HTTP Request entirely. No cluster required.
+
+That will not exercise the 404-halts-silently branch — but 29 and 33 already prove that. It will prove the one thing never proven in this project's life: **that the mail leaves.** `destroy-notifier` established the SMTP credential works; what is untested is whether *this* workflow's email node is wired correctly.
+
+**Cost: nothing is billing.** The cluster ran roughly an hour.
 
 ### 2026-09-10 — Cluster session: `S-01` complete, `R-01`–`R-04` verified for real, one genuine bug
 

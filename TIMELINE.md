@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 88 across 6 repositories |
+| Commits | 89 across 6 repositories |
 | Active days | 16 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-10 17:30 IST |
+| Latest commit | 2026-09-10 17:35 IST |
 
 ---
 
@@ -182,3 +182,4 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 16:25 | `app-hub` | `21bb878` | Clear every no-cluster decision; prepare the scheduled teardown |
 | 17:30 | `gateway` | `1d78307` | Correct the in-cluster address to links-service:80 |
 | 17:30 | `manifests` | `94e7d55` | Fix gateway's LINKS_SERVICE_URL port, and pin both image tags |
+| 17:35 | `app-hub` | `a478749` | Record the cluster session: S-01 complete, R-01..R-04 verified, port bug found |

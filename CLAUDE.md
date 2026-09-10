@@ -421,6 +421,10 @@ Each of these cost real time to find. They are here so no future session pays fo
 
   Deleting images by hand is safe — Terraform tracks the *repository*, never the images inside it.
 
+  **One pass is not enough, and this bit on 2026-09-10.** buildkit pushes a manifest **index** plus the child manifests it points at (the image, and an attestation). `list-images` shows the index; **deleting it makes the children visible as newly-untagged digests that were not in the first listing.** Observed live: `app-hub/gateway` needed two passes — pass 1 deleted 1, pass 2 deleted 2. A single `batch-delete-image` leaves the repository non-empty and `destroy` then fails.
+
+  So **loop until `describe-images` actually returns `0`**, rather than deleting once and assuming. `make down` does this now, and aborts rather than proceeding if the repository is still non-empty after five passes. The command above is the single-pass version — run it repeatedly, or use `make down`.
+
   **This applies to every repository, and `make down` now walks `ECR_REPOS` in the Makefile rather than a single hardcoded name.** Add each new repository to that variable when you create it — a missing entry does not fail loudly, it just breaks a later `destroy` with an error about the repository not being empty. The Makefile also reports *"does not exist yet"* separately from *"already empty"*, because swallowing `RepositoryNotFoundException` would make a typo'd repository name look like a clean one.
 
 - **Kubernetes creates AWS resources Terraform does not know about, and they block or silently outlive `destroy`.** This is the most expensive trap in the project because it fails *quietly*.

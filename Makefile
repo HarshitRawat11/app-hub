@@ -216,6 +216,13 @@ down: guard
 	@# images blocks `terraform destroy`, and force_delete has been observed not
 	@# to help (CLAUDE.md 9).
 	@#
+	@# ONE PASS IS NOT ENOUGH. buildkit pushes a manifest INDEX plus the child
+	@# manifests it points at (the image itself, and an attestation). Deleting
+	@# the index makes its children visible to list-images as newly-untagged
+	@# digests that were not in the first listing. Observed live 2026-09-10:
+	@# one pass deleted 1 image and left 2 behind. So loop until the repository
+	@# actually reports empty, rather than deleting once and hoping.
+	@#
 	@# "does not exist" is reported separately from "already empty" on purpose.
 	@# Swallowing the RepositoryNotFoundException would make a typo'd repo name
 	@# look like a clean one -- a check that passes because it never checked.
@@ -223,18 +230,23 @@ down: guard
 	  if ! aws ecr describe-repositories --repository-names $$repo --region $(REGION) >/dev/null 2>&1; then \
 	    echo "   $$repo: does not exist yet — nothing to empty"; continue; \
 	  fi; \
-	  IDS=$$(aws ecr list-images --repository-name $$repo --region $(REGION) --filter tagStatus=ANY --query 'imageIds[*]' --output json); \
-	  if [ -n "$$IDS" ] && [ "$$IDS" != "[]" ]; then \
+	  total=0; \
+	  for pass in 1 2 3 4 5; do \
+	    IDS=$$(aws ecr list-images --repository-name $$repo --region $(REGION) --filter tagStatus=ANY --query 'imageIds[*]' --output json); \
+	    if [ -z "$$IDS" ] || [ "$$IDS" = "[]" ]; then break; fi; \
 	    n=$$(aws ecr batch-delete-image --repository-name $$repo --region $(REGION) --image-ids "$$IDS" --query 'length(imageIds)' --output text); \
-	    echo "   $$repo: deleted $$n image(s)"; \
-	  else \
-	    echo "   $$repo: already empty"; \
-	  fi; \
+	    total=$$((total + n)); \
+	    echo "   $$repo: pass $$pass deleted $$n"; \
+	  done; \
+	  if [ "$$total" = "0" ]; then echo "   $$repo: already empty"; fi; \
 	  left=$$(aws ecr describe-images --repository-name $$repo --region $(REGION) --query 'length(imageDetails)' --output text 2>/dev/null || echo 0); \
 	  if [ "$$left" != "0" ]; then \
-	    echo "   WARNING: $$repo still holds $$left image(s) — destroy would fail. Stopping rather than proceeding blindly."; \
+	    echo "   ERROR: $$repo still holds $$left image(s) after 5 passes — destroy would fail."; \
+	    echo "   Stopping rather than proceeding blindly. Inspect with:"; \
+	    echo "     aws ecr describe-images --repository-name $$repo --region $(REGION)"; \
 	    exit 1; \
 	  fi; \
+	  echo "   $$repo: empty (confirmed, $$total deleted)"; \
 	done
 	@echo "== 4/5 terraform destroy =="
 	@# AUTO=1 skips the confirmation prompt. Only for the scheduled unattended
