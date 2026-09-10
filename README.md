@@ -2,7 +2,7 @@
 
 A self-hosted hub of small, independently deployed services running on AWS EKS — provisioned with Terraform, deployed from Git-tracked Kubernetes manifests.
 
-The first service, **links-service**, is a FastAPI CRUD API over link records (`name`, `url`, `category`, `icon`) — the data behind an internal "which app lives where" dashboard. More services will join it under the same infra.
+The first service, **links-service**, is a FastAPI CRUD API over link records (`name`, `url`, `category`, `icon`) — the data behind an internal "which app lives where" dashboard. **gateway** is service #2: one front door, so internal services stop being publicly reachable. More will join them under the same infra.
 
 > **Status:** Phase 2 complete. The full loop is proven on real EKS — provision, build, push, deploy, reach `/health` by Kubernetes DNS name, expose publicly, tear down cleanly. Nothing is deployed right now by design; the cluster is destroyed between sessions. See [PROGRESS.md](PROGRESS.md).
 
@@ -18,7 +18,7 @@ app-hub is deliberately three things at once:
 
 That combination sets the bar: working-on-my-machine isn't the finish line. Reproducible-from-a-clean-clone is.
 
-**Stack:** Python 3.14 · FastAPI · uv · Docker · Terraform 1.15 · AWS (EKS, ECR, VPC, S3) · Kubernetes 1.31
+**Stack:** Python 3.14 · FastAPI · uv · Docker · Terraform 1.15 · AWS (EKS, ECR, VPC, S3, DynamoDB) · Kubernetes 1.31 · n8n · Make
 
 ---
 
@@ -32,10 +32,12 @@ app-hub/
 ├── README.md          # This file
 ├── PROGRESS.md        # Live status board, blockers, known defects, progress log
 ├── TIMELINE.md        # GENERATED from git across all 6 repos -- never edit by hand
-├── Makefile           # session automation: make status / up / deploy / down / validate
+├── Makefile           # session automation: make status / up / deploy / down / test / validate
 ├── scripts/
 │   ├── timeline.sh        # regenerates TIMELINE.md
-│   └── validate-manifests.py  # offline manifest checks
+│   ├── validate-manifests.py  # offline manifest checks
+│   ├── check-doc-drift.py     # verifies CONTEXT-BRIEF's embedded source still matches
+│   └── scheduled-destroy.sh   # unattended teardown, POSTs the result to n8n
 │
 ├── learn/             # Learning record — one file per step performed, with the reasoning behind it
 │   ├── README.md          # Index of learning files, in the order the steps were done
@@ -48,9 +50,12 @@ app-hub/
 │   ├── providers.tf       # Terraform + AWS provider versions; S3 remote state backend
 │   ├── vpc.tf             # VPC 10.0.0.0/16, 2 AZs, public + private subnets, single NAT gateway
 │   ├── eks.tf             # EKS cluster "app-hub-eks" (k8s 1.31), 2x t3.medium managed node group
-│   ├── ecr.tf             # ECR repo "app-hub/links-service", scan-on-push, force_delete
+│   ├── ecr.tf             # ECR repos for links-service and gateway, IMMUTABLE, force_delete
 │   ├── outputs.tf         # cluster name/endpoint, VPC id, private subnet ids
 │   ├── variables.tf       # aws_region (default ap-south-1)
+│   ├── persistent/        # SECOND STACK, never destroyed -- own state key.
+│   │                      # The DynamoDB table (C-04). terraform does not
+│   │                      # recurse, so `make down` cannot reach it.
 │   └── .terraform/        # ~800 MB vendored providers + upstream modules. Gitignored. Never read this.
 │
 ├── links-service/     # repo: HarshitRawat11/app-hub-links-service — the FastAPI service
@@ -62,17 +67,25 @@ app-hub/
 │   ├── uv.lock            # pinned dependency lockfile
 │   └── .python-version    # 3.14
 │
-├── gateway/           # repo: HarshitRawat11/app-hub-gateway — the entry-point service (S-01, in progress)
+├── gateway/           # repo: HarshitRawat11/app-hub-gateway — the entry-point service, port 8001
 │   ├── app/
-│   │   └── main.py        # FastAPI app: /health + /links proxied to links-service on 8001
+│   │   └── main.py        # /health + /links proxied to links-service, 502/503/504 mapping
+│   ├── tests/
+│   │   ├── test_gateway.py    # 15 tests, upstream faked with httpx.MockTransport
+│   │   └── fake_upstream.py   # manual fixture: ok / 404 / html500 / slow
+│   ├── Dockerfile         # as links-service, port 8001
 │   ├── pyproject.toml     # requires-python >=3.14; fastapi, uvicorn, httpx
 │   └── uv.lock            # pinned dependency lockfile
 │
 ├── manifests/         # repo: HarshitRawat11/app-hub-manifests — Kubernetes manifests
-│   └── links-service/
-│       ├── 00-namespace.yaml    # namespace app-hub, restricted Pod Security Standard
-│       ├── deployment.yaml    # 1 replica, securityContext, resource limits, probes on /health:8000
-│       └── service.yaml       # LoadBalancer (NLB), port 80 -> targetPort 8000
+│   ├── 00-namespace.yaml   # SHARED by every service, so it sits above them.
+│   │                      # namespace app-hub, restricted Pod Security Standard
+│   ├── links-service/
+│   │   ├── deployment.yaml   # replicas: 1 (in-memory state), securityContext, limits
+│   │   └── service.yaml      # LoadBalancer (NLB), port 80 -> targetPort 8000
+│   └── gateway/
+│       ├── deployment.yaml   # replicas: 2 (stateless), env: LINKS_SERVICE_URL
+│       └── service.yaml      # ClusterIP -- see E-06
 │
 └── n8n/               # repo: HarshitRawat11/app-hub-n8n — workflow automation (self-hosted)
     ├── .env.example       # Template for N8N_BASE_URL / N8N_API_KEY
@@ -90,8 +103,9 @@ app-hub/
 | Region         | `ap-south-1` |
 | EKS cluster    | `app-hub-eks` (Kubernetes 1.31) |
 | Node group     | 2× `t3.medium` (min 1, max 2) |
-| ECR repository | `app-hub/links-service` |
-| TF state       | `s3://app-hub-tfstate-314146298861/infra/terraform.tfstate` (S3 native locking) |
+| ECR repositories | `app-hub/links-service`, `app-hub/gateway` — IMMUTABLE tags |
+| DynamoDB       | `app-hub-links`, on-demand — the **persistent** stack, never destroyed |
+| TF state       | `s3://app-hub-tfstate-314146298861/` — keys `infra/terraform.tfstate` (ephemeral) and `persistent/terraform.tfstate`. S3 native locking. |
 
 ---
 
@@ -109,9 +123,10 @@ wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub && mak
 |---|---|
 | `make status` | What is running right now, and what it costs |
 | `make up` | `terraform apply`, then **refresh the kubeconfig**, then verify nodes |
-| `make deploy` | Build, push a git-SHA-tagged image, pin the manifest, apply, verify |
+| `make deploy` | For **every** service in `SERVICES`: build, push a git-SHA-tagged image, pin the manifest, apply, verify |
 | `make down` | Drain Kubernetes, empty ECR, `terraform destroy`, audit for orphans |
-| `make validate` | Offline manifest + Terraform checks — no cluster needed |
+| `make test` | Every service test suite — 29 tests, no cluster, no AWS |
+| `make validate` | Offline checks: doc drift, manifests, both Terraform stacks |
 
 `make down` exists because teardown has a **required order**: Kubernetes-created AWS resources (the load balancer, EBS volumes) must be deleted while the cluster is still alive, or they are orphaned permanently. See [learn/15](learn/15-safe-teardown.md).
 
@@ -189,14 +204,28 @@ Always confirm which cluster you are about to hit — Windows `kubectl` is minik
 kubectl config current-context
 ```
 
+The namespace has to go first — `kubectl apply -f <dir>` sorts by filename *within* a directory and guarantees nothing across directories:
+
 ```bash
-kubectl apply -f manifests/links-service/
+kubectl apply -f manifests/00-namespace.yaml
 ```
 
-The Service is `ClusterIP`, so nothing is reachable from outside the cluster yet. To poke at it:
+```bash
+kubectl apply -f manifests/links-service/ && kubectl apply -f manifests/gateway/
+```
+
+**Every `kubectl` command needs `-n app-hub`** from here on (`R-04` moved everything out of `default`). Omitting it returns `No resources found` — which reads like a failed deploy rather than a missing flag.
+
+`links-service` is exposed publicly through an NLB (`E-05`), so it has a real hostname:
 
 ```bash
-kubectl port-forward svc/links-service 8000:8000
+kubectl -n app-hub get svc links-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+```
+
+`gateway` is `ClusterIP` by design until `E-06` — giving it a second load balancer would mean a second bill. Reach it for free:
+
+```bash
+kubectl -n app-hub port-forward svc/gateway 8001:8001
 ```
 
 ---

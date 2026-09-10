@@ -249,6 +249,13 @@ test:
 
 ## validate — offline checks, useful when everything is torn down
 validate:
+	@echo "== documentation drift =="
+	@# CONTEXT-BRIEF.md reproduces source files verbatim so a Claude chat with
+	@# no filesystem access can still see them. That duplication went stale on
+	@# 2026-09-10 -- the brief shipped handler names that had been renamed the
+	@# day before, and nothing noticed because nothing was looking. Now it is
+	@# checked. Run with --fix to rewrite the blocks from source.
+	python3 scripts/check-doc-drift.py
 	@echo "== manifests =="
 	@# Validated per directory, because the checker globs *.yaml in one level.
 	@for d in $(MANIFEST_ROOT) $(foreach s,$(SERVICES),$(MANIFEST_ROOT)/$(s)); do \

@@ -53,6 +53,17 @@ def check(directory: str) -> None:
         pod = spec["template"]["spec"]
         container = pod["containers"][0]
 
+        # Informational, not a failure. A placeholder tag is the CORRECT resting
+        # state for a manifest that has not been deployed since its last change --
+        # `make deploy` rewrites it. But it is worth saying out loud, because
+        # ArgoCD (R-07) applies this repo verbatim and would try to pull it.
+        image = container.get("image", "")
+        if image.endswith(":PLACEHOLDER"):
+            print("   image tag is a PLACEHOLDER — `make deploy` rewrites it; "
+                  "ArgoCD would fail on it as-is")
+        elif ":" in image:
+            print(f"   image tag: {image.rsplit(':', 1)[1]}")
+
         selector = spec["selector"]["matchLabels"]
         labels = spec["template"]["metadata"]["labels"]
         if selector != labels:

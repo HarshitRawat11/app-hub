@@ -248,6 +248,31 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
+### 2026-09-10 — Ten documentation fixes and a drift checker
+
+The owner asked a third time whether any no-cluster work remained. I had said "no" twice and been wrong twice, so this time I swept the repos instead of answering from memory. Ten things, all verified before being reported.
+
+**The pattern is now unmistakable and worth stating as a project lesson:** documentation that *describes* something rots every time the something changes, and nothing notices. Five instances so far — `timeline.sh` silently dropping every repo's root commit, `D-12` closed-but-open for a fortnight, `links-service/README.md` claiming a replica count that changed eleven days earlier, `CONTEXT-BRIEF.md` shipping handler names renamed the previous day, and the root README **contradicting itself** about whether `links-service` is `ClusterIP` or `LoadBalancer`. Every one failed **silently and optimistically**.
+
+**New tool: `scripts/check-doc-drift.py`, wired into `make validate`.** `CONTEXT-BRIEF.md` reproduces source files verbatim, so a Claude chat with no filesystem access can see them. The script diffs each `<!-- embed: path -->` block against the real file, names the first differing line, and rewrites blocks from source with `--fix`. It caught all four blocks as drifted on first run.
+
+**The two-halved fix, and the split matters:**
+
+- **Mechanical duplication gets checked mechanically.** A verbatim copy either matches or it does not.
+- **Prose facts get deleted rather than checked.** `CONTEXT-BRIEF.md` said *"There are 22 files"* in `learn/`; there were 24. The fix is not a file-counting test — it is to stop asserting a number that needs maintaining. **Prefer removing a rotting fact over building a checker for it.**
+
+**Two READMEs written from nothing:** `infra/` (`5679306`) and `manifests/` (`db87dff`). The Terraform repo had no readme at all — two stacks, the S3 backend and every teardown hazard existed only in root docs that a stranger cloning that repo would not have. That failed *"deployable by someone else"* more directly than anything else in the project.
+
+**`CONTEXT-BRIEF.md` regenerated.** Beyond the stale code it also said no tests existed (14 did), described `destroy-notifier` as "🚧 needs the IF node" (done and verified on 2026-09-05), and described `manifests/` as three files in one directory.
+
+**Root README:** fixed the self-contradiction, added `-n app-hub` to the `kubectl` commands (`R-04` moved everything out of `default`, so following the README returned `No resources found` — which reads like a failed deploy rather than a missing flag), corrected the apply sequence to create the namespace first, and brought the layout tree, Makefile table and AWS resource table up to date.
+
+**Image tags: `:v1` → `:PLACEHOLDER` in `links-service`.** `:v1` predates immutable SHA tags (`R-03`) and was deleted from ECR at the last teardown, so a direct apply failed either way — the only question was whether it failed *understandably*. This surfaced a real prerequisite for **`R-07`: ArgoCD applies the manifests repo verbatim**, with no build step and no `sed`, so GitOps cannot work until `make deploy` has run and its rewrite has been committed. `validate-manifests.py` now reports a placeholder tag as information rather than a failure — it is the correct resting state for an undeployed manifest.
+
+**Also:** `gateway/app/__init__.py` added (`links-service` had one, gateway did not).
+
+**The lesson in `learn/25` is not about docs.** It is that **a validation tool is only worth what it is wired into.** `validate-manifests.py` existed since 2026-09-03 and the `links-service` suite for a day, both one `make` target away from being automatic and neither wired in — so both depended on someone remembering. When you write a check, wire it into the thing that runs checks *in the same commit*, or you have written documentation of an intention.
+
 ### 2026-09-10 — `S-01` step 6 written offline; `gateway` tested; `make test` added
 
 The owner asked whether anything was left that needed no cluster. My previous answer — "my free queue is empty" — was wrong: I had been reading task IDs rather than the repos. Four things were sitting there.

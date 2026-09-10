@@ -57,7 +57,9 @@ Every file follows the same shape:
 
 | 24 | [24-testing-a-proxy-and-preparing-the-deploy.md](24-testing-a-proxy-and-preparing-the-deploy.md) | **Short note — delegated work** — `httpx.MockTransport` for testing a proxy with no upstream running; why the `504` test also proves the `except` ordering; testing a design decision (`/health` must not check the upstream); `replicas: 2` vs `1` as a question of state rather than importance; why gateway's Service is `ClusterIP` despite being the front door; **`kubectl apply -f` sorts within a directory and not across directories** |
 
-*Steps 25 onward get added as we do them.*
+| 25 | [25-documentation-that-rots.md](25-documentation-that-rots.md) | **Short note — delegated work** — the five times docs in this project drifted silently and optimistically; **check mechanical duplication mechanically, delete rotting prose facts rather than testing them**; `scripts/check-doc-drift.py` with `--fix`; why `:v1` was worse than `:PLACEHOLDER`; **a validation tool is only worth what it is wired into** |
+
+*Steps 26 onward get added as we do them.*
 
 ## Two tiers, from 2026-09-09
 

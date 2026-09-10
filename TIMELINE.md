@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 78 across 6 repositories |
+| Commits | 82 across 6 repositories |
 | Active days | 16 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-10 15:37 IST |
+| Latest commit | 2026-09-10 15:56 IST |
 
 ---
 
@@ -172,3 +172,7 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 15:36 | `links-service` | `8c11d8d` | Refresh the README -- three claims had gone stale |
 | 15:37 | `manifests` | `c698344` | Add gateway manifests; move the namespace out of links-service/ |
 | 15:37 | `infra` | `0b280cf` | Add the ECR repository for gateway |
+| 15:38 | `app-hub` | `c2ab145` | Generalise the Makefile for two services; add make test; add learn/24 |
+| 15:55 | `infra` | `5679306` | Write the README |
+| 15:55 | `manifests` | `db87dff` | Write the README; make the links-service image tag an obvious placeholder |
+| 15:56 | `gateway` | `951eedd` | Add app/__init__.py |
