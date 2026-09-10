@@ -55,7 +55,9 @@ Every file follows the same shape:
 
 | 23 | [23-testing-the-links-api.md](23-testing-the-links-api.md) | **Short note — delegated work** — the 14-test coverage list; `TestClient` over ASGI rather than a real port; the module-level shared-state trap and why its failures are order-dependent; why a test asserting only on the `POST` response would have missed `D-01` entirely; `pythonpath` in `pyproject.toml` and the `ModuleNotFoundError` that looks like a broken install |
 
-*Steps 24 onward get added as we do them.*
+| 24 | [24-testing-a-proxy-and-preparing-the-deploy.md](24-testing-a-proxy-and-preparing-the-deploy.md) | **Short note — delegated work** — `httpx.MockTransport` for testing a proxy with no upstream running; why the `504` test also proves the `except` ordering; testing a design decision (`/health` must not check the upstream); `replicas: 2` vs `1` as a question of state rather than importance; why gateway's Service is `ClusterIP` despite being the front door; **`kubectl apply -f` sorts within a directory and not across directories** |
+
+*Steps 25 onward get added as we do them.*
 
 ## Two tiers, from 2026-09-09
 

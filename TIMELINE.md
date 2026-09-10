@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 72 across 6 repositories |
+| Commits | 78 across 6 repositories |
 | Active days | 16 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-10 13:08 IST |
+| Latest commit | 2026-09-10 15:37 IST |
 
 ---
 
@@ -166,3 +166,9 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 12:57 | `gateway` | `c921f03` | Rename getLinks to get_links |
 | 12:59 | `app-hub` | `2eac25a` | Record C-02 and the closed defects; add learn/23 |
 | 13:08 | `infra` | `6adda96` | Add the persistent Terraform stack with the DynamoDB table |
+| 13:09 | `app-hub` | `afb0b54` | Record C-04 as written and committed, not applied |
+| 13:10 | `app-hub` | `706353f` | Normalise escaped dollar signs in PROGRESS.md |
+| 15:36 | `gateway` | `e76d2a5` | Add tests, write the README, describe the project |
+| 15:36 | `links-service` | `8c11d8d` | Refresh the README -- three claims had gone stale |
+| 15:37 | `manifests` | `c698344` | Add gateway manifests; move the namespace out of links-service/ |
+| 15:37 | `infra` | `0b280cf` | Add the ECR repository for gateway |

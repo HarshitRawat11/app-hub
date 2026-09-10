@@ -7,6 +7,7 @@
 #   make up       terraform apply + refresh kubeconfig + verify nodes
 #   make deploy   build + push (git-SHA tag) + apply manifests + verify
 #   make down     drain Kubernetes, empty ECR, terraform destroy, audit orphans
+#   make test     run every service test suite (no cluster needed)
 #
 # TWO TERRAFORM STACKS, both in the app-hub-infra repo:
 #   infra/             ephemeral -- destroyed every session. This is what up/down drive.
@@ -25,7 +26,10 @@ REGION    := ap-south-1
 ACCOUNT   := 314146298861
 CLUSTER   := app-hub-eks
 NAMESPACE := app-hub
-ECR_REPO  := app-hub/links-service
+# Every deployable service. Each needs a directory of the same name at the
+# repo root (the source) and under manifests/ (the Kubernetes objects).
+# ADD A NEW SERVICE HERE and to ECR_REPOS below; nothing else changes.
+SERVICES  := links-service gateway
 # Every ECR repository the teardown must empty. ECR_REPO above is only the one
 # `deploy` builds today; this list is what `down` walks.
 #
@@ -39,31 +43,42 @@ ECR_REPO  := app-hub/links-service
 # breaks later, on an error about the repository not being empty.
 ECR_REPOS := app-hub/links-service app-hub/gateway
 ECR_HOST  := $(ACCOUNT).dkr.ecr.$(REGION).amazonaws.com
-IMAGE     := $(ECR_HOST)/$(ECR_REPO)
+# Per-service image URL is derived in the recipes: $(ECR_HOST)/app-hub/<svc>
 DOCKER    := docker.exe
-MANIFESTS := manifests/links-service
+# manifests/00-namespace.yaml is applied before any service directory.
+# It lives at the top of manifests/ because both services share it -- it used
+# to sit inside manifests/links-service/, which made applying gateway alone
+# into a fresh cluster fail with `namespaces "app-hub" not found`.
+MANIFEST_ROOT := manifests
 
 # Tag every image with the links-service commit it was built from, because the
 # ECR repo is IMMUTABLE (R-03) and a tag must never be reused. A dirty working
 # tree gets a timestamp suffix so uncommitted experiments still push.
-GIT_SHA := $(shell git -C links-service rev-parse --short HEAD 2>/dev/null)
-DIRTY   := $(shell git -C links-service status --porcelain 2>/dev/null | head -c1)
-TAG     := $(if $(DIRTY),$(GIT_SHA)-dirty-$(shell date +%s),$(GIT_SHA))
+# Tag every image with the commit of ITS OWN repo -- the six repos move
+# independently, so one shared SHA would label a gateway image with a
+# links-service commit. ECR is IMMUTABLE (R-03), so a tag must never be
+# reused; a dirty tree gets a timestamp suffix so experiments still push.
+#
+# $(call tag_of,<service>) -- evaluated lazily, so `=` not `:=`.
+sha_of   = $(shell git -C $(1) rev-parse --short HEAD 2>/dev/null)
+dirty_of = $(shell git -C $(1) status --porcelain 2>/dev/null | head -c1)
+tag_of   = $(if $(call dirty_of,$(1)),$(call sha_of,$(1))-dirty-$(shell date +%s),$(call sha_of,$(1)))
 
 .DEFAULT_GOAL := help
-.PHONY: help guard status up deploy verify down destroy-only validate
+.PHONY: help guard status up deploy verify down destroy-only validate test
 
 help:
 	@echo "app-hub — run from WSL"
 	@echo ""
 	@echo "  make status   what is running right now, and what it costs"
 	@echo "  make up       provision infra, refresh kubeconfig, verify nodes"
-	@echo "  make deploy   build + push + apply manifests + verify"
+	@echo "  make deploy   build + push + apply manifests + verify (all services)"
 	@echo "  make down     full teardown in the correct order, then audit"
-	@echo "  make validate offline manifest checks (no cluster needed)"
+	@echo "  make test     run every service test suite (no cluster needed)"
+	@echo "  make validate offline manifest + terraform checks (no cluster needed)"
 	@echo ""
-	@echo "  image tag for the next deploy: $(TAG)"
-
+	@echo "  next image tags:"
+	@$(foreach s,$(SERVICES),echo "    $(s): $(call tag_of,$(s))";)
 # Fail early and clearly if this is run from the wrong shell. Without this the
 # first error is "terraform: command not found" three commands into an apply.
 guard:
@@ -103,37 +118,67 @@ up: guard
 	kubectl get nodes
 
 ## deploy — build, push, roll out
+## deploy — build, push and roll out every service
 deploy: guard
-	@echo "== building $(IMAGE):$(TAG) =="
-	@if [ -n "$(DIRTY)" ]; then echo "   NOTE: links-service working tree is dirty; tag carries a timestamp so the push is unique."; fi
+	@echo "== ECR login =="
 	aws ecr get-login-password --region $(REGION) | $(DOCKER) login --username AWS --password-stdin $(ECR_HOST)
-	$(DOCKER) build -t $(IMAGE):$(TAG) ./links-service
-	$(DOCKER) push $(IMAGE):$(TAG)
 	@echo ""
-	@echo "== pinning the manifest to $(TAG) =="
-	@# The manifest holds the real tag on purpose: ArgoCD (R-07) applies this repo
-	@# verbatim, so the desired state must be in git, not injected at deploy time.
-	@# This is exactly the step Jenkins (R-06) will automate.
-	sed -i 's|image: $(IMAGE):.*|image: $(IMAGE):$(TAG)|' $(MANIFESTS)/deployment.yaml
-	@echo "   manifests/links-service/deployment.yaml updated — COMMIT THIS."
+	@# One loop over SERVICES rather than a block per service, so adding
+	@# aggregator later is a one-word change to the SERVICES variable.
+	@for svc in $(SERVICES); do \
+	  sha=$$(git -C $$svc rev-parse --short HEAD 2>/dev/null); \
+	  if [ -z "$$sha" ]; then echo "ERROR: no git HEAD in $$svc"; exit 1; fi; \
+	  if [ -n "$$(git -C $$svc status --porcelain 2>/dev/null | head -c1)" ]; then \
+	    tag="$$sha-dirty-$$(date +%s)"; \
+	    echo "   NOTE: $$svc tree is dirty; tag carries a timestamp so the push is unique"; \
+	  else tag="$$sha"; fi; \
+	  image="$(ECR_HOST)/app-hub/$$svc"; \
+	  echo "== $$svc -> $$image:$$tag =="; \
+	  $(DOCKER) build -t "$$image:$$tag" "./$$svc" || exit 1; \
+	  $(DOCKER) push "$$image:$$tag" || exit 1; \
+	  echo "   pinning manifests/$$svc/deployment.yaml"; \
+	  sed -i "s|image: $$image:.*|image: $$image:$$tag|" "manifests/$$svc/deployment.yaml" || exit 1; \
+	  grep -q "image: $$image:$$tag" "manifests/$$svc/deployment.yaml" || { echo "   ERROR: pin did not take"; exit 1; }; \
+	done
 	@echo ""
-	kubectl apply -f $(MANIFESTS)/
-	kubectl -n $(NAMESPACE) rollout status deployment/links-service --timeout=180s
+	@echo "   manifests/*/deployment.yaml updated — COMMIT THESE."
+	@# The manifest holds the real tag on purpose: ArgoCD (R-07) applies that
+	@# repo verbatim, so the desired state must be in git, not injected at
+	@# deploy time. This is exactly the step Jenkins (R-06) will automate.
+	@echo ""
+	@echo "== namespace first (nothing else can be applied without it) =="
+	kubectl apply -f $(MANIFEST_ROOT)/00-namespace.yaml
+	@for svc in $(SERVICES); do \
+	  echo "== applying manifests/$$svc =="; \
+	  kubectl apply -f "manifests/$$svc/" || exit 1; \
+	  kubectl -n $(NAMESPACE) rollout status "deployment/$$svc" --timeout=180s || exit 1; \
+	done
 	@$(MAKE) --no-print-directory verify
 
-## verify — prove it actually works, rather than that it applied
 verify:
 	@echo ""
 	@echo "== pods =="
-	kubectl -n $(NAMESPACE) get pods -l app=links-service -o wide
-	@echo "== endpoints (empty here means selector/readiness problem, not networking) =="
-	kubectl -n $(NAMESPACE) get endpoints links-service
-	@echo "== service discovery by DNS name =="
-	kubectl -n $(NAMESPACE) run verify-$$$$ --image=curlimages/curl --restart=Never --rm -i --quiet -- \
-	  curl -sS --max-time 10 http://links-service:8000/health || true
+	kubectl -n $(NAMESPACE) get pods -o wide
 	@echo ""
-	@echo "== external endpoint (blank until the NLB finishes provisioning, ~2 min) =="
+	@# Endpoints, not pods, is the "is this Service actually wired up" check.
+	@# Empty endpoints with Running pods means the selector does not match the
+	@# pod labels, or readiness is failing -- neither looks like a network fault.
+	@echo "== endpoints (empty here means selector/readiness, not networking) =="
+	kubectl -n $(NAMESPACE) get endpoints
+	@echo ""
+	@echo "== service discovery by DNS name, from inside the cluster =="
+	kubectl -n $(NAMESPACE) run verify-$$$$ --image=curlimages/curl --restart=Never --rm -i --quiet -- \
+	  sh -c "curl -sS --max-time 10 http://links-service:8000/health; echo; curl -sS --max-time 10 http://gateway:8001/health; echo" || true
+	@echo ""
+	@# The claim gateway exists to prove: one pod reaching another by name.
+	@echo "== gateway -> links-service, through gateway itself =="
+	kubectl -n $(NAMESPACE) exec deploy/gateway -- \
+	  python -c "import httpx,os;print(httpx.get(os.environ['LINKS_SERVICE_URL']+'/links',timeout=5).text)" || true
+	@echo ""
+	@echo "== external endpoint for links-service (blank until the NLB provisions, ~2 min) =="
 	@kubectl -n $(NAMESPACE) get svc links-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'; echo
+	@echo "   gateway is ClusterIP by design (E-06) — reach it with:"
+	@echo "   kubectl -n $(NAMESPACE) port-forward svc/gateway 8001:8001"
 
 ## down — teardown in the ONLY order that works
 ##
@@ -187,9 +232,29 @@ down: guard
 destroy-only: guard
 	cd infra && terraform destroy
 
+## test — every service suite. No cluster, no AWS, no cost.
+test:
+	@# Each service owns its own venv and its own pytest config, so this is a
+	@# loop of independent runs rather than one pytest invocation. A failure in
+	@# one service must not stop the others from reporting, so the exit status
+	@# is collected and re-raised at the end.
+	@fail=0; \
+	for svc in $(SERVICES); do \
+	  if [ ! -d "$$svc/tests" ]; then echo "== $$svc: no tests/ — skipping =="; continue; fi; \
+	  echo "== $$svc =="; \
+	  (cd "$$svc" && uv run pytest -q) || fail=1; \
+	  echo ""; \
+	done; \
+	exit $$fail
+
 ## validate — offline checks, useful when everything is torn down
 validate:
-	python3 scripts/validate-manifests.py $(MANIFESTS)
+	@echo "== manifests =="
+	@# Validated per directory, because the checker globs *.yaml in one level.
+	@for d in $(MANIFEST_ROOT) $(foreach s,$(SERVICES),$(MANIFEST_ROOT)/$(s)); do \
+	  python3 scripts/validate-manifests.py "$$d" || exit 1; \
+	done
+	@echo "== terraform: ephemeral stack =="
 	cd infra && terraform fmt -check -recursive . && terraform validate
 	@# The persistent stack (C-04) lives in the infra REPO but is a separate
 	@# Terraform stack -- its own directory, its own state file. `terraform
@@ -198,7 +263,7 @@ validate:
 	@# -backend=false initialises providers WITHOUT touching S3, so this stays
 	@# offline and needs no credentials.
 	@if [ -d infra/persistent ]; then \
-	  echo "== validating the persistent stack =="; \
+	  echo "== terraform: persistent stack =="; \
 	  cd infra/persistent && terraform fmt -check . && terraform init -backend=false -input=false >/dev/null && terraform validate; \
 	else \
 	  echo "== infra/persistent/ does not exist yet (C-04) — skipping =="; \
