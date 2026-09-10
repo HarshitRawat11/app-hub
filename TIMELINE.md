@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 82 across 6 repositories |
+| Commits | 85 across 6 repositories |
 | Active days | 16 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-10 15:56 IST |
+| Latest commit | 2026-09-10 16:23 IST |
 
 ---
 
@@ -176,3 +176,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 15:55 | `infra` | `5679306` | Write the README |
 | 15:55 | `manifests` | `db87dff` | Write the README; make the links-service image tag an obvious placeholder |
 | 15:56 | `gateway` | `951eedd` | Add app/__init__.py |
+| 15:57 | `app-hub` | `716dbe8` | Add a doc-drift checker; fix ten stale documentation items |
+| 16:23 | `gateway` | `42ec560` | Move to httpx2 (D-17) |
+| 16:23 | `links-service` | `701a6fd` | POST /links returns 201 Created with a Location header (D-16) |

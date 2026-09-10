@@ -125,7 +125,7 @@ class LinkCreate(BaseModel):
 
 <!-- embed: links-service/app/main.py -->
 ```python
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from app.models import Link, LinkCreate
 
 app = FastAPI()
@@ -146,12 +146,16 @@ def get_link(id: int):
         raise HTTPException(status_code=404, detail="Link not found")
     return links_db[id]
 
-@app.post("/links")
-def create_link(link: LinkCreate):
+# 201 Created, not 200 (D-16). A request that creates a resource says so, and
+# the Location header points at where it now lives -- so a client does not have
+# to know how to build that URL itself.
+@app.post("/links", status_code=201)
+def create_link(link: LinkCreate, response: Response):
     global next_id
     new_link = Link(id=next_id, **link.model_dump())
     links_db[next_id] = new_link
     next_id += 1
+    response.headers["Location"] = f"/links/{new_link.id}"
     return new_link
 
 @app.delete("/links/{id}")
@@ -162,7 +166,7 @@ def remove_link(id: int):
     return {"deleted": id}
 ```
 
-Handlers are `snake_case` as of 2026-09-10 (`D-10`). **14 tests** in `tests/test_links.py`, via FastAPI `TestClient`; two are explicit regressions for the `D-01` bug where `POST` returned the right shape while every read lost its `id`. Dev dependency is `httpx2`, because starlette's `TestClient` deprecates `httpx`.
+Handlers are `snake_case` as of 2026-09-10 (`D-10`), and `POST` returns **`201 Created`** with a `Location` header (`D-16`). **15 tests** in `tests/test_links.py`, via FastAPI `TestClient`; two are explicit regressions for the `D-01` bug where `POST` returned the right shape while every read lost its `id`.
 
 <!-- embed: links-service/Dockerfile -->
 ```dockerfile
@@ -237,7 +241,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```python
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
-import httpx
+import httpx2
 import logging
 import os
 
@@ -255,7 +259,7 @@ LINKS_SERVICE_URL = os.getenv("LINKS_SERVICE_URL", "http://localhost:8000").rstr
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.http_client = httpx.AsyncClient(timeout=3.0)
+    app.state.http_client = httpx2.AsyncClient(timeout=3.0)
     yield
     await app.state.http_client.aclose()
 
@@ -273,14 +277,14 @@ async def get_links():
     url = f"{LINKS_SERVICE_URL}/links"
     try:
         response = await app.state.http_client.get(url)
-    except httpx.TimeoutException:
-        # The detail strings stay fixed. str(e) from httpx contains the URL it
+    except httpx2.TimeoutException:
+        # The detail strings stay fixed. str(e) from httpx2 contains the URL it
         # tried, which in-cluster is "http://links-service:8000/links" -- that
         # is internal topology, and the caller has no business seeing it. The
         # real error goes to the logs, where it is actually useful.
         logger.warning("timeout after 3s calling %s", url)
         raise HTTPException(status_code=504, detail="links-service timed out")
-    except httpx.RequestError as e:
+    except httpx2.RequestError as e:
         logger.warning("cannot reach %s: %s", url, e)
         raise HTTPException(status_code=503, detail="links-service unavailable")
     if response.status_code >= 400:
@@ -290,7 +294,7 @@ async def get_links():
     return response.json()
 ```
 
-**15 tests** in `tests/test_gateway.py`. `links-service` is never started — upstream responses are faked with `httpx.MockTransport`, which swaps the transport underneath the real `AsyncClient`, so client, `await`, timeout and exception handling are genuine while nothing touches a socket. `gateway` still uses `httpx` 0.28 at runtime (`D-17` — the two services are on different clients).
+**15 tests** in `tests/test_gateway.py`. `links-service` is never started — upstream responses are faked with `httpx2.MockTransport`, which swaps the transport underneath the real `AsyncClient`, so client, `await`, timeout and exception handling are genuine while nothing touches a socket. **Both services are on `httpx2` 2.12.0** as of 2026-09-10 (`D-17`).
 
 `Dockerfile` is near-identical to links-service's, port 8001.
 
@@ -346,7 +350,7 @@ Self-hosted in Docker (`-v n8n_data:/home/node/.n8n`). Two workflows, both versi
 
 **Claude's, and blocked on me:** `C-06` repository refactor (needs `C-04` applied), `S-02` aggregator (needs a GitHub remote only I can create, plus a decision on `D-17`).
 
-**Decisions sitting with me:** `D-16` — `POST /links` returns `200`, arguably should be `201 Created`. `D-17` — the two services are on different HTTP clients; `S-02` has to pick one.
+**Decided 2026-09-10:** `D-16` — `POST` now returns `201 Created` with `Location`. `D-17` — both services on `httpx2`. `E-06` direction — `gateway` becomes publicly reachable via Ingress and `links-service` becomes `ClusterIP`; only the implementation waits.
 
 **Needs a cluster, batched into one session:** `S-01` step 6 deploy · `C-05` · `N-01b` · and the **first real verification of `R-01`–`R-04`** (namespace, resource limits, `securityContext`, immutable tags — all written 2026-09-03 with no cluster available, so never enforced by an actual API server).
 

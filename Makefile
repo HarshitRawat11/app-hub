@@ -107,7 +107,10 @@ status:
 
 ## up — provision, then make kubectl actually work
 up: guard
-	cd infra && terraform apply
+	@# AUTO=1 skips the confirmation prompt, mirroring `down`. The asymmetry --
+	@# down supporting it and up not -- was an oversight, and it matters because
+	@# a non-interactive shell hangs on the prompt rather than failing.
+	cd infra && terraform apply $(if $(AUTO),-auto-approve -input=false,)
 	@echo ""
 	@echo "== refreshing kubeconfig (EKS issues a NEW endpoint on every rebuild) =="
 	aws eks update-kubeconfig --region $(REGION) --name $(CLUSTER)
