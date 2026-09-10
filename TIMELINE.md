@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 70 across 6 repositories |
+| Commits | 72 across 6 repositories |
 | Active days | 16 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-10 12:57 IST |
+| Latest commit | 2026-09-10 13:08 IST |
 
 ---
 
@@ -164,3 +164,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 11:15 | `app-hub` | `8a3039a` | Close D-12 -- the row was stale, not the defect |
 | 12:57 | `links-service` | `fc753f8` | Add tests for the links CRUD endpoints; snake_case the handlers |
 | 12:57 | `gateway` | `c921f03` | Rename getLinks to get_links |
+| 12:59 | `app-hub` | `2eac25a` | Record C-02 and the closed defects; add learn/23 |
+| 13:08 | `infra` | `6adda96` | Add the persistent Terraform stack with the DynamoDB table |
