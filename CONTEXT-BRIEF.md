@@ -2,7 +2,7 @@
 
 **Purpose:** paste this into a fresh Claude chat before asking about the project. Chat has no filesystem access, so everything it needs is reproduced here, including the source of the short files.
 
-**Snapshot: 2026-09-10 · 16:00 IST.** A point-in-time copy. Inside the repo, `CLAUDE.md`, `PROGRESS.md` and `TIMELINE.md` are authoritative; if they disagree with this file, they win.
+**Snapshot: 2026-09-11 · 10:00 IST.** A point-in-time copy. Inside the repo, `CLAUDE.md`, `PROGRESS.md` and `TIMELINE.md` are authoritative; if they disagree with this file, they win.
 
 > The embedded source blocks below are checked against the real files by
 > `scripts/check-doc-drift.py`, which runs as part of `make validate`. They
@@ -86,9 +86,13 @@ A bare `git` at the root works but **only sees the docs**. Use `-C <subdir>` for
 
 **Nothing is deployed right now, and that is the correct resting state** — the cluster is destroyed between sessions because the NAT gateway bills continuously.
 
-**`gateway` is built but not deployed.** Steps 1–5 of 6 are done: it runs locally on 8001, proxies `GET /links` to `links-service`, maps upstream failures to `502`/`503`/`504`, is containerised, and has 15 tests. Step 6 (ECR repo + manifests + deploy) is **written and offline-validated but never applied** — no cluster.
+**`gateway` is DONE — `S-01` complete, all six steps, deployed and verified on real EKS on 2026-09-10.** It runs on 8001, proxies `GET /links` to `links-service`, maps upstream failures to `502`/`503`/`504`, is containerised, and has 15 tests. The end-to-end proof: a `POST` through the public NLB returned `201 Created` with a `Location` header, and the record read back **through gateway, by Kubernetes DNS name**.
 
-**`C-04` (the DynamoDB table) is written and committed but NOT applied.** No table exists in AWS. Once applied, "nothing is deployed" stops being literally true — the resting state becomes *one DynamoDB table exists, by design*.
+**In-cluster it reaches `links-service` at `http://links-service:80`** — the **Service's** port, not the container's 8000. Getting that wrong produced `ConnectTimeout` (DNS resolves, packets dropped) rather than `ConnectError`, and it had been wrong for ten days because nothing consumed the Service in-cluster between `E-05` and gateway existing.
+
+**`C-04` is APPLIED.** `app-hub-links` exists — `PAY_PER_REQUEST`, hash key `id` of type `S`, `prevent_destroy` on. So **"nothing is deployed" is no longer literally true**: the resting state is now *one DynamoDB table exists, by design*. `make status` splits its output accordingly — above the divider empty is the pass condition; below it an **empty list would mean the persistent stack got destroyed**.
+
+**`R-01`–`R-04` were enforced by a real API server for the first time** on 2026-09-10. The restricted Pod Security Standard rejected a throwaway `curl` pod for setting none of the four required fields; both services passed.
 
 ### AWS facts
 
