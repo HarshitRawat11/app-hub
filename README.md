@@ -2,7 +2,7 @@
 
 A self-hosted hub of small, independently deployed services running on AWS EKS — provisioned with Terraform, deployed from Git-tracked Kubernetes manifests.
 
-The first service, **links-service**, is a FastAPI CRUD API over link records (`name`, `url`, `category`, `icon`) — the data behind an internal "which app lives where" dashboard. **gateway** is service #2: one front door, so internal services stop being publicly reachable. More will join them under the same infra.
+The first service, **links-service**, is a FastAPI CRUD API over link records (`name`, `url`, `category`, `icon`) — the data behind an internal "which app lives where" dashboard. **gateway** is service #2: one front door, so internal services stop being publicly reachable — and since 2026-09-13 it also **serves that dashboard** at `/`, so the hub has a page you actually open rather than only an API. More services will join them under the same infra.
 
 > **Status:** Phase 2 complete. The full loop is proven on real EKS — provision, build, push, deploy, reach `/health` by Kubernetes DNS name, expose publicly, tear down cleanly. Nothing is deployed right now by design; the cluster is destroyed between sessions. See [PROGRESS.md](PROGRESS.md).
 
@@ -67,14 +67,17 @@ app-hub/
 │   ├── uv.lock            # pinned dependency lockfile
 │   └── .python-version    # 3.14
 │
-├── gateway/           # repo: HarshitRawat11/app-hub-gateway — the entry-point service, port 8001
+├── gateway/           # repo: HarshitRawat11/app-hub-gateway — entry point + dashboard, port 8001
 │   ├── app/
-│   │   └── main.py        # /health + /links proxied to links-service, 502/503/504 mapping
-│   ├── tests/
-│   │   ├── test_gateway.py    # 15 tests, upstream faked with httpx.MockTransport
-│   │   └── fake_upstream.py   # manual fixture: ok / 404 / html500 / slow
+│   │   ├── main.py        # /health, full links CRUD proxy, 502/503/504 mapping, / -> dashboard
+│   │   └── static/        # the dashboard (S-03): index.html, style.css, app.js — no CDN, no framework
+│   ├── tests/             # 47 tests, upstream faked with httpx2.MockTransport
+│   │   ├── test_gateway.py      # failure mapping: 502 / 503 / 504
+│   │   ├── test_proxy_crud.py   # the other 3 routes + the passthrough rule
+│   │   ├── test_dashboard.py    # static serving, route order, XSS guards
+│   │   └── fake_upstream.py     # manual fixture: ok / 404 / html500 / slow
 │   ├── Dockerfile         # as links-service, port 8001
-│   ├── pyproject.toml     # requires-python >=3.14; fastapi, uvicorn, httpx
+│   ├── pyproject.toml     # requires-python >=3.14; fastapi, uvicorn, httpx2
 │   └── uv.lock            # pinned dependency lockfile
 │
 ├── manifests/         # repo: HarshitRawat11/app-hub-manifests — Kubernetes manifests

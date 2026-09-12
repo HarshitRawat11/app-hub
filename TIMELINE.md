@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 92 across 6 repositories |
-| Active days | 18 |
+| Commits | 95 across 6 repositories |
+| Active days | 19 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-12 21:18 IST |
+| Latest commit | 2026-09-13 00:02 IST |
 
 ---
 
@@ -196,3 +196,11 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
 | 21:18 | `links-service` | `1f7ce47` | Extract a repository layer and add the DynamoDB implementation |
+| 21:22 | `app-hub` | `984aa79` | Record C-06's code half; log D-18; add learn/26 |
+
+## 2026-09-13
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 00:01 | `gateway` | `c522956` | S-03: serve the dashboard from gateway; proxy the full links CRUD |
+| 00:02 | `links-service` | `b20f10d` | README: the suite is 38 tests, not 15 |

@@ -61,7 +61,9 @@ Every file follows the same shape:
 
 | 26 | [26-the-repository-layer.md](26-the-repository-layer.md) | **Short note — delegated work** — a `Protocol` rather than an ABC; why UUID ids were the load-bearing change and how `C-04`'s type `S` paid off; `ReturnValues=ALL_OLD` and the delete that cannot tell you what it deleted; contract tests that run against both backends; **a 573-second suite is a defect** — profiling named fixture scope, not moto |
 
-*Steps 27 onward get added as we do them.*
+| 27 | [27-the-dashboard-and-the-full-proxy.md](27-the-dashboard-and-the-full-proxy.md) | **Short note — delegated work** — why the dashboard is served BY gateway rather than being a fourth service; the `passthrough` rule, and why a 404 from `GET /links/{id}` is the caller's answer while a 404 from `GET /links` is a fault; why gateway must not restate links-service's schema; `textContent` and scheme-checked `href` as two halves of one guard; **every test passed and the page was visibly wrong** — `[hidden]` loses to any author `display` rule |
+
+*Steps 28 onward get added as we do them.*
 
 ## Two tiers, from 2026-09-09
 

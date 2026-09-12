@@ -42,7 +42,9 @@ first resource():    37.5s
 second resource():    0.0s
 ```
 
-Botocore loads its service models from thousands of small JSON files, and this project lives on `/mnt/c`, which WSL reaches over a slow 9p mount. **That cost is cached per process — but `mock_aws()` per test defeated the cache and re-paid it every time.** Moving the mock and the client into a **session-scoped** fixture, with per-test isolation restored by emptying the table through the repository's own interface, took it to **39 seconds**.
+Botocore loads its service models from thousands of small JSON files, and this project lives on `/mnt/c`, which WSL reaches over a slow 9p mount. **That cost is cached per process — but `mock_aws()` per test defeated the cache and re-paid it every time.** Moving the mock and the client into a **session-scoped** fixture, with per-test isolation restored by emptying the table through the repository's own interface, took it to **roughly 100–115 seconds**.
+
+> **Corrected 2026-09-13.** This file first recorded **39 seconds**. Re-timed twice while doing `S-03`, the suite takes 102 s and 114 s — so 39 s was a single warm run that does not reproduce, written down as if it were the number. The *improvement* is real and is the point (573 s → ~110 s, about 5×), but the specific figure was optimistic and nothing re-measured it. Same shape as every other stale claim this project has caught: **a number with no consumer is untested.**
 
 Two things worth carrying:
 
@@ -57,7 +59,7 @@ Second thing, smaller: **`TestClient(app)` outside a `with` block never runs `li
 make test
 ```
 
-38 + 15 tests, about a minute. To see the contract structure, note that each storage test reports twice:
+38 + 47 tests, around two minutes — almost all of it links-service (see the correction above). To see the contract structure, note that each storage test reports twice:
 
 ```bash
 cd links-service && uv run pytest tests/test_repository.py -v | head -20

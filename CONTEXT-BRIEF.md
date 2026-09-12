@@ -2,7 +2,7 @@
 
 **Purpose:** paste this into a fresh Claude chat before asking about the project. Chat has no filesystem access, so everything it needs is reproduced here, including the source of the short files.
 
-**Snapshot: 2026-09-12 · 21:20 IST.** A point-in-time copy. Inside the repo, `CLAUDE.md`, `PROGRESS.md` and `TIMELINE.md` are authoritative; if they disagree with this file, they win.
+**Snapshot: 2026-09-13 · 00:05 IST.** A point-in-time copy. Inside the repo, `CLAUDE.md`, `PROGRESS.md` and `TIMELINE.md` are authoritative; if they disagree with this file, they win.
 
 > The embedded source blocks below are checked against the real files by
 > `scripts/check-doc-drift.py`, which runs as part of `make validate`. They
@@ -86,7 +86,7 @@ A bare `git` at the root works but **only sees the docs**. Use `-C <subdir>` for
 
 **Nothing is deployed right now, and that is the correct resting state** — the cluster is destroyed between sessions because the NAT gateway bills continuously.
 
-**`gateway` is DONE — `S-01` complete, all six steps, deployed and verified on real EKS on 2026-09-10.** It runs on 8001, proxies `GET /links` to `links-service`, maps upstream failures to `502`/`503`/`504`, is containerised, and has 15 tests. The end-to-end proof: a `POST` through the public NLB returned `201 Created` with a `Location` header, and the record read back **through gateway, by Kubernetes DNS name**.
+**`gateway` is DONE — `S-01` complete, all six steps, deployed and verified on real EKS on 2026-09-10.** It runs on 8001, proxies the **full links CRUD** to `links-service`, maps upstream failures to `502`/`503`/`504`, is containerised, and has **47 tests**. Since `S-03` (2026-09-13) it also **serves the dashboard at `/`** — verified locally only; the deployed image predates `app/static/`. The end-to-end proof: a `POST` through the public NLB returned `201 Created` with a `Location` header, and the record read back **through gateway, by Kubernetes DNS name**.
 
 **In-cluster it reaches `links-service` at `http://links-service:80`** — the **Service's** port, not the container's 8000. Getting that wrong produced `ConnectTimeout` (DNS resolves, packets dropped) rather than `ConnectError`, and it had been wrong for ten days because nothing consumed the Service in-cluster between `E-05` and gateway existing.
 
@@ -280,8 +280,11 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 <!-- embed: gateway/app/main.py -->
 ```python
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Response
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from pathlib import Path
 import httpx2
 import logging
 import os
@@ -302,6 +305,11 @@ logger = logging.getLogger(__name__)
 # the URL looks correct.
 LINKS_SERVICE_URL = os.getenv("LINKS_SERVICE_URL", "http://localhost:8000").rstrip("/")
 
+# The dashboard (S-03). Resolved from __file__ rather than the process's
+# working directory, because uvicorn can be started from anywhere and a
+# relative path would work in dev and 404 in the container.
+STATIC_DIR = Path(__file__).parent / "static"
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.http_client = httpx2.AsyncClient(timeout=3.0)
@@ -317,29 +325,153 @@ def health():
     # one outage becoming two, with the restarts hiding the real cause.
     return {"status": "ok"}
 
-@app.get("/links")
-async def get_links():
-    url = f"{LINKS_SERVICE_URL}/links"
+
+# ---------------------------------------------------------------- the proxy --
+
+async def _proxy(method: str, path: str, json_body=None, passthrough=frozenset()):
+    """Call links-service and map its failures onto gateway's own.
+
+    The exception handling here is unchanged from the owner-written version in
+    `get_links` -- same order, same fixed detail strings. It was moved into a
+    helper rather than rewritten, because four routes copy-pasting one
+    try/except is how one of them ends up subtly different.
+
+    `passthrough` names the upstream statuses that are the CLIENT's answer
+    rather than a gateway fault. That distinction is the whole reason this
+    takes an argument:
+
+      - `GET /links` -- the collection always exists, so a 404 means something
+        is wrong upstream. 502 is right.
+      - `GET /links/<unknown>` -- a 404 is the correct, useful answer. Turning
+        it into 502 would tell the caller "the server is broken" when in fact
+        they asked for something that is not there.
+      - `POST /links` with a bad body -- 422 is about what the CALLER sent.
+        Reporting that as 502 sends them looking at the wrong machine.
+    """
+    url = f"{LINKS_SERVICE_URL}{path}"
     try:
-        response = await app.state.http_client.get(url)
+        response = await app.state.http_client.request(method, url, json=json_body)
     except httpx2.TimeoutException:
         # The detail strings stay fixed. str(e) from httpx2 contains the URL it
         # tried, which in-cluster is "http://links-service:80/links" -- that
         # is internal topology, and the caller has no business seeing it. The
         # real error goes to the logs, where it is actually useful.
-        logger.warning("timeout after 3s calling %s", url)
+        logger.warning("timeout after 3s calling %s %s", method, url)
         raise HTTPException(status_code=504, detail="links-service timed out")
     except httpx2.RequestError as e:
-        logger.warning("cannot reach %s: %s", url, e)
+        logger.warning("cannot reach %s %s: %s", method, url, e)
         raise HTTPException(status_code=503, detail="links-service unavailable")
+
+    if response.status_code in passthrough:
+        # Forward the upstream body for these, unlike the generated errors
+        # above. It is safe for a different reason than it looks: the 503/504
+        # details come from httpx2 exception text, which embeds the URL that
+        # was attempted. A passthrough body comes from a links-service HANDLER
+        # -- "Link not found", or a pydantic report of the caller's own
+        # fields -- and carries no topology at all.
+        try:
+            body = response.json()
+        except ValueError:
+            # A declared-passthrough status arriving as non-JSON means
+            # something between here and links-service rewrote the response.
+            # That is an upstream fault, not the caller's answer.
+            logger.warning("%s %s returned non-JSON HTTP %s",
+                           method, url, response.status_code)
+            raise HTTPException(status_code=502,
+                                detail="links-service returned an error")
+        detail = body.get("detail", body) if isinstance(body, dict) else body
+        raise HTTPException(status_code=response.status_code, detail=detail)
+
     if response.status_code >= 400:
-        logger.warning("%s returned HTTP %s", url, response.status_code)
+        logger.warning("%s %s returned HTTP %s", method, url, response.status_code)
         raise HTTPException(status_code=502, detail="links-service returned an error")
 
+    return response
+
+
+@app.get("/links")
+async def get_links():
+    response = await _proxy("GET", "/links")
     return response.json()
+
+
+@app.get("/links/{link_id}")
+async def get_link(link_id: str):
+    # 404 passes through: the Location header POST hands back points here, so
+    # a URL gateway answers with 502 would make that header a lie.
+    response = await _proxy("GET", f"/links/{link_id}", passthrough={404})
+    return response.json()
+
+
+@app.post("/links", status_code=201)
+async def create_link(response: Response, payload: dict = Body(...)):
+    # `dict`, not a LinkCreate copied over from links-service. links-service
+    # owns that schema; duplicating it here would give the project two
+    # definitions of a link that drift apart silently, and gateway would start
+    # rejecting fields it had simply not been told about yet. Validation stays
+    # where the data lives, and its 422 comes back through `passthrough`.
+    upstream = await _proxy("POST", "/links", json_body=payload, passthrough={422})
+    # Forward Location. Copied deliberately rather than passing headers through
+    # wholesale: it is only correct because gateway happens to serve the same
+    # path, and this is where that assumption should break if it ever stops
+    # being true.
+    if "Location" in upstream.headers:
+        response.headers["Location"] = upstream.headers["Location"]
+    return upstream.json()
+
+
+@app.delete("/links/{link_id}")
+async def delete_link(link_id: str):
+    response = await _proxy("DELETE", f"/links/{link_id}", passthrough={404})
+    return response.json()
+
+
+# ------------------------------------------------------------ the dashboard --
+#
+# S-03. The dashboard is served BY gateway rather than by a service of its own.
+# Reasoning in learn/27; the short version is that same-origin means no CORS,
+# no second image, and no second load balancer on a cluster destroyed nightly.
+#
+# Mounted at /static with an explicit route for "/", rather than mounting
+# StaticFiles at "/" with html=True. A mount at "/" matches every path, so it
+# works only while it is the LAST route registered -- and the day someone adds
+# a route below it, that route silently serves index.html instead. Being
+# explicit is worth three lines here.
+
+class RevalidatingStatic(StaticFiles):
+    """StaticFiles, but the browser must check before reusing a cached copy.
+
+    The asset filenames are stable across deploys -- there is no content hash
+    in `style.css`. So a browser that decides a cached copy is still fresh
+    serves the OLD stylesheet against the NEW page, with no error anywhere:
+    the page renders, just wrong. That happened during S-03's own verification
+    and cost a confused ten minutes.
+
+    `no-cache` does not mean "do not cache". It means "cache, but revalidate
+    every time" -- so the browser still sends `If-None-Match`, StaticFiles
+    still answers `304 Not Modified`, and almost nothing goes over the wire.
+    For three small files on a personal dashboard that is the right trade
+    outright; a big asset bundle would want content-hashed filenames instead.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+@app.get("/", include_in_schema=False)
+def dashboard():
+    # Same reasoning as above: the page that names the assets must not itself
+    # be served from a stale cache, or the versions can never get back in step.
+    return FileResponse(STATIC_DIR / "index.html",
+                        headers={"Cache-Control": "no-cache"})
+
+
+app.mount("/static", RevalidatingStatic(directory=STATIC_DIR), name="static")
 ```
 
-**15 tests** in `tests/test_gateway.py`. `links-service` is never started — upstream responses are faked with `httpx2.MockTransport`, which swaps the transport underneath the real `AsyncClient`, so client, `await`, timeout and exception handling are genuine while nothing touches a socket. **Both services are on `httpx2` 2.12.0** as of 2026-09-10 (`D-17`).
+**47 tests** across `tests/test_gateway.py` (failure mapping), `tests/test_proxy_crud.py` (the other three routes and the `passthrough` rule) and `tests/test_dashboard.py` (the static page). `links-service` is never started — upstream responses are faked with `httpx2.MockTransport`, which swaps the transport underneath the real `AsyncClient`, so client, `await`, timeout and exception handling are genuine while nothing touches a socket. **Both services are on `httpx2` 2.12.0** as of 2026-09-10 (`D-17`).
 
 `Dockerfile` is near-identical to links-service's, port 8001.
 
