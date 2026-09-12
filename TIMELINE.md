@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 89 across 6 repositories |
-| Active days | 16 |
+| Commits | 92 across 6 repositories |
+| Active days | 18 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-10 17:35 IST |
+| Latest commit | 2026-09-12 21:18 IST |
 
 ---
 
@@ -183,3 +183,16 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 17:30 | `gateway` | `1d78307` | Correct the in-cluster address to links-service:80 |
 | 17:30 | `manifests` | `94e7d55` | Fix gateway's LINKS_SERVICE_URL port, and pin both image tags |
 | 17:35 | `app-hub` | `a478749` | Record the cluster session: S-01 complete, R-01..R-04 verified, port bug found |
+| 18:03 | `app-hub` | `9f0f2b2` | Teardown clean; ECR needs multiple passes; correct the N-01b prerequisite |
+
+## 2026-09-11
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 11:15 | `app-hub` | `f9bc157` | Refresh CONTEXT-BRIEF prose after the cluster session |
+
+## 2026-09-12
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 21:18 | `links-service` | `1f7ce47` | Extract a repository layer and add the DynamoDB implementation |

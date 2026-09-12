@@ -59,7 +59,9 @@ Every file follows the same shape:
 
 | 25 | [25-documentation-that-rots.md](25-documentation-that-rots.md) | **Short note — delegated work** — the five times docs in this project drifted silently and optimistically; **check mechanical duplication mechanically, delete rotting prose facts rather than testing them**; `scripts/check-doc-drift.py` with `--fix`; why `:v1` was worse than `:PLACEHOLDER`; **a validation tool is only worth what it is wired into** |
 
-*Steps 26 onward get added as we do them.*
+| 26 | [26-the-repository-layer.md](26-the-repository-layer.md) | **Short note — delegated work** — a `Protocol` rather than an ABC; why UUID ids were the load-bearing change and how `C-04`'s type `S` paid off; `ReturnValues=ALL_OLD` and the delete that cannot tell you what it deleted; contract tests that run against both backends; **a 573-second suite is a defect** — profiling named fixture scope, not moto |
+
+*Steps 27 onward get added as we do them.*
 
 ## Two tiers, from 2026-09-09
 

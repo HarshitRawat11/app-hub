@@ -2,7 +2,7 @@
 
 **Purpose:** paste this into a fresh Claude chat before asking about the project. Chat has no filesystem access, so everything it needs is reproduced here, including the source of the short files.
 
-**Snapshot: 2026-09-11 · 10:00 IST.** A point-in-time copy. Inside the repo, `CLAUDE.md`, `PROGRESS.md` and `TIMELINE.md` are authoritative; if they disagree with this file, they win.
+**Snapshot: 2026-09-12 · 21:20 IST.** A point-in-time copy. Inside the repo, `CLAUDE.md`, `PROGRESS.md` and `TIMELINE.md` are authoritative; if they disagree with this file, they win.
 
 > The embedded source blocks below are checked against the real files by
 > `scripts/check-doc-drift.py`, which runs as part of `make validate`. They
@@ -114,7 +114,12 @@ Cost if left up 24×7: roughly **$150–200/month**. About $0.30/hour while runn
 from pydantic import BaseModel
 
 class Link(BaseModel):
-    id: int
+    # A string, not an int, as of C-06. Ids are now server-generated UUIDs
+    # rather than an incrementing counter -- a counter cannot survive more
+    # than one replica, because each pod would start at 1 and hand out
+    # colliding ids. This is also why the DynamoDB table declares its `id`
+    # key attribute as type `S`.
+    id: str
     name: str
     url: str
     category: str
@@ -129,48 +134,80 @@ class LinkCreate(BaseModel):
 
 <!-- embed: links-service/app/main.py -->
 ```python
-from fastapi import FastAPI, HTTPException, Response
-from app.models import Link, LinkCreate
+from contextlib import asynccontextmanager
 
-app = FastAPI()
-links_db: dict[int, Link] = {}
-next_id = 1
+from fastapi import FastAPI, HTTPException, Response
+
+from app.models import Link, LinkCreate
+from app.repository import LinkRepository, build_repository
+
+
+# The repository is built once at startup and hung off app.state, the same
+# pattern gateway uses for its HTTP client. Two reasons it belongs here rather
+# than at module import time:
+#
+#   - DynamoDBLinkRepository opens a boto3 session. Anything expensive to
+#     create and safe to share belongs at application scope.
+#   - Which implementation you get is decided ONCE, before any traffic
+#     arrives, so "is this pod using DynamoDB or a dict?" has exactly one
+#     answer for the life of the process.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.repo = build_repository()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+def repo() -> LinkRepository:
+    return app.state.repo
+
 
 @app.get("/health")
 def health():
+    # Deliberately does NOT touch the repository. This backs the liveness
+    # probe, so a DynamoDB outage must not get the pod killed and restarted --
+    # restarting changes nothing about DynamoDB being down, and the restart
+    # noise buries the real cause. Same reasoning as gateway's /health.
     return {"status": "ok"}
 
+
 @app.get("/links")
-def get_links():
-    return list(links_db.values())
+def get_links() -> list[Link]:
+    return repo().list()
+
 
 @app.get("/links/{id}")
-def get_link(id: int):
-    if id not in links_db:
+def get_link(id: str) -> Link:
+    link = repo().get(id)
+    if link is None:
         raise HTTPException(status_code=404, detail="Link not found")
-    return links_db[id]
+    return link
+
 
 # 201 Created, not 200 (D-16). A request that creates a resource says so, and
 # the Location header points at where it now lives -- so a client does not have
 # to know how to build that URL itself.
 @app.post("/links", status_code=201)
-def create_link(link: LinkCreate, response: Response):
-    global next_id
-    new_link = Link(id=next_id, **link.model_dump())
-    links_db[next_id] = new_link
-    next_id += 1
+def create_link(link: LinkCreate, response: Response) -> Link:
+    new_link = repo().create(link)
     response.headers["Location"] = f"/links/{new_link.id}"
     return new_link
 
+
 @app.delete("/links/{id}")
-def remove_link(id: int):
-    if id not in links_db:
+def remove_link(id: str):
+    if not repo().delete(id):
         raise HTTPException(status_code=404, detail="Link not found")
-    del links_db[id]
     return {"deleted": id}
 ```
 
-Handlers are `snake_case` as of 2026-09-10 (`D-10`), and `POST` returns **`201 Created`** with a `Location` header (`D-16`). **15 tests** in `tests/test_links.py`, via FastAPI `TestClient`; two are explicit regressions for the `D-01` bug where `POST` returned the right shape while every read lost its `id`.
+Handlers are `snake_case` (`D-10`), `POST` returns **`201 Created`** with a `Location` header (`D-16`), and **`id` is a UUID string, not an integer** (`C-06`) — an incrementing counter cannot survive more than one replica, and it is why the DynamoDB table declares `id` as type `S`.
+
+**Storage is behind a `LinkRepository` Protocol** (`app/repository.py`) with two implementations: a dict, and DynamoDB. Chosen at startup by whether `LINKS_TABLE_NAME` is set — unset means in-memory, so local development needs zero config. **`C-06` code is written and unit-tested but NOT verified against the real table**; that needs `C-05`, and the Deployment deliberately does not set `LINKS_TABLE_NAME` yet (`D-18`).
+
+**38 tests.** The storage ones run every assertion **twice**, against the dict and against a real DynamoDB table faked in-process by `moto`. Two are explicit regressions for the `D-01` bug where `POST` returned the right shape while every read lost its `id`.
 
 <!-- embed: links-service/Dockerfile -->
 ```dockerfile
