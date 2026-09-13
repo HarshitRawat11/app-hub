@@ -28,7 +28,9 @@ All empty = clean. **To bring it back up**, the whole loop is proven and documen
 
 `D-13` is **resolved** (2026-09-05). Both workflows moved off Gmail OAuth to `emailSend` with an SMTP credential, which removes the ~7-day refresh-token expiry for good. `destroy-notifier` is verified end to end: both branches route correctly and SMTP reported the mail accepted.
 
-**Still outstanding (`N-01b`):** `cost-watchdog` has the same fix applied but has **never actually sent an email**, because it cannot be tested without a cluster. It has no manual-run endpoint (the public API returns `405`), and with no cluster the EKS call 404s and `onError: stopWorkflow` halts it before the email node — which is correct behaviour, not a fault.
+**`N-01b` CLOSED 2026-09-13.** `cost-watchdog` has now **actually sent an email, and it arrived in the inbox** — execution **38**, `mode=manual`, `status=success`, 07:25:25 UTC (12:55 IST). That is the first email this project has ever sent in its life, and the inbox is the only evidence that counts: a green tick means *"did not halt"*, not *"delivered"*.
+
+**What is proven and what is not.** The email node sends, the SMTP credential works for *this* workflow, and the subject and body render. The **end-to-end** path — HTTP Request seeing a live cluster and triggering the email on its own — is still unproven, and needs a cluster. It will test itself: the Schedule Trigger fires at **17:00 and 21:00**, so a cluster left up past 5 PM exercises the whole chain with no clicking. **No pinned data was left behind** (verified via the API: `pinData` is empty, workflow still `active`), which matters — a pin would have made it email every day regardless of cluster state.
 
 **So the next time a cluster is up, click "Test workflow" on `cost-watchdog` in the n8n UI.** Thirty seconds, and it closes the last gap in the cost safety net. Until then, still verify teardown with `make status` rather than trusting an email that has never been observed to arrive.
 
@@ -65,7 +67,7 @@ The naive order put four delegated tasks in front of `R-05`, which would have me
 
 2. **`C-04` persistent stack + DynamoDB — OWNER, in parallel with the above.** This is the priority for the owner's own time. Terraform they have not written before, **needs no cluster, and costs ~$0** — DynamoDB on-demand bills nothing idle. Getting it wrong is free, which makes it ideal learning. Explanation first, then they write, then review.
 
-3. **One batched cluster session** — bring the cluster up once and clear everything that needs it: `S-01` step 6 (ECR repo + manifests + deploy), `N-01b` (click **Test workflow** on `cost-watchdog` to finally prove it emails), and the **first real verification of `R-01`–`R-04`**, which have never been enforced by an actual API server. Tear down the same session.
+3. **One batched cluster session** — bring the cluster up once and clear everything that needs it: `S-01` step 6 (ECR repo + manifests + deploy), ~~`N-01b`~~ (**done 2026-09-13, no cluster needed after all**), and the **first real verification of `R-01`–`R-04`**, which have never been enforced by an actual API server. Tear down the same session.
 
 4. **`R-05` Prometheus/Grafana — OWNER.** The real material: Helm values, dashboards, PromQL, and specifically translating Nagios checks the owner already knows from work. First stateful workload, so the PVC/EBS teardown checklist in `CLAUDE.md § 9` becomes mandatory from here.
 
@@ -159,7 +161,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 |----|------|--------|---------|-----------|
 | N-00 | `cost-watchdog` — ✅ **working, published/active** | None | Schedule Trigger (5 PM + 9 PM, two rules) → HTTP Request → Gmail. Calls `GET https://eks.ap-south-1.amazonaws.com/clusters/app-hub-eks` with Predefined Credential Type → AWS (IAM) → `n8n-readonly`. **On Error must be `Stop Workflow`** — 404 (cluster gone) halts silently, 200 (still up) proceeds to Gmail. Gmail via OAuth2, Google Cloud project `n8n-app-hub`. |
 | N-00b | `destroy-notifier` | **Done** 2026-09-05 · 16:25 IST | None | All four nodes wired (`Webhook → If → Success/Failure`), active, using `emailSend` + SMTP. **Verified end to end:** success payload → `Success` node, failure payload → `Failure` node, both with SMTP reporting `accepted:[...], rejected:[]`. Committed `51a7aab`. Remaining follow-up: schedule `scripts/scheduled-destroy.sh` via Windows Task Scheduler. |
-| N-01b | Prove `cost-watchdog` actually sends its email | **STILL OPEN — OWNER** (n8n GUI). **Does NOT need a cluster** — corrected 2026-09-10 | Cannot be tested without a cluster — no manual-run endpoint (API returns `405`), and with no cluster the EKS call 404s and `onError: stopWorkflow` halts before the email node. | **Correction 2026-09-10: this does not need a cluster, and saying so for a week is why it kept slipping.** The *end-to-end* path does — the HTTP Request node 404s without a cluster and `onError: stopWorkflow` halts there, which executions 29 and 33 both confirm (`node: HTTP Request, msg: The resource you are requesting could not be found`). But the **unproven** part is narrower than that: *does the email node actually send?* In n8n you can **execute a single node** — open the workflow, select the email node, run just that step. No cluster involved. <br><br>That will not exercise the 404-halts-silently branch, but executions 29 and 33 already prove it. It will prove the only thing that has never been proven: **that the mail leaves.** `destroy-notifier` established the SMTP credential works; what is untested is whether *this* workflow's email node is wired correctly. <br><br>Attempted 2026-09-10 with a live cluster and **no email arrived, and no execution was recorded.** Manual executions *are* persisted on this instance (ids 28 and 29 are `mode=manual`), so a click that reached the engine would have left a record — meaning the workflow did not run rather than ran and failed. |
+| N-01b | Prove `cost-watchdog` actually sends its email | **DONE 2026-09-13** — **the email arrived in the inbox.** Execution `38`, `mode=manual`, `status=success`, 07:25:25 UTC. First email this project has ever sent. | Cannot be tested without a cluster — no manual-run endpoint (API returns `405`), and with no cluster the EKS call 404s and `onError: stopWorkflow` halts before the email node. | **Correction 2026-09-10: this does not need a cluster, and saying so for a week is why it kept slipping.** The *end-to-end* path does — the HTTP Request node 404s without a cluster and `onError: stopWorkflow` halts there, which executions 29 and 33 both confirm (`node: HTTP Request, msg: The resource you are requesting could not be found`). But the **unproven** part is narrower than that: *does the email node actually send?* In n8n you can **execute a single node** — open the workflow, select the email node, run just that step. No cluster involved. <br><br>That will not exercise the 404-halts-silently branch, but executions 29 and 33 already prove it. It will prove the only thing that has never been proven: **that the mail leaves.** `destroy-notifier` established the SMTP credential works; what is untested is whether *this* workflow's email node is wired correctly. <br><br>Attempted 2026-09-10 with a live cluster and **no email arrived, and no execution was recorded.** Manual executions *are* persisted on this instance (ids 28 and 29 are `mode=manual`), so a click that reached the engine would have left a record — meaning the workflow did not run rather than ran and failed. |
 | N-01 | Scaffold the `n8n/` repo | Done | None | Done 2026-08-30: git repo, `.gitignore`, `.gitattributes` (LF enforcement), `.env.example`, `pull-workflows.sh`, README with security rules |
 | N-02 | Create the `app-hub-n8n` GitHub remote and push | **Done** | None | Done 2026-08-30. The scaffold had **zero commits** — made the initial commit, wired `origin`, pushed. Secret-scanned before pushing; no real `.env` exists. |
 | N-03 | Populate `n8n/.env` with the instance URL and API key | **Done** 2026-08-31 | None | Verified: both values populated, `.env` matched by `.gitignore:2`, absent from `git status`. API returns **HTTP 200** and lists both workflows (`eks-cost-watchdog`, `terraform-destroy-notifier`). Key never entered the transcript. |
@@ -253,6 +255,42 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-13 — `N-01b` closed at last, and a check that lied three times
+
+**`N-01b` is DONE. The email arrived.** Execution `38`, `mode=manual`, `status=success`, 07:25:25 UTC (12:55 IST). **The first email this project has ever sent**, after weeks of being deferred. The inbox is the only evidence that counts here — a green tick on the canvas means *"did not halt"*, not *"delivered"*.
+
+**Verified afterwards that no pinned data was left behind** (`pinData` empty, workflow still `active`). That check mattered: a pin on the HTTP Request node would have made the watchdog email every single day regardless of cluster state, and **a monitor that always alerts is one you stop reading** — worse than the situation it replaced.
+
+**Still not proven, and worth being precise:** the email node sends and the SMTP credential works. The *end-to-end* path — HTTP Request detecting a live cluster and triggering the email by itself — has never run. It will test itself for free: the Schedule Trigger fires at 17:00 and 21:00, so any cluster left up past 5 PM exercises the whole chain with no clicking.
+
+**Correction: my earlier `N-01b` advice was wrong.** I said n8n could "execute a single node, bypassing the HTTP Request entirely". It cannot — **"Execute step" runs a node's ancestors first to produce its input**, which is exactly what the owner hit: *"Problem in node 'HTTP Request'"* with `No data` in the email node's input panel. The workable no-cluster route was to pin mock output on the **upstream** node, which is easier than it sounds because the email node uses **no expressions at all** — both its subject and body are static strings, so the mock content is irrelevant and `[{}]` suffices.
+
+---
+
+**The scheduled task was registered all along, and my check said otherwise.**
+
+I reported `TASK NOT FOUND`. It was there. `Get-ScheduledTask` run **unelevated returns nothing for a task that exists** — not an error, nothing. The proof came from the owner's own rerun, which failed with:
+
+```
+Register-ScheduledTask : Cannot create a file when that file already exists.  (0x800700b7)
+```
+
+You cannot get `ALREADY_EXISTS` for something absent. `schtasks` is more honest about the same state — it says **`ERROR: Access is denied`** rather than pretending the task is missing.
+
+**The same shape produced a confident wrong answer three times in this one session:**
+
+| Check | Reported | Reality |
+|---|---|---|
+| `aws dynamodb list-tables --query 'Tables'` | `None` | Field is `TableNames`; the table existed |
+| `ps -eo cmd \| grep -c "[u]vicorn"` | 2 lingering processes | Zero — it matched its own shell |
+| `Get-ScheduledTask` unelevated | `TASK NOT FOUND` | Registered and working |
+
+And a fourth, live, in the command that diagnosed it: `Test-Path` on a protected path threw `UnauthorizedAccessException` and, because that is non-terminating, **fell through to the `else` branch and printed "no file at ..."**.
+
+**The lesson, now in `CLAUDE.md § 9`: "I cannot see it" and "it is not there" are different facts, and any check that renders them identically will eventually report the wrong one with total confidence.** A permission-denied query, a typo'd field name, and a self-matching pattern all return the same comfortable emptiness. This is the same disease as every stale doc claim in this project, just wearing a shell prompt instead of a Markdown file.
+
+**`register-scheduled-destroy.ps1` now refuses to run unelevated**, explains that it cannot distinguish absent from invisible, and points at `schtasks` as the check that can. Verified: it exits 1 with that message.
 
 ### 2026-09-13 — `S-02`: the service that actually proves discovery
 

@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 103 across 7 repositories |
+| Commits | 105 across 7 repositories |
 | Active days | 19 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-13 12:39 IST |
+| Latest commit | 2026-09-13 12:45 IST |
 
 ---
 
@@ -212,3 +212,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 12:39 | `gateway` | `922b3da` | Proxy /status to aggregator; show liveness dots on the dashboard |
 | 12:39 | `infra` | `a661727` | Third ECR repository, for aggregator |
 | 12:39 | `manifests` | `a83652f` | Add aggregator Deployment and Service |
+| 12:39 | `app-hub` | `4f45bb9` | Record S-02; log D-20; add learn/28; seven repos now |
+| 12:45 | `app-hub` | `2dc3854` | Summaries move to plain English |

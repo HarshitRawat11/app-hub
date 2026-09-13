@@ -464,6 +464,16 @@ Each of these cost real time to find. They are here so no future session pays fo
 
   Corporate DNS has also interfered with AWS endpoint resolution here. Note `wsl --shutdown` is a **Windows** command — run it from PowerShell, not inside the WSL shell.
 
+- **"I cannot see it" and "it is not there" are different facts.** Any check that renders them identically will eventually report the wrong one with total confidence — and this cost real time three separate ways in one session on 2026-09-13:
+
+  - `aws dynamodb list-tables --query 'Tables'` returned `None`. The field is `TableNames`. **A wrong `--query` returns `None` rather than erroring**, so a wrong question reads exactly like a clean answer.
+  - `ps -eo cmd | grep -c "[u]vicorn"` reported 2 lingering servers. There were none — **the checking shell's own command line contained the word**, so it counted itself. Same root cause as the `pkill -f` that killed its own shell twice.
+  - `Get-ScheduledTask -TaskName ...` unelevated reported the nightly teardown task as missing. **It was registered and working.** Unelevated, that cmdlet returns nothing for a task that exists. `schtasks /query` is honest about the same state: it says `ERROR: Access is denied`.
+
+  In the same breath, `Test-Path` on a protected path threw `UnauthorizedAccessException` and — being a non-terminating error — **fell through to the `else` branch and printed "no file"**.
+
+  **Prefer a tool that distinguishes "denied" from "absent", and treat an empty result from a privileged query as UNKNOWN rather than as zero.** This is the same disease as every stale claim in the docs here; it just wears a shell prompt instead of a Markdown file.
+
 - **n8n nodes can replay pinned data instead of executing.** Right-click a node; if the menu offers "Unpin", its output is frozen and the node is not really running. Also: the green check on the canvas means "did not halt the workflow", **not** "received a 200".
 
 - **EKS needs `enable_cluster_creator_admin_permissions = true`.** Without it, the IAM user that *created* the cluster has no `kubectl` access to it. Already set in `eks.tf`.

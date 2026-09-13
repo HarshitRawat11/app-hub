@@ -53,6 +53,45 @@ if (-not (Test-Path "$repo\scripts\scheduled-destroy.sh")) {
     throw "scripts/scheduled-destroy.sh not found under $repo"
 }
 
+# Refuse to run unelevated, and say so, rather than failing confusingly later.
+#
+# ADDED 2026-09-13 AFTER THIS EXACT THING WASTED A DIAGNOSTIC ROUND.
+#
+# Without elevation, `Get-ScheduledTask` returns NOTHING for a task that
+# exists. Not an error -- nothing. So the "already exists" branch below is
+# skipped, and `Register-ScheduledTask` then fails with:
+#
+#     Cannot create a file when that file already exists.  (0x800700b7)
+#
+# ...which reads like a filesystem problem and is actually a permissions one.
+# `schtasks /query` is more honest about the same situation: it says
+# "ERROR: Access is denied" rather than pretending the task is absent.
+#
+# The general lesson, which has now bitten three different ways in one
+# session: **"I cannot see it" and "it is not there" are different facts, and
+# any check that renders them identically will eventually report the wrong one
+# with total confidence.** A query that lacks permission, a query with a
+# typo'd field name, and a query that matches itself all return the same
+# comfortable emptiness.
+$elevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+            ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $elevated) {
+    Write-Host ""
+    Write-Host "NOT ELEVATED. Stopping here rather than reporting something false." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Unelevated, this script cannot SEE an existing task, cannot remove one,"
+    Write-Host "and cannot create one. Worse, it cannot tell 'absent' from 'invisible' --"
+    Write-Host "so it would report a task as missing when it is registered and working."
+    Write-Host ""
+    Write-Host "Re-run from an elevated PowerShell (right-click -> Run as administrator):"
+    Write-Host "  powershell -ExecutionPolicy Bypass -NoExit -File scripts\register-scheduled-destroy.ps1"
+    Write-Host ""
+    Write-Host "To check the task WITHOUT elevation, use schtasks -- it distinguishes"
+    Write-Host "'Access is denied' (it exists, you cannot read it) from 'cannot find':"
+    Write-Host "  schtasks /query /TN `"$TaskName`""
+    exit 1
+}
+
 $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if ($existing) {
     Write-Host "Task '$TaskName' already exists. Removing it first."
