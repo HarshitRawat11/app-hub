@@ -43,6 +43,11 @@ SERVICES  := links-service gateway
 # breaks later, on an error about the repository not being empty.
 ECR_REPOS := app-hub/links-service app-hub/gateway
 ECR_HOST  := $(ACCOUNT).dkr.ecr.$(REGION).amazonaws.com
+# The persistent stack's table (C-04). Lives in infra/persistent/, has its own
+# state file, and is NEVER destroyed -- `make down` cannot reach it, because
+# terraform does not recurse into subdirectories. Named here only so
+# `verify-dynamo` does not hardcode it in two places.
+LINKS_TABLE := app-hub-links
 # Per-service image URL is derived in the recipes: $(ECR_HOST)/app-hub/<svc>
 DOCKER    := docker.exe
 # manifests/00-namespace.yaml is applied before any service directory.
@@ -65,7 +70,7 @@ dirty_of = $(shell git -C $(1) status --porcelain 2>/dev/null | head -c1)
 tag_of   = $(if $(call dirty_of,$(1)),$(call sha_of,$(1))-dirty-$(shell date +%s),$(call sha_of,$(1)))
 
 .DEFAULT_GOAL := help
-.PHONY: help guard status up deploy verify down destroy-only validate test
+.PHONY: help guard status up deploy verify down destroy-only validate test verify-dynamo
 
 help:
 	@echo "app-hub — run from WSL"
@@ -76,6 +81,9 @@ help:
 	@echo "  make down     full teardown in the correct order, then audit"
 	@echo "  make test     run every service test suite (no cluster needed)"
 	@echo "  make validate offline manifest + terraform checks (no cluster needed)"
+	@echo ""
+	@echo "  make verify-dynamo   exercise the repository against the REAL table"
+	@echo "                       WRITES to $(LINKS_TABLE) — needs approval, not part of 'test'"
 	@echo ""
 	@echo "  next image tags:"
 	@$(foreach s,$(SERVICES),echo "    $(s): $(call tag_of,$(s))";)
@@ -273,6 +281,36 @@ test:
 	  echo ""; \
 	done; \
 	exit $$fail
+
+## verify-dynamo — exercise the repository against the REAL table (WRITES; needs approval)
+verify-dynamo:
+	@# THE CONSTRAINT, STATED BEFORE IT IS ENCODED (CLAUDE.md § 2):
+	@#
+	@# This target WRITES to app-hub-links -- the table in the persistent stack,
+	@# the one thing here deliberately never destroyed. So it is NOT part of
+	@# `make test` and never will be: `make test` must stay offline, free, and
+	@# runnable without asking anyone. Per CLAUDE.md § 4 this needs the owner's
+	@# approval in the session it is run.
+	@#
+	@# It earns its place because tests/test_repository.py runs against moto,
+	@# and moto is a reimplementation. The gaps are where the expensive
+	@# surprises live -- most importantly that real reads are EVENTUALLY
+	@# CONSISTENT by default while moto's are immediate (learn/26).
+	@#
+	@# The before/after scan is the actual safety property. The script cleans up
+	@# in a finally block, but "it cleans up" is a claim, and an unverified
+	@# claim is what this project keeps getting burned by.
+	@command -v aws >/dev/null || { echo "aws CLI not found — run this from WSL"; exit 1; }
+	@echo "== baseline =="
+	@aws dynamodb scan --table-name $(LINKS_TABLE) --region $(REGION) --output json > /tmp/dynamo-before.json
+	@python3 -c "import json;d=json.load(open('/tmp/dynamo-before.json'));print('  %d item(s) before' % d['Count'])"
+	@echo "== verifying =="
+	@cd links-service && PYTHONPATH=. uv run python scripts/verify_real_table.py; \
+	  rc=$$?; \
+	  echo "== confirming the table was left as found =="; \
+	  aws dynamodb scan --table-name $(LINKS_TABLE) --region $(REGION) --output json > /tmp/dynamo-after.json; \
+	  python3 -c "import json,sys; a=json.load(open('/tmp/dynamo-before.json')); b=json.load(open('/tmp/dynamo-after.json')); same = a['Items']==b['Items']; print('  %d item(s) after — %s' % (b['Count'], 'identical to baseline' if same else 'CHANGED — leftovers below')); [print('   LEFTOVER:', i) for i in b['Items'] if i not in a['Items']]; sys.exit(0 if same else 1)" || rc=1; \
+	  exit $$rc
 
 ## validate — offline checks, useful when everything is torn down
 validate:

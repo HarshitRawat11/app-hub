@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 95 across 6 repositories |
+| Commits | 98 across 6 repositories |
 | Active days | 19 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-13 00:02 IST |
+| Latest commit | 2026-09-13 11:28 IST |
 
 ---
 
@@ -204,3 +204,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 |---|---|---|---|
 | 00:01 | `gateway` | `c522956` | S-03: serve the dashboard from gateway; proxy the full links CRUD |
 | 00:02 | `links-service` | `b20f10d` | README: the suite is 38 tests, not 15 |
+| 00:03 | `app-hub` | `7f60008` | Record S-03; log D-19; add learn/27; correct a stale timing claim |
+| 00:20 | `app-hub` | `fa8b51e` | C-04 was applied three days ago and the board never said so |
+| 11:28 | `links-service` | `e69e797` | Add a repeatable check against the real DynamoDB table |

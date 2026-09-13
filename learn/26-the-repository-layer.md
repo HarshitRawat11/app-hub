@@ -10,7 +10,9 @@
 
 Ids changed from an incrementing integer to a **server-generated UUID string**. 38 tests, up from 15.
 
-**Status: written and unit-tested, NOT verified against the real table.** That needs `C-05` to give a pod credentials.
+**Status: verified against the real `app-hub-links` table on 2026-09-13.** 11 checks, 0 failures, and the table was left byte-identical to how it was found.
+
+> **The earlier status line here said this needed `C-05` first. That was wrong, and the error is worth more than the correction.** IRSA is what a **pod** needs to reach DynamoDB. It is not what a laptop needs — boto3's default credential chain in WSL already resolves to `terraform-learning`, which owns the table. Conflating *"the deployed service cannot reach DynamoDB yet"* with *"this code cannot be verified yet"* kept the task marked blocked for three days on a blocker that only applied to one of the two.
 
 ## Why it is this way
 
@@ -42,9 +44,15 @@ first resource():    37.5s
 second resource():    0.0s
 ```
 
-Botocore loads its service models from thousands of small JSON files, and this project lives on `/mnt/c`, which WSL reaches over a slow 9p mount. **That cost is cached per process — but `mock_aws()` per test defeated the cache and re-paid it every time.** Moving the mock and the client into a **session-scoped** fixture, with per-test isolation restored by emptying the table through the repository's own interface, took it to **roughly 100–115 seconds**.
+Botocore loads its service models from thousands of small JSON files, and this project lives on `/mnt/c`, which WSL reaches over a slow 9p mount. **That cost is cached per process — but `mock_aws()` per test defeated the cache and re-paid it every time.** Moving the mock and the client into a **session-scoped** fixture, with per-test isolation restored by emptying the table through the repository's own interface, took it to **somewhere between ~20 s and ~115 s** — see below, because the spread is the finding.
 
-> **Corrected 2026-09-13.** This file first recorded **39 seconds**. Re-timed twice while doing `S-03`, the suite takes 102 s and 114 s — so 39 s was a single warm run that does not reproduce, written down as if it were the number. The *improvement* is real and is the point (573 s → ~110 s, about 5×), but the specific figure was optimistic and nothing re-measured it. Same shape as every other stale claim this project has caught: **a number with no consumer is untested.**
+> **Corrected twice, on 2026-09-13, and the second correction is the useful one.**
+>
+> This file first said **39 s**. Re-timing gave 102 s and 114 s, so that was replaced with “~100–115 s”. An hour later the same suite ran in **22.8 s**. Three “measurements”, three different answers, and **two of them were written down as facts.**
+>
+> **The number is not a number, it is a range, and the variable is the OS page cache.** botocore reads thousands of small JSON service models; on `/mnt/c` that is a slow 9p mount when cold and fast when Windows still has the files cached. So the suite is ~20 s warm and ~115 s cold, and a single figure was never going to be honest.
+>
+> **The improvement is what was real all along** — 573 s to tens of seconds, by fixing fixture scope. That held across every run. The lesson is to record what you actually controlled, not the stopwatch reading that happened to accompany it.
 
 Two things worth carrying:
 
@@ -53,13 +61,21 @@ Two things worth carrying:
 
 Second thing, smaller: **`TestClient(app)` outside a `with` block never runs `lifespan`.** Since the repository is now created there, `app.state.repo` would not exist and every HTTP test would fail with `AttributeError` rather than an assertion. The autouse fixture in `test_links.py` supplies it, which does isolation and setup in one move.
 
+## What the real table showed that `moto` could not
+
+Most of it matched: UUID strings work as an `S` key, `exclude_none` genuinely **omits** the `icon` attribute rather than storing NULL (confirmed by reading the raw item through the AWS CLI, not through our own code), and `ReturnValues="ALL_OLD"` really does distinguish deleting something from deleting nothing — a second `DELETE` answers `404`.
+
+**One difference is real and did not bite only by luck.** `moto` answers every read immediately. A real DynamoDB `get_item` and `scan` are **eventually consistent by default** — a read after a write may legitimately return nothing. Here it returned in 0.036 s every time, which is the normal case and **not a guarantee**. Nothing in `links-service` depends on read-after-write today; a feature that does would need `ConsistentRead=True` and would pass every test in this repository before failing in production.
+
+**The multi-replica claim was proven rather than argued.** Two links-service processes, same table, one record created by each: distinct ids, and **each process read the other's record back**. With `global next_id` both would have issued `1`; with the in-memory dict each would have answered `404` for the other's. That is the whole reason this step exists.
+
 ## Verify it yourself
 
 ```bash
 make test
 ```
 
-38 + 47 tests, around two minutes — almost all of it links-service (see the correction above). To see the contract structure, note that each storage test reports twice:
+38 + 47 tests. Wall time is dominated by links-service and swings from ~25 s to ~2 min depending on whether botocore's service models are still in the page cache (see the correction above). Gateway's 47 run in about 4 s either way. To see the contract structure, note that each storage test reports twice:
 
 ```bash
 cd links-service && uv run pytest tests/test_repository.py -v | head -20
