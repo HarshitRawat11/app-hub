@@ -256,6 +256,31 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
+### 2026-09-13 — The nightly teardown would never have run, and said nothing about it
+
+**Registered successfully, ran as the right account, and did absolutely nothing. Twice over, for two independent reasons — both mine.**
+
+**Reason 1: Windows Scheduled Tasks do not run on battery power by default.** `New-ScheduledTaskSettingsSet` defaults to `DisallowStartIfOnBatteries = True` and `StopIfGoingOnBatteries = True`. Triggered on battery, the task went to state **`Queued`** and sat there — launched at 14:13, still `Queued` at 14:19, laptop unplugged. Not `Running`. Not `Failed`. **No completion event, no output, no error.**
+
+Those defaults are correct for their intended purpose; background maintenance should not flatten a laptop. They are exactly wrong for a cost control. **23:30 is precisely when a laptop is likely to be unplugged**, so this would have skipped the teardown on the nights it mattered, billed the NAT gateway until morning, and reported nothing. `StopIfGoingOnBatteries` is worse still — unplugging mid-run aborts a `terraform destroy` halfway.
+
+Fixed with `-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`, and the script now **asserts those settings took** after registering, exiting non-zero rather than claiming success.
+
+**Reason 2: the job had no log.** `scheduled-destroy.sh` reported only by POSTing to the n8n webhook, and the Task Scheduler action (`wsl.exe -e bash -lc "..."`) captured stdout nowhere. **A run that failed before the POST therefore left no evidence at all.** That is the same disease as everything else this project has chased: a step that looked fine because nothing was watching. It now `tee`s to `logs/scheduled-destroy-<timestamp>.log` and prints its WSL user, `$HOME` and `aws sts get-caller-identity` first — the three lines that answer most failures of a scheduled WSL job.
+
+**The diagnosis took four wrong turns, and the wrong turns are the lesson.**
+
+- *"The task was never registered."* Wrong — `Get-ScheduledTask` unelevated returns nothing for a task it cannot read. Settled by a **control query**: a name known to be absent gives `cannot find the file specified`, this one gives `Access is denied`.
+- *"It runs as the wrong account, so it has no AWS credentials."* Wrong — probed the exact `wsl.exe` invocation: WSL user `harshitrawat`, `$HOME=/home/harshitrawat`, `aws sts get-caller-identity` returns `terraform-learning`. Credentials were always there.
+- *"`make down` hangs on `kubectl` against the stale EKS endpoint."* Plausible, and **wrong — measured it: kubectl fails in 3 seconds with NXDOMAIN.** Would have been a confident diagnosis and a pointless fix.
+- *"No completion event means it crashed."* Wrong — it had been two minutes, and `make down` legitimately takes longer than that. Nearly a false negative from impatience.
+
+**What actually settled it was noticing that `Queued` is not `Running`.** `Queued` means *waiting for a condition*, and the conditions are in the task's own settings.
+
+**A fifth measurement artifact turned up during the diagnosis**, bringing the session's total to five: `wsl.exe` piped into PowerShell's capture returned `reached: ` with an empty `pwd` and nothing after it. The identical command through bash printed everything. `wsl.exe` emits UTF-16 to a redirected stdout and the capture truncates at the first NUL — a full environment probe that read as a catastrophic failure and was a quoting artifact.
+
+**Nothing was billing throughout.** The teardown had nothing to tear down; the failure cost nothing this time, which is exactly why it was worth finding now rather than after a weekend.
+
 ### 2026-09-13 — `N-01b` closed at last, and a check that lied three times
 
 **`N-01b` is DONE. The email arrived.** Execution `38`, `mode=manual`, `status=success`, 07:25:25 UTC (12:55 IST). **The first email this project has ever sent**, after weeks of being deferred. The inbox is the only evidence that counts here — a green tick on the canvas means *"did not halt"*, not *"delivered"*.

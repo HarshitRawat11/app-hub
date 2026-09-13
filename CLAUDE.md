@@ -464,6 +464,14 @@ Each of these cost real time to find. They are here so no future session pays fo
 
   Corporate DNS has also interfered with AWS endpoint resolution here. Note `wsl --shutdown` is a **Windows** command — run it from PowerShell, not inside the WSL shell.
 
+- **A Windows Scheduled Task will not run on battery power by default, and it fails SILENTLY.** `New-ScheduledTaskSettingsSet` defaults to `DisallowStartIfOnBatteries = True` and `StopIfGoingOnBatteries = True`. Triggered on battery, the task goes to state **`Queued`** and waits — not `Running`, not `Failed`. No completion event, no output, no error anywhere.
+
+  Found 2026-09-13 on the first real test of the nightly teardown: launched 14:13, still `Queued` at 14:19, laptop unplugged. **23:30 is exactly when a laptop is likely to be on battery**, so the defaults would skip the teardown on precisely the nights it was needed, the cluster would bill until morning, and nothing would say so. `StopIfGoingOnBatteries` is worse — unplugging mid-run aborts a `terraform destroy` partway through.
+
+  `scripts/register-scheduled-destroy.ps1` now passes `-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries` and **asserts afterwards that they took**, refusing to report success otherwise. **`State: Queued` is the tell** — it means "waiting for a condition", and is not the same as `Running`.
+
+- **An unattended job needs a log file, not just a notification.** `scheduled-destroy.sh` reported only by POSTing to n8n, and the Task Scheduler action captured stdout nowhere. So a run that failed *before* the POST left no evidence at all — no log, no n8n execution, nothing. It now `tee`s everything to `logs/scheduled-destroy-<timestamp>.log` (gitignored) and prints its WSL user, `$HOME` and `aws sts get-caller-identity` at the top, because those three lines answer most of what goes wrong with a scheduled WSL job.
+
 - **"I cannot see it" and "it is not there" are different facts.** Any check that renders them identically will eventually report the wrong one with total confidence — and this cost real time three separate ways in one session on 2026-09-13:
 
   - `aws dynamodb list-tables --query 'Tables'` returned `None`. The field is `TableNames`. **A wrong `--query` returns `None` rather than erroring**, so a wrong question reads exactly like a clean answer.

@@ -24,3 +24,7 @@ n8n/
 # OS/editor cruft
 .DS_Store
 *.swp
+
+# Per-run teardown logs from scripts/scheduled-destroy.sh. Timestamped, local,
+# and never useful to anyone else.
+logs/

@@ -23,6 +23,43 @@ set -uo pipefail   # NOT -e: a failed destroy must still be reported, not abort 
 cd "$(dirname "$0")/.."
 PROJECT_DIR="$(pwd)"
 
+# ---------------------------------------------------------------- logging ---
+#
+# ADDED 2026-09-13, AFTER AN UNATTENDED RUN VANISHED WITHOUT TRACE.
+#
+# The Windows Task Scheduler action is `wsl.exe -e bash -lc "<this script>"`
+# with no redirection, so everything this script echoes went NOWHERE. A run
+# that fails before the webhook POST therefore left no evidence at all --
+# not a log, not an n8n execution, nothing. The Task Scheduler said the task
+# had launched and simply never said anything else.
+#
+# That is the same shape as every other bug this project has spent time on:
+# a step that looked like it worked because nothing was watching. An
+# unattended job whose only output channel is the thing that might fail is
+# not observable, and an unobservable teardown is one you cannot trust to
+# protect you from a NAT gateway bill.
+#
+# `tee` rather than a plain redirect so an interactive run still prints to
+# the terminal. The log is per-run, timestamped, and gitignored.
+LOG_DIR="$PROJECT_DIR/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/scheduled-destroy-$(date +%Y-%m-%d_%H%M%S).log"
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+echo "=== scheduled-destroy ==="
+echo "log        : $LOG_FILE"
+echo "project    : $PROJECT_DIR"
+echo "user       : $(id -un 2>/dev/null || echo unknown)"
+echo "home       : ${HOME:-unset}"
+# The single most useful line here. The task's PRINCIPAL decides which
+# Windows account launches wsl.exe, which decides the WSL home directory,
+# which decides whether ~/.aws/ holds the app-hub credentials at all. If this
+# says "no credentials", the teardown was never going to work and the cause
+# is the scheduled task's principal, not Terraform.
+echo -n "aws ident  : "
+aws sts get-caller-identity --query 'Arn' --output text 2>&1 | head -1
+echo "========================="
+
 # The webhook URL lives in n8n/.env alongside the API key. Never hardcoded, and
 # never printed.
 if [[ -f n8n/.env ]]; then

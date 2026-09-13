@@ -112,9 +112,41 @@ $trigger = New-ScheduledTaskTrigger -Daily -At $Time
 # runs as the interactive user. Consequence worth knowing: if the machine is
 # off or you are logged out at the trigger time, it does not fire -- and
 # StartWhenAvailable is what makes it catch up on the next login instead.
+#
+# ---------------------------------------------------------------------------
+# THE BATTERY FLAGS ARE LOAD-BEARING. Added 2026-09-13 after the first real
+# test of this task did nothing at all.
+#
+# `New-ScheduledTaskSettingsSet` DEFAULTS to:
+#     DisallowStartIfOnBatteries = True
+#     StopIfGoingOnBatteries     = True
+#
+# Those defaults are correct for their intended purpose -- background
+# maintenance should not flatten someone's laptop. They are exactly wrong
+# here, and the failure is silent:
+#
+#   - Triggered on battery, the task goes to state **Queued** and simply
+#     waits. Not Running, not Failed. No completion event, no output, no
+#     error. Observed live: launched 14:13, still Queued at 14:19, because
+#     the laptop was unplugged.
+#   - Unplugged mid-run, StopIfGoingOnBatteries ABORTS a destroy partway
+#     through, which is worse than never starting it.
+#
+# Why this matters more than it looks: 23:30 is precisely when a laptop is
+# likely to be on battery. So the default settings would skip the teardown on
+# exactly the nights it was needed, the cluster would bill until morning, and
+# nothing anywhere would say so. A cost control that fails silently when
+# conditions are inconvenient is not a cost control.
+#
+# The trade is explicit and small: a teardown is minutes of CPU and a few API
+# calls, not a disk-indexing job. Spending that on battery is fine; spending
+# $0.30/hour on a forgotten NAT gateway is not.
+# ---------------------------------------------------------------------------
 $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -DontStopOnIdleEnd `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 45)
 
 Register-ScheduledTask `
@@ -157,6 +189,18 @@ if ($principal -and ($principal -notmatch [regex]::Escape($env:USERNAME))) {
     Write-Host "different ~/.aws/ -- 'make down' will have no app-hub credentials and"
     Write-Host "will fail at the trigger time. Re-register it as yourself."
 }
+# Assert the battery settings actually took. They are the difference between a
+# teardown that runs and one that sits in state Queued all night saying nothing.
+$st = $check.Settings
+Write-Host "  on battery : start=$(-not $st.DisallowStartIfOnBatteries) keep-running=$(-not $st.StopIfGoingOnBatteries)"
+if ($st.DisallowStartIfOnBatteries -or $st.StopIfGoingOnBatteries) {
+    Write-Host ""
+    Write-Host "WARNING: this task will not run on battery power." -ForegroundColor Red
+    Write-Host "It will sit in state 'Queued' and produce no output, no error and no"
+    Write-Host "completion event -- on exactly the nights a laptop is unplugged."
+    exit 1
+}
+
 Write-Host ""
 Write-Host "Next run: $((Get-ScheduledTaskInfo -TaskName $TaskName).NextRunTime)"
 Write-Host ""
