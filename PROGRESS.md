@@ -288,7 +288,16 @@ You cannot get `ALREADY_EXISTS` for something absent. `schtasks` is more honest 
 
 And a fourth, live, in the command that diagnosed it: `Test-Path` on a protected path threw `UnauthorizedAccessException` and, because that is non-terminating, **fell through to the `else` branch and printed "no file at ..."**.
 
-**The lesson, now in `CLAUDE.md § 9`: "I cannot see it" and "it is not there" are different facts, and any check that renders them identically will eventually report the wrong one with total confidence.** A permission-denied query, a typo'd field name, and a self-matching pattern all return the same comfortable emptiness. This is the same disease as every stale doc claim in this project, just wearing a shell prompt instead of a Markdown file.
+**Settled conclusively on the second attempt by running a CONTROL** — the same query against a name known to be absent:
+
+```
+schtasks /query /TN "zzz-definitely-not-a-real-task"  ->  ERROR: The system cannot find the file specified.
+schtasks /query /TN "app-hub nightly teardown"        ->  ERROR: Access is denied.
+```
+
+Absent says *cannot find*; existing-but-unreadable says *denied*. `Get-ScheduledTask` returned "not found" for **both**, which is what made it produce a confident wrong answer twice.
+
+**The lesson, now in `CLAUDE.md § 9`: "I cannot see it" and "it is not there" are different facts, and any check that renders them identically will eventually report the wrong one with total confidence. Control your negatives before believing them.** A permission-denied query, a typo'd field name, and a self-matching pattern all return the same comfortable emptiness. This is the same disease as every stale doc claim in this project, just wearing a shell prompt instead of a Markdown file.
 
 **`register-scheduled-destroy.ps1` now refuses to run unelevated**, explains that it cannot distinguish absent from invisible, and points at `schtasks` as the check that can. Verified: it exits 1 with that message.
 

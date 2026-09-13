@@ -472,7 +472,16 @@ Each of these cost real time to find. They are here so no future session pays fo
 
   In the same breath, `Test-Path` on a protected path threw `UnauthorizedAccessException` and — being a non-terminating error — **fell through to the `else` branch and printed "no file"**.
 
-  **Prefer a tool that distinguishes "denied" from "absent", and treat an empty result from a privileged query as UNKNOWN rather than as zero.** This is the same disease as every stale claim in the docs here; it just wears a shell prompt instead of a Markdown file.
+  **The technique that finally settled it, and the transferable part: run the same query against a name you KNOW is absent.** If the real name and the fake name produce the *same* answer, your query cannot tell the difference and its result is UNKNOWN — not zero. If they differ, the difference is the evidence:
+
+  ```
+  schtasks /query /TN "zzz-definitely-not-a-real-task"  ->  ERROR: The system cannot find the file specified.
+  schtasks /query /TN "app-hub nightly teardown"        ->  ERROR: Access is denied.
+  ```
+
+  Absent says *cannot find*; existing-but-unreadable says *denied*. Meanwhile `Get-ScheduledTask` returned "not found" for **both**, which is exactly why it produced a confident wrong answer — it is the wrong tool for that question.
+
+  **So: prefer a tool that distinguishes "denied" from "absent", and control your negatives before believing them.** This is the same disease as every stale claim in the docs here; it just wears a shell prompt instead of a Markdown file.
 
 - **n8n nodes can replay pinned data instead of executing.** Right-click a node; if the menu offers "Unpin", its output is frozen and the node is not really running. Also: the green check on the canvas means "did not halt the workflow", **not** "received a 200".
 
