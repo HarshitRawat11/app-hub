@@ -2,7 +2,7 @@
 
 A self-hosted hub of small, independently deployed services running on AWS EKS — provisioned with Terraform, deployed from Git-tracked Kubernetes manifests.
 
-The first service, **links-service**, is a FastAPI CRUD API over link records (`name`, `url`, `category`, `icon`) — the data behind an internal "which app lives where" dashboard. **gateway** is service #2: one front door, so internal services stop being publicly reachable — and since 2026-09-13 it also **serves that dashboard** at `/`, so the hub has a page you actually open rather than only an API. More services will join them under the same infra.
+The first service, **links-service**, is a FastAPI CRUD API over link records (`name`, `url`, `category`, `icon`) — the data behind an internal "which app lives where" dashboard. **gateway** is service #2: one front door, so internal services stop being publicly reachable — and since 2026-09-13 it also **serves that dashboard** at `/`, so the hub has a page you actually open rather than only an API. **aggregator** is service #3: never publicly reachable, it probes every catalogued link so the dashboard shows what is actually up. More services will join them under the same infra.
 
 > **Status:** Phase 2 complete. The full loop is proven on real EKS — provision, build, push, deploy, reach `/health` by Kubernetes DNS name, expose publicly, tear down cleanly. Nothing is deployed right now by design; the cluster is destroyed between sessions. See [PROGRESS.md](PROGRESS.md).
 
@@ -80,6 +80,15 @@ app-hub/
 │   ├── pyproject.toml     # requires-python >=3.14; fastapi, uvicorn, httpx2
 │   └── uv.lock            # pinned dependency lockfile
 │
+├── aggregator/        # repo: HarshitRawat11/app-hub-aggregator — internal only, port 8002
+│   ├── app/
+│   │   ├── main.py        # /health + /status; a down link is DATA, a down upstream is an ERROR
+│   │   └── probe.py       # concurrent probing + the SSRF guard (link-local refused)
+│   ├── tests/             # 47 tests, incl. wall-clock proof that probes run concurrently
+│   ├── Dockerfile         # as links-service, port 8002
+│   ├── pyproject.toml     # requires-python >=3.14; fastapi, uvicorn, httpx2
+│   └── uv.lock            # pinned dependency lockfile
+│
 ├── manifests/         # repo: HarshitRawat11/app-hub-manifests — Kubernetes manifests
 │   ├── 00-namespace.yaml   # SHARED by every service, so it sits above them.
 │   │                      # namespace app-hub, restricted Pod Security Standard
@@ -106,7 +115,7 @@ app-hub/
 | Region         | `ap-south-1` |
 | EKS cluster    | `app-hub-eks` (Kubernetes 1.31) |
 | Node group     | 2× `t3.medium` (min 1, max 2) |
-| ECR repositories | `app-hub/links-service`, `app-hub/gateway` — IMMUTABLE tags |
+| ECR repositories | `app-hub/links-service`, `app-hub/gateway`, `app-hub/aggregator` — IMMUTABLE tags |
 | DynamoDB       | `app-hub-links`, on-demand — the **persistent** stack, never destroyed |
 | TF state       | `s3://app-hub-tfstate-314146298861/` — keys `infra/terraform.tfstate` (ephemeral) and `persistent/terraform.tfstate`. S3 native locking. |
 
@@ -235,7 +244,7 @@ kubectl -n app-hub port-forward svc/gateway 8001:8001
 
 ## Governance
 
-### Working across six repos
+### Working across seven repos
 
 The root is an umbrella repo that tracks only the cross-cutting docs, so no single commit captures a change spanning components. Rules:
 

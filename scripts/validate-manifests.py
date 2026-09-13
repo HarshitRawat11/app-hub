@@ -61,6 +61,18 @@ def check(directory: str) -> None:
         if image.endswith(":PLACEHOLDER"):
             print("   image tag is a PLACEHOLDER — `make deploy` rewrites it; "
                   "ArgoCD would fail on it as-is")
+        elif image.endswith(":latest"):
+            # A real failure, not a note. The ECR repositories are IMMUTABLE
+            # (R-03), so `:latest` cannot be repushed -- the first push wins
+            # and every later one fails. Worse, if one ever did land, "which
+            # build is running?" stops having an answer, which is the exact
+            # property IMMUTABLE was chosen to guarantee.
+            #
+            # `:PLACEHOLDER` is the correct resting state; `make deploy`
+            # rewrites it to the git SHA. Caught here because the alternative
+            # is finding out during a deploy, with the cluster billing.
+            fail("image tag is `latest` — ECR repos are IMMUTABLE (R-03), "
+                 "so it can never be repushed. Use :PLACEHOLDER instead.")
         elif ":" in image:
             print(f"   image tag: {image.rsplit(':', 1)[1]}")
 

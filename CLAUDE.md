@@ -201,14 +201,17 @@ Each file follows this structure:
 
 ## 3. Repository layout — read this before any git operation
 
-**There are SIX independent git repositories here.** The root is an *umbrella* repo that tracks only the cross-cutting docs and gitignores the five component directories, so they stay fully independent (see `learn/10`). All six have remotes and are pushed.
+**There are SEVEN independent git repositories here.** The root is an *umbrella* repo that tracks only the cross-cutting docs and gitignores the six component directories, so they stay fully independent (see `learn/10`). All seven have remotes and are pushed.
+
+**Every new service directory must be added to the root `.gitignore` in the same change that creates it.** Forgetting does not fail loudly -- the umbrella just starts tracking a second copy of a repo that already has its own remote, and the two drift apart silently. Also add it to `REPOS` in `scripts/timeline.sh`, or its history vanishes from `TIMELINE.md`.
 
 | Directory        | Repo                                    | Tracks | Branch   |
 |------------------|-----------------------------------------|--------|----------|
 | `.` (root)       | `HarshitRawat11/app-hub`                 | `CLAUDE.md`, `README.md`, `PROGRESS.md`, `TIMELINE.md`, `CONTEXT-BRIEF.md`, `learn/`, `scripts/` | `master` |
 | `infra/`         | `HarshitRawat11/app-hub-infra`           | Terraform — **two stacks**, see below | `master` |
 | `links-service/` | `HarshitRawat11/app-hub-links-service`   | FastAPI service | `master` |
-| `gateway/`       | `HarshitRawat11/app-hub-gateway`         | FastAPI service (entry point) | `master` |
+| `gateway/`       | `HarshitRawat11/app-hub-gateway`         | FastAPI service (entry point) + the dashboard | `master` |
+| `aggregator/`    | `HarshitRawat11/app-hub-aggregator`      | FastAPI service (internal only) | `master` |
 | `manifests/`     | `HarshitRawat11/app-hub-manifests`       | Kubernetes manifests | `master` |
 | `n8n/`           | `HarshitRawat11/app-hub-n8n`             | Workflow JSON | `master` |
 
@@ -372,7 +375,7 @@ Work through these in order. Stop as soon as you have what the task needs — do
 - **Write the `learn/` file** and add it to `learn/README.md`. Per § 2, no task is done without it — the **full seven sections** if the owner built it, the **three-section short note** if you did. If the step was too small to warrant its own file, append to the most relevant existing one instead.
 - **State which side of the § 2 split the work fell on**, and for delegated work, whether it was *verified* or merely *written*.
 - Update **`PROGRESS.md`**: move the row's status, clear or restate the blocker, write the real next step, and add a timestamped line to the progress log.
-- **Regenerate the timeline**: `./scripts/timeline.sh`. It rebuilds `TIMELINE.md` from git across all six repos, so the project's chronology is derived rather than typed.
+- **Regenerate the timeline**: `./scripts/timeline.sh`. It rebuilds `TIMELINE.md` from git across all seven repos, so the project's chronology is derived rather than typed.
 
 ### Timestamps — do not type them from memory
 

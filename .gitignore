@@ -4,14 +4,23 @@
 #
 #   infra/         -> HarshitRawat11/app-hub-infra
 #   links-service/ -> HarshitRawat11/app-hub-links-service
+#   gateway/       -> HarshitRawat11/app-hub-gateway
+#   aggregator/    -> HarshitRawat11/app-hub-aggregator
 #   manifests/     -> HarshitRawat11/app-hub-manifests
 #   n8n/           -> HarshitRawat11/app-hub-n8n
+#
+# ADD EVERY NEW SERVICE DIRECTORY HERE, in the same change that creates it.
+# Forgetting does not fail loudly: the umbrella simply starts tracking a
+# second copy of a repo that already has its own remote, and the two drift.
+# `gateway/` was appended below the OS-cruft section rather than to this
+# list, which is how it nearly happened twice.
 infra/
 links-service/
+gateway/
+aggregator/
 manifests/
 n8n/
 
 # OS/editor cruft
 .DS_Store
 *.swp
-gateway/

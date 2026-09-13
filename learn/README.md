@@ -62,8 +62,9 @@ Every file follows the same shape:
 | 26 | [26-the-repository-layer.md](26-the-repository-layer.md) | **Short note — delegated work** — a `Protocol` rather than an ABC; why UUID ids were the load-bearing change and how `C-04`'s type `S` paid off; `ReturnValues=ALL_OLD` and the delete that cannot tell you what it deleted; contract tests that run against both backends; **a 573-second suite is a defect** — profiling named fixture scope, not moto |
 
 | 27 | [27-the-dashboard-and-the-full-proxy.md](27-the-dashboard-and-the-full-proxy.md) | **Short note — delegated work** — why the dashboard is served BY gateway rather than being a fourth service; the `passthrough` rule, and why a 404 from `GET /links/{id}` is the caller's answer while a 404 from `GET /links` is a fault; why gateway must not restate links-service's schema; `textContent` and scheme-checked `href` as two halves of one guard; **every test passed and the page was visibly wrong** — `[hidden]` loses to any author `display` rule |
+| 28 | [28-the-aggregator-and-fetching-urls-you-do-not-control.md](28-the-aggregator-and-fetching-urls-you-do-not-control.md) | **Short note — delegated work** — why `aggregator` proves discovery where `gateway` cannot; a down link is DATA while a down upstream is an ERROR; why 401 counts as up; **SSRF on URLs you did not choose, and why "block private address space" is the WRONG mitigation here**; a test that failed for a reason unrelated to what it measured |
 
-*Steps 28 onward get added as we do them.*
+*Steps 29 onward get added as we do them.*
 
 ## Two tiers, from 2026-09-09
 

@@ -29,7 +29,7 @@ NAMESPACE := app-hub
 # Every deployable service. Each needs a directory of the same name at the
 # repo root (the source) and under manifests/ (the Kubernetes objects).
 # ADD A NEW SERVICE HERE and to ECR_REPOS below; nothing else changes.
-SERVICES  := links-service gateway
+SERVICES  := links-service gateway aggregator
 # Every ECR repository the teardown must empty. ECR_REPO above is only the one
 # `deploy` builds today; this list is what `down` walks.
 #
@@ -41,7 +41,7 @@ SERVICES  := links-service gateway
 #
 # ADD EVERY NEW REPOSITORY HERE. A missing entry fails silently: destroy simply
 # breaks later, on an error about the repository not being empty.
-ECR_REPOS := app-hub/links-service app-hub/gateway
+ECR_REPOS := app-hub/links-service app-hub/gateway app-hub/aggregator
 ECR_HOST  := $(ACCOUNT).dkr.ecr.$(REGION).amazonaws.com
 # The persistent stack's table (C-04). Lives in infra/persistent/, has its own
 # state file, and is NEVER destroyed -- `make down` cannot reach it, because
@@ -51,7 +51,7 @@ LINKS_TABLE := app-hub-links
 # Per-service image URL is derived in the recipes: $(ECR_HOST)/app-hub/<svc>
 DOCKER    := docker.exe
 # manifests/00-namespace.yaml is applied before any service directory.
-# It lives at the top of manifests/ because both services share it -- it used
+# It lives at the top of manifests/ because every service shares it -- it used
 # to sit inside manifests/links-service/, which made applying gateway alone
 # into a fresh cluster fail with `namespaces "app-hub" not found`.
 MANIFEST_ROOT := manifests

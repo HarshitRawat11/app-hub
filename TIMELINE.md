@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 98 across 6 repositories |
+| Commits | 103 across 7 repositories |
 | Active days | 19 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-13 11:28 IST |
+| Latest commit | 2026-09-13 12:39 IST |
 
 ---
 
@@ -207,3 +207,8 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 00:03 | `app-hub` | `7f60008` | Record S-03; log D-19; add learn/27; correct a stale timing claim |
 | 00:20 | `app-hub` | `fa8b51e` | C-04 was applied three days ago and the board never said so |
 | 11:28 | `links-service` | `e69e797` | Add a repeatable check against the real DynamoDB table |
+| 11:28 | `app-hub` | `d8bfb1b` | C-06 verified against the real table; add make verify-dynamo |
+| 12:27 | `aggregator` | `83d4b1d` | aggregator: probe every catalogued link and report what is up |
+| 12:39 | `gateway` | `922b3da` | Proxy /status to aggregator; show liveness dots on the dashboard |
+| 12:39 | `infra` | `a661727` | Third ECR repository, for aggregator |
+| 12:39 | `manifests` | `a83652f` | Add aggregator Deployment and Service |
