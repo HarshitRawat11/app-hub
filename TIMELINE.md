@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 116 across 7 repositories |
-| Active days | 19 |
+| Commits | 119 across 7 repositories |
+| Active days | 20 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-13 20:41 IST |
+| Latest commit | 2026-09-14 00:03 IST |
 
 ---
 
@@ -225,3 +225,11 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 20:19 | `gateway` | `c35c456` | learn audit: learn/22 exists, and I had claimed it did not |
 | 20:19 | `app-hub` | `a85e699` | learn audit: learn/22 exists, and I had claimed it did not |
 | 20:41 | `manifests` | `d362f43` | D-02 closed on real EKS; AGGREGATOR_URL was missing from the manifest |
+| 20:42 | `app-hub` | `9f5f367` | D-02 closed on real EKS; AGGREGATOR_URL was missing from the manifest |
+| 23:48 | `app-hub` | `71eafde` | Log D-22: the cost watchdog has never fired, and structurally cannot |
+
+## 2026-09-14
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 00:03 | `app-hub` | `0f64587` | Log D-23 (EKS 1.31 on extended support); close D-18 |

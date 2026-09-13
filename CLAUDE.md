@@ -260,7 +260,12 @@ Consequences:
 
 - **Never run `terraform apply`, `terraform destroy`, or any state-mutating Terraform command without explicit approval in the current session.** Prior approval does not carry over.
 - `terraform plan`, `validate`, `fmt`, and `show` are fine unprompted.
-- Running infra is not free. EKS control plane + 2× `t3.medium` + a NAT gateway is roughly **$150–200/month if left up 24×7** in `ap-south-1`. Treat that as an order-of-magnitude estimate, not a quote — verify against AWS pricing before relying on it.
+- Running infra is not free. **Measured 2026-09-14 from the AWS Pricing API for `ap-south-1`**, run 24×7: EKS control plane $73 + 2× `t3.medium` $65 + NAT gateway $41 + NLB $17 + EBS $4 = **about $200/month**. A short session is about **$0.28/hour**; the 3.5-hour session on 2026-09-13 cost **$2.40 (~₹211)**.
+- **The control plane price depends on the Kubernetes version, and this is not a footnote.** A version past standard support bills at **$0.50/hour instead of $0.10** — five times — which took that same session to $2.40 when it should have been $0.98 (`D-23`). Check before assuming the figure above still holds:
+  ```bash
+  aws eks describe-cluster-versions --region ap-south-1
+  ```
+  `infra/eks.tf` is on **1.36** (standard support to 2027-08-02) as of 2026-09-14.
 - **Standing policy: the cluster is destroyed at the end of every session.** The NAT gateway is the main cost driver and bills whether or not anything runs on it. So "nothing is deployed" is the *normal* resting state of this project, not a sign something went wrong. Two n8n workflows back this up: `cost-watchdog` (emails at 5 PM and 9 PM if EKS is still up — wired and active, but **has never actually sent an email**; see `N-01b`) and `destroy-notifier` (posts destroy success/failure to an n8n webhook — **done and verified end to end** 2026-09-05). Both now use SMTP rather than Gmail OAuth, which removed a ~7-day token expiry that had silently killed both.
 - Because of that policy, **`terraform apply` and `terraform destroy` are routine here, not exceptional** — but they still need explicit approval each session, because they cost money and the owner may not want the cluster up yet.
 - **Never run `aws` commands that create, modify, or delete resources without approval.** Read-only calls (`describe-*`, `get-*`, `list-*`) are fine.
