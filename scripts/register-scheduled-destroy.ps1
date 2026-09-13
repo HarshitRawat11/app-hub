@@ -53,43 +53,50 @@ if (-not (Test-Path "$repo\scripts\scheduled-destroy.sh")) {
     throw "scripts/scheduled-destroy.sh not found under $repo"
 }
 
-# Refuse to run unelevated, and say so, rather than failing confusingly later.
+# Elevation: WARN, do not refuse. Revised 2026-09-13 after the first version of
+# this guard got the rule wrong.
 #
-# ADDED 2026-09-13 AFTER THIS EXACT THING WASTED A DIAGNOSTIC ROUND.
+# The rule is not "scheduled tasks need admin". Creating a task that runs as
+# YOU, in your own context, generally does not. Reading, replacing or starting
+# a task owned by SOMEONE ELSE does.
 #
-# Without elevation, `Get-ScheduledTask` returns NOTHING for a task that
-# exists. Not an error -- nothing. So the "already exists" branch below is
-# skipped, and `Register-ScheduledTask` then fails with:
+# That distinction is exactly what bit here. A task named "app-hub nightly
+# teardown" already exists on this machine and is NOT readable by
+# UZIO\harshit.rawat -- `Get-ScheduledTask` enumerates 205 other tasks happily
+# but omits this one, while `schtasks /query` says "Access is denied" rather
+# than "cannot find the file". Different answers for absent vs. invisible, and
+# that difference is the evidence: it exists, owned by another principal,
+# almost certainly because the script was elevated once under a different
+# admin account.
 #
-#     Cannot create a file when that file already exists.  (0x800700b7)
+# Why that matters far more than visibility: the task's PRINCIPAL decides who
+# `wsl.exe` runs as. A different account means a different WSL home directory,
+# which means a different ~/.aws/ -- so `make down` would run at 23:30 with no
+# app-hub credentials and fail. Silently, on the night it was needed.
 #
-# ...which reads like a filesystem problem and is actually a permissions one.
-# `schtasks /query` is more honest about the same situation: it says
-# "ERROR: Access is denied" rather than pretending the task is absent.
-#
-# The general lesson, which has now bitten three different ways in one
-# session: **"I cannot see it" and "it is not there" are different facts, and
-# any check that renders them identically will eventually report the wrong one
-# with total confidence.** A query that lacks permission, a query with a
-# typo'd field name, and a query that matches itself all return the same
-# comfortable emptiness.
+# Hence: warn, continue, and VERIFY afterwards (see the end of this file).
+# Refusing outright would have blocked the one workable path -- registering
+# under a name this user actually owns.
 $elevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
             ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$me = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+
 if (-not $elevated) {
     Write-Host ""
-    Write-Host "NOT ELEVATED. Stopping here rather than reporting something false." -ForegroundColor Yellow
+    Write-Host "Not elevated. Continuing anyway -- registering a task that runs as YOU" -ForegroundColor Yellow
+    Write-Host "does not require admin. Two things to know:" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "Unelevated, this script cannot SEE an existing task, cannot remove one,"
-    Write-Host "and cannot create one. Worse, it cannot tell 'absent' from 'invisible' --"
-    Write-Host "so it would report a task as missing when it is registered and working."
+    Write-Host "  1. If a task of this name already exists and is owned by another"
+    Write-Host "     account, this will fail with 'Cannot create a file when that file"
+    Write-Host "     already exists' (0x800700b7). That is a PERMISSIONS error wearing a"
+    Write-Host "     filesystem error's clothes. Re-run with a name you own:"
+    Write-Host "       -TaskName `"app-hub nightly teardown ($env:USERNAME)`""
     Write-Host ""
-    Write-Host "Re-run from an elevated PowerShell (right-click -> Run as administrator):"
-    Write-Host "  powershell -ExecutionPolicy Bypass -NoExit -File scripts\register-scheduled-destroy.ps1"
+    Write-Host "  2. To check an existing task without elevation, use schtasks -- it"
+    Write-Host "     distinguishes 'Access is denied' (exists, unreadable) from"
+    Write-Host "     'cannot find the file specified' (genuinely absent):"
+    Write-Host "       schtasks /query /TN `"$TaskName`""
     Write-Host ""
-    Write-Host "To check the task WITHOUT elevation, use schtasks -- it distinguishes"
-    Write-Host "'Access is denied' (it exists, you cannot read it) from 'cannot find':"
-    Write-Host "  schtasks /query /TN `"$TaskName`""
-    exit 1
 }
 
 $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
@@ -117,7 +124,41 @@ Register-ScheduledTask `
     -Settings $settings `
     -Description "Tears down the app-hub EKS cluster nightly and reports the result to n8n. See scripts/scheduled-destroy.sh." | Out-Null
 
+# VERIFY, rather than announcing success because no exception was thrown.
+#
+# The whole reason this section exists: a task can register and still be wrong
+# in the one way that matters. What decides whether the nightly teardown works
+# is not that the task exists -- it is WHO it runs as, because that determines
+# which WSL home directory, and therefore which ~/.aws/ credentials, the
+# teardown gets.
+$check = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if (-not $check) {
+    Write-Host ""
+    Write-Host "REGISTERED, BUT NOT READABLE BACK." -ForegroundColor Red
+    Write-Host "That means it is owned by another principal. Do not trust it --"
+    Write-Host "register under a name you own instead:"
+    Write-Host "  -TaskName `"app-hub nightly teardown ($env:USERNAME)`""
+    exit 1
+}
+
+$principal = $check.Principal.UserId
+Write-Host ""
 Write-Host "Registered '$TaskName'."
+Write-Host "  runs as : $principal"
+Write-Host "  you are : $me"
+# Compare on the bare username rather than splitting DOMAIN\user, because the
+# principal can be recorded as "UZIO\harshit.rawat", "harshit.rawat", or a SID
+# depending on how it was registered. -notmatch on the escaped short name is
+# the form that survives all three.
+if ($principal -and ($principal -notmatch [regex]::Escape($env:USERNAME))) {
+    Write-Host ""
+    Write-Host "WARNING: it runs as a DIFFERENT account than you." -ForegroundColor Red
+    Write-Host "wsl.exe launched by that account gets a different home directory, so a"
+    Write-Host "different ~/.aws/ -- 'make down' will have no app-hub credentials and"
+    Write-Host "will fail at the trigger time. Re-register it as yourself."
+}
+Write-Host ""
+Write-Host "Next run: $((Get-ScheduledTaskInfo -TaskName $TaskName).NextRunTime)"
 Write-Host ""
 Write-Host "Verify:"
 Write-Host "  Get-ScheduledTask -TaskName '$TaskName' | Format-List TaskName,State"

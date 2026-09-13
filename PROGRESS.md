@@ -299,7 +299,15 @@ Absent says *cannot find*; existing-but-unreadable says *denied*. `Get-Scheduled
 
 **The lesson, now in `CLAUDE.md § 9`: "I cannot see it" and "it is not there" are different facts, and any check that renders them identically will eventually report the wrong one with total confidence. Control your negatives before believing them.** A permission-denied query, a typo'd field name, and a self-matching pattern all return the same comfortable emptiness. This is the same disease as every stale doc claim in this project, just wearing a shell prompt instead of a Markdown file.
 
-**`register-scheduled-destroy.ps1` now refuses to run unelevated**, explains that it cannot distinguish absent from invisible, and points at `schtasks` as the check that can. Verified: it exits 1 with that message.
+**Then the guard itself turned out to be built on a wrong assumption, and was revised the same day.** I made the script *refuse* to run unelevated, on the belief that registering a scheduled task needs admin. It does not: creating a task that runs as **you** is a normal user action. What needs admin is reading, replacing or starting a task owned by **someone else** -- which is precisely the situation here.
+
+**Diagnosis, with evidence rather than inference.** `Get-ScheduledTask` enumerates **205** tasks on this machine, including all four in the root folder, and simply omits this one. `schtasks /query` says `Access is denied` for it while saying `cannot find the file specified` for a name known to be absent. The task therefore exists, owned by another principal -- almost certainly because the script was elevated once under a different admin account on this work-managed laptop (`UZIO\harshit.rawat` is a domain user who is not a local admin).
+
+**The consequence that actually matters is not visibility, it is the task's PRINCIPAL.** That decides who `wsl.exe` runs as, which decides the WSL home directory, which decides whether `~/.aws/` has app-hub credentials at all. A task owned by another account would run `make down` at 23:30 with no credentials and fail -- silently, on the night it was needed. Same WSL/Windows split that `CLAUDE.md § 5` already documents, reached from a new direction.
+
+So the script now **warns and continues**, and afterwards **verifies what it actually created**: it reads the task back, prints the principal next to the current user, and says loudly if they differ. Refusing outright would have blocked the one workable path -- registering under a name this user owns.
+
+**The orphaned task cannot cause damage even if it fires.** `infra/providers.tf` sets `use_lockfile = true`, so two concurrent destroys contend for an S3 lock rather than corrupting state, and `make down` on an empty account is a no-op regardless.
 
 ### 2026-09-13 — `S-02`: the service that actually proves discovery
 
