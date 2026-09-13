@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 110 across 7 repositories |
+| Commits | 116 across 7 repositories |
 | Active days | 19 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-13 14:42 IST |
+| Latest commit | 2026-09-13 20:41 IST |
 
 ---
 
@@ -219,3 +219,9 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 14:10 | `app-hub` | `041b517` | Guard was wrong: creating a task as yourself needs no admin |
 | 14:24 | `app-hub` | `9dc59e6` | The nightly teardown would never have run on battery, silently |
 | 14:42 | `app-hub` | `7f02341` | Nightly teardown proven end to end; tee the output into the log |
+| 20:14 | `infra` | `edf5d71` | C-05: IRSA role, ServiceAccount, and D-18 made mechanical |
+| 20:15 | `manifests` | `41c2e01` | C-05: IRSA role, ServiceAccount, and D-18 made mechanical |
+| 20:15 | `app-hub` | `7f12203` | C-05: IRSA role, ServiceAccount, and D-18 made mechanical |
+| 20:19 | `gateway` | `c35c456` | learn audit: learn/22 exists, and I had claimed it did not |
+| 20:19 | `app-hub` | `a85e699` | learn audit: learn/22 exists, and I had claimed it did not |
+| 20:41 | `manifests` | `d362f43` | D-02 closed on real EKS; AGGREGATOR_URL was missing from the manifest |
