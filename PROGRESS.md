@@ -256,6 +256,31 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
+### 2026-09-13 — Nightly teardown PROVEN end to end
+
+**It works, and this is the first time that has been true.** Re-registered with the battery flags, triggered manually, and every link in the chain left evidence:
+
+```
+=== scheduled-destroy ===
+user       : harshitrawat
+home       : /home/harshitrawat
+aws ident  : arn:aws:iam::314146298861:user/terraform-learning
+=========================
+[2026-09-13 14:31 IST] scheduled destroy starting
+[2026-09-13 14:32 IST] destroy finished: success (exit 0)
+reported to n8n (HTTP 200)
+```
+
+Task Scheduler events ran the full lifecycle -- 325, 110, 129, 100, 200, 201, 102 -- state back to `Ready`, `LastTaskResult 0`. **The previous run produced only 325 and 110 and then silence.** That contrast is the entire diagnosis in one line.
+
+**The last mile was checked rather than assumed.** The script's own warning says a webhook `200` means RECEIVED, not SUCCEEDED. n8n execution **40**, `mode=webhook`, `status=success`, 09:02:09 UTC -- matching the log's 14:32 IST to the minute.
+
+**One more defect found and fixed in the same pass.** The teardown's output was captured into a shell variable used only to build the n8n payload, so **it never reached the log**. On a successful no-op that is invisible. On a real failure the log would have read `failure (exit 2)` and nothing else, with the actual error surviving only inside the email -- and lost completely if the POST were the thing that failed. **A log that goes blank exactly when something breaks is not a log.** It is now `tee`d into both.
+
+**A comment I had just written turned out to be wrong, and a two-line test caught it.** I justified using `PIPESTATUS[0]` by claiming that after a pipe `$?` is tee's status and therefore 0. Measured: true in plain bash, **false in this script**, which sets `pipefail` and so makes `$?` correct anyway. `PIPESTATUS[0]` stays because it names the thing we actually mean and does not quietly depend on an option someone could remove -- but the stated reason is now the true one. Learned in passing: **`PIPESTATUS` is clobbered by the very next command**, including the `echo` that tries to print it next to `$?`.
+
+**Cost: nothing.** The teardown had nothing to tear down.
+
 ### 2026-09-13 — The nightly teardown would never have run, and said nothing about it
 
 **Registered successfully, ran as the right account, and did absolutely nothing. Twice over, for two independent reasons — both mine.**

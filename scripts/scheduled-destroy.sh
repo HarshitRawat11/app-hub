@@ -78,8 +78,37 @@ STARTED_AT="$(TZ=UTC date -d "@$(( $(date +%s) + 19800 ))" '+%Y-%m-%d %H:%M IST'
 echo "[$STARTED_AT] scheduled destroy starting in $PROJECT_DIR"
 
 # Capture everything: the report is only useful if it carries the failure text.
-OUTPUT="$(make down AUTO=1 2>&1)"
-EXIT_CODE=$?
+# Tee rather than capture, so the teardown's own output reaches the log as it
+# happens AND is still available to build the n8n payload from.
+#
+# The first version of this was `OUTPUT="$(make down AUTO=1 2>&1)"`, which put
+# every line into a variable and nowhere else. On a successful no-op that looks
+# fine; on a real failure the log would say "failure (exit 2)" and nothing
+# more, with the actual error surviving only inside the email -- and lost
+# completely if the webhook POST were the thing that failed. A log that goes
+# blank exactly when something breaks is not a log.
+#
+# WHY PIPESTATUS[0] AND NOT `$?`. In plain bash a pipeline's `$?` is the LAST
+# command's status -- tee's -- which is essentially always 0, so a failed
+# teardown would report success and email you to say so. This script sets
+# `pipefail` at the top, which happens to fix that, so `$?` would work here
+# today. PIPESTATUS[0] is used anyway because it names the thing we actually
+# mean, and does not quietly depend on an option someone could remove.
+#
+# Measured rather than assumed, because the first version of this comment
+# claimed `$?` would be 0 and a two-line test disproved it:
+#     without pipefail:  $? = 0   PIPESTATUS[0] = 2
+#     with pipefail:     $? = 2   PIPESTATUS[0] = 2
+#
+# One real gotcha while testing: PIPESTATUS is CLOBBERED by the very next
+# command, including an `echo` that tries to print it alongside `$?`. It has
+# to be read on the immediately following line, which is why the assignment
+# below sits directly under the pipeline with nothing in between.
+TEARDOWN_OUT="$(mktemp)"
+make down AUTO=1 2>&1 | tee "$TEARDOWN_OUT"
+EXIT_CODE="${PIPESTATUS[0]}"
+OUTPUT="$(cat "$TEARDOWN_OUT")"
+rm -f "$TEARDOWN_OUT"
 
 if [[ $EXIT_CODE -eq 0 ]]; then
   STATUS="success"
