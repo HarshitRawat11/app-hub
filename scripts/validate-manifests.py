@@ -36,6 +36,9 @@ def check(directory: str) -> None:
         print(f"   {f.name}")
     print()
 
+    service_accounts = {}   # name -> does it carry a role-arn annotation
+    deployments = []        # (filename, pod spec, first container)
+
     for f in files:
         doc = yaml.safe_load(f.read_text(encoding="utf-8"))
         kind = doc["kind"]
@@ -46,12 +49,27 @@ def check(directory: str) -> None:
         if kind != "Namespace" and not ns:
             fail(f"{f.name}: no namespace declared, would land in 'default'")
 
+        if kind == "ServiceAccount":
+            role = (meta.get("annotations") or {}).get("eks.amazonaws.com/role-arn")
+            service_accounts[meta["name"]] = bool(role)
+            if role:
+                print(f"   IRSA role: {role.rsplit('/', 1)[-1]}")
+            else:
+                # Not automatically a failure -- a plain ServiceAccount is a
+                # legitimate object. But in this project every one exists FOR
+                # IRSA, and a missing annotation fails silently: the pod
+                # starts, both probes pass, and every AWS call returns
+                # NoCredentialsError.
+                print("   no eks.amazonaws.com/role-arn "
+                      "(fine for a plain SA; useless for IRSA)")
+
         if kind != "Deployment":
             continue
 
         spec = doc["spec"]
         pod = spec["template"]["spec"]
         container = pod["containers"][0]
+        deployments.append((f.name, pod, container))
 
         # Informational, not a failure. A placeholder tag is the CORRECT resting
         # state for a manifest that has not been deployed since its last change --
@@ -104,6 +122,58 @@ def check(directory: str) -> None:
         else:
             qos = "Guaranteed" if req == lim else "Burstable"
             print(f"   requests={req} limits={lim} -> QoS {qos}")
+
+    cross_checks(service_accounts, deployments)
+
+
+def cross_checks(service_accounts: dict, deployments: list) -> None:
+    """Checks spanning more than one file, so they cannot live in the loop.
+
+    These encode rules that were previously PROSE in PROGRESS.md's defect
+    table, and prose rules rot. D-18 especially is a rule about two lines that
+    must ship together -- exactly the thing a human forgets and a checker
+    does not.
+    """
+    for fname, pod, container in deployments:
+        sa = pod.get("serviceAccountName")
+        env = {e["name"]: e.get("value") for e in (container.get("env") or [])}
+
+        if sa:
+            if sa not in service_accounts:
+                fail(f"{fname}: serviceAccountName '{sa}' has no ServiceAccount "
+                     f"in this directory -- the pod would get no AWS identity "
+                     f"at all, and would still start.")
+            elif not service_accounts[sa]:
+                fail(f"{fname}: serviceAccountName '{sa}' exists but has no "
+                     f"eks.amazonaws.com/role-arn annotation, so nothing "
+                     f"injects credentials.")
+            else:
+                print(f"{fname}: serviceAccountName '{sa}' -> annotated SA  OK")
+
+        # -------------------------------------------------------------
+        # D-18, made mechanical.
+        #
+        # LINKS_TABLE_NAME without an IRSA ServiceAccount gives a pod that is
+        # healthy by every probe and broken for every request:
+        # build_repository() only constructs a boto3 resource, so startup
+        # succeeds; /health never touches storage, so liveness and readiness
+        # both pass and the pod sits there Running and Ready; then every
+        # /links call fails with NoCredentialsError.
+        #
+        # Nothing about that looks like a failure from outside, which is
+        # exactly why it deserves a check rather than a note in a table.
+        # -------------------------------------------------------------
+        if "LINKS_TABLE_NAME" in env and not sa:
+            fail(f"{fname}: sets LINKS_TABLE_NAME but no serviceAccountName "
+                 f"(D-18) -- pod would be Running and Ready and 500 on every "
+                 f"request with NoCredentialsError.")
+
+        # A container has no ~/.aws/config, so an unset region raises
+        # NoRegionError, which reads like a credentials fault and is not.
+        if "LINKS_TABLE_NAME" in env and "AWS_REGION" not in env:
+            fail(f"{fname}: sets LINKS_TABLE_NAME but not AWS_REGION -- boto3 "
+                 f"raises NoRegionError, which looks like a credentials "
+                 f"problem and is not.")
 
 
 if __name__ == "__main__":

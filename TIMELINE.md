@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 105 across 7 repositories |
+| Commits | 110 across 7 repositories |
 | Active days | 19 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-13 12:45 IST |
+| Latest commit | 2026-09-13 14:42 IST |
 
 ---
 
@@ -214,3 +214,8 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 12:39 | `manifests` | `a83652f` | Add aggregator Deployment and Service |
 | 12:39 | `app-hub` | `4f45bb9` | Record S-02; log D-20; add learn/28; seven repos now |
 | 12:45 | `app-hub` | `2dc3854` | Summaries move to plain English |
+| 12:59 | `app-hub` | `72734f7` | Close N-01b; the scheduled task was registered all along |
+| 14:01 | `app-hub` | `8a4c59c` | Prove the scheduled task exists with a control query |
+| 14:10 | `app-hub` | `041b517` | Guard was wrong: creating a task as yourself needs no admin |
+| 14:24 | `app-hub` | `9dc59e6` | The nightly teardown would never have run on battery, silently |
+| 14:42 | `app-hub` | `7f02341` | Nightly teardown proven end to end; tee the output into the log |
