@@ -67,15 +67,17 @@ The naive order put four delegated tasks in front of `R-05`, which would have me
 
 2. **`C-04` persistent stack + DynamoDB — OWNER, in parallel with the above.** This is the priority for the owner's own time. Terraform they have not written before, **needs no cluster, and costs ~$0** — DynamoDB on-demand bills nothing idle. Getting it wrong is free, which makes it ideal learning. Explanation first, then they write, then review.
 
-3. **One batched cluster session** — bring the cluster up once and clear everything that needs it: `S-01` step 6 (ECR repo + manifests + deploy), ~~`N-01b`~~ (**done 2026-09-13, no cluster needed after all**), and the **first real verification of `R-01`–`R-04`**, which have never been enforced by an actual API server. Tear down the same session.
+3. ~~**One batched cluster session**~~ — **DONE 2026-09-13.** `S-01` step 6 deployed, ~~`N-01b`~~ closed (no cluster needed after all), `R-01`–`R-04` verified as the cluster enforces them, and beyond the original scope: `C-05` IRSA applied and proven, `C-06` verified against the real table from a pod, `S-02` and `S-03` deployed, and **`D-02` closed** — the `replicas: 1` pin held since 2026-08-30. Torn down the same night, by the scheduled task, unattended.
 
 4. **`R-05` Prometheus/Grafana — OWNER.** The real material: Helm values, dashboards, PromQL, and specifically translating Nagios checks the owner already knows from work. First stateful workload, so the PVC/EBS teardown checklist in `CLAUDE.md § 9` becomes mandatory from here.
 
-5. **Background, Claude, between cluster sessions:** ~~`C-02` tests~~, ~~`D-09`~~, ~~`D-10`~~, ~~`C-06` code half~~ **done 2026-09-12**, ~~`S-03` dashboard~~ **done 2026-09-13 · 00:01 IST** — all closed. **Remaining: `S-02` aggregator only, and it is blocked on the owner.** It needs a GitHub remote that only they can create — there is no `gh` CLI on this machine, so it can be built locally but not pushed until `HarshitRawat11/app-hub-aggregator` exists.
+5. ~~**Background, Claude, between cluster sessions**~~ — **ALL CLOSED.** ~~`C-02`~~, ~~`D-09`~~, ~~`D-10`~~, ~~`C-06` code~~, ~~`S-03` dashboard~~, and ~~`S-02` aggregator~~ (2026-09-13, once the owner created `HarshitRawat11/app-hub-aggregator` — the seventh repo).
 
-   **With `S-03` done, Claude's unblocked queue is genuinely empty.** Everything left is either the owner's by `CLAUDE.md § 2`, needs a cluster, or waits on that one repository being created. Said plainly because this claim has been made wrongly twice before, by reading task IDs instead of the repositories.
+   **Claude's queue is empty, and this time it was checked against the repositories rather than the task IDs** — which is how it was got wrong twice before. Everything remaining is the owner's under `CLAUDE.md § 2`.
 
-**Deferred, and still the owner's:** `C-05` IRSA (needs the cluster's OIDC provider), `E-06` Ingress + ALB controller, `R-06` Jenkins, `R-07` ArgoCD, `N-06` n8n on EKS.
+**Remaining, all the owner's:** `E-06` Ingress + ALB controller, `R-06` Jenkins, `R-07` ArgoCD, `N-06` n8n on EKS. (~~`C-05` IRSA~~ done and verified 2026-09-13 — written by Claude via the § 2 escape hatch, with the skipped concept flagged in `learn/29`.)
+
+**So the next task is item 4: `R-05`.** Nothing above it is outstanding, and nothing else is waiting on Claude.
 
 ---
 
