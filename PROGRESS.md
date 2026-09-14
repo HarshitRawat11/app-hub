@@ -261,6 +261,35 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
+### 2026-09-14 — Stale-doc sweep, and the localhost-default bug is now a check
+
+**Asked whether anything was left for Claude, and rather than answer from memory the docs were actually swept.** Six stale claims turned up, all created by the previous day's work:
+
+- `CLAUDE.md` and `CONTEXT-BRIEF.md` still said Kubernetes **1.31**; `README.md` said it three times and `infra/README.md` once
+- `CONTEXT-BRIEF.md` still said **SIX git repos** — `aggregator` made it seven
+- `CONTEXT-BRIEF.md` still said **"`C-06` is written and unit-tested but NOT verified against the real table"** and that the Deployment "deliberately does not set `LINKS_TABLE_NAME` yet (`D-18`)" — both false since the cluster session proved otherwise
+- `README.md` and `CONTEXT-BRIEF.md` both described links-service as **`replicas: 1` (in-memory state)** — it is 2 and DynamoDB-backed since `D-02` closed
+- `CONTEXT-BRIEF.md` and `infra/README.md` listed **two ECR repositories**, and `infra/README.md` had no row for `irsa.tf`
+
+None of these would have failed anything. They are exactly the rot the drift checker was built for, in the prose it cannot reach — which is why the sweep has to be deliberate.
+
+**The more useful outcome: `D-21`'s pattern is now a check rather than a lesson.**
+
+`validate-manifests.py` reads each service's `app/main.py` for `os.getenv("NAME", "...localhost...")` and **fails if the Deployment does not override it**. It also fails if the override still contains `localhost`.
+
+That pattern has now caused two production bugs:
+
+- **2026-09-10** — `LINKS_SERVICE_URL` pointed at port **8000**, the container's port, when the Service exposes **80**. The symptom was `ConnectTimeout` rather than `ConnectError`, because the ClusterIP resolves and DNS works but no rule exists for that port, so packets are dropped rather than refused.
+- **2026-09-13** — `AGGREGATOR_URL` was added to gateway's code and **never to its Deployment**, so in-cluster gateway dialled itself and answered `503` on every `/status`.
+
+One pattern both times: a sensible local default, a Deployment that forgot to override it, and a value nothing consumed until something finally read it. **In a pod, `localhost` is the pod.**
+
+**Proven to fire, not merely added.** Deleting the `AGGREGATOR_URL` entry from a copy of gateway's Deployment reproduces `D-21` exactly, and the validator returns `1 problem(s) found` naming the variable, the file, the default, and what would go wrong.
+
+**Deliberately a regex over the source, not an import.** This script has to run with no service venv, no dependencies and no cluster. It reads one shape — `os.getenv("NAME", "default")` — which is what all three services use today. **If a service starts reading config another way the check goes quiet, so it is a floor and not a guarantee**, and the docstring says so rather than implying coverage it does not have. It also only reads `app/main.py`: `links-service` reads `LINKS_TABLE_NAME` from `app/repository.py`, which this would miss — that one is covered by the `D-18` check instead.
+
+**138 tests passing** across the three services (38 + 53 + 47), `make validate` clean.
+
 ### 2026-09-14 — `D-22` and `D-23` fixed: both cost controls now actually work
 
 **Two defects, both about money, both closed the same night they were found.**

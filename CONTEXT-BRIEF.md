@@ -41,15 +41,15 @@ Three purposes at once, all real:
 
 Of the three, **learning dominates — but it is targeted.** When speed and understanding conflict **on the infra stack**, understanding wins. On the application layer, speed wins: the application was never the lesson, it exists so the cluster has something real to run.
 
-**Stack:** Python 3.14 · FastAPI · uv · Docker · Terraform 1.15 · AWS (EKS 1.31, ECR, VPC, S3, DynamoDB) · n8n · Make
+**Stack:** Python 3.14 · FastAPI · uv · Docker · Terraform 1.15 · AWS (EKS 1.36, ECR, VPC, S3, DynamoDB, IAM/IRSA) · n8n · Make
 
 **Deliberately excluded:** Eureka (Kubernetes DNS does service discovery natively), Ansible (nothing runs on bare EC2), Spring Boot (a fourth simultaneous unknown).
 
 ---
 
-## 3. Structure — SIX git repos
+## 3. Structure — SEVEN git repos
 
-The root is an **umbrella repo** tracking only cross-cutting docs; it gitignores the five component directories so they stay independent.
+The root is an **umbrella repo** tracking only cross-cutting docs; it gitignores the six component directories so they stay independent. **Every new service directory must be added to the root `.gitignore` and to `REPOS` in `scripts/timeline.sh` in the same change that creates it** — neither failure is loud.
 
 | Directory | Remote | Tracks |
 |---|---|---|
@@ -99,11 +99,11 @@ A bare `git` at the root works but **only sees the docs**. Use `-C <subdir>` for
 | | |
 |---|---|
 | Account / region | `314146298861` / `ap-south-1` |
-| EKS cluster | `app-hub-eks`, Kubernetes 1.31, 2× `t3.medium` in private subnets |
-| ECR | `app-hub/links-service` and `app-hub/gateway`, **IMMUTABLE tags**, scan-on-push, `force_delete` |
+| EKS cluster | `app-hub-eks`, Kubernetes **1.36**, 2× `t3.medium` in private subnets. **The version is a line item** — one past standard support bills at $0.50/h instead of $0.10 (`D-23`) |
+| ECR | `app-hub/links-service`, `app-hub/gateway`, `app-hub/aggregator`, **IMMUTABLE tags**, scan-on-push, `force_delete` |
 | TF state | `s3://app-hub-tfstate-314146298861/` — key `infra/terraform.tfstate` (ephemeral) and `persistent/terraform.tfstate` (never destroyed). S3 native locking. |
 | VPC | `10.0.0.0/16`, 2 AZs, public + private subnets, single NAT gateway |
-| IAM | `terraform-learning` (admin, used by Terraform), `n8n-readonly` (`eks:DescribeCluster` only) |
+| IAM | `terraform-learning` (admin, used by Terraform), `n8n-readonly` (`eks:DescribeCluster` only), **`app-hub-links-service`** (IRSA role assumed by the links-service pod — four DynamoDB actions on one table, `C-05`) |
 
 Cost if left up 24×7: roughly **$150–200/month**. About $0.30/hour while running. On-demand DynamoDB is ~$0 idle.
 
@@ -205,9 +205,9 @@ def remove_link(id: str):
 
 Handlers are `snake_case` (`D-10`), `POST` returns **`201 Created`** with a `Location` header (`D-16`), and **`id` is a UUID string, not an integer** (`C-06`) — an incrementing counter cannot survive more than one replica, and it is why the DynamoDB table declares `id` as type `S`.
 
-**Storage is behind a `LinkRepository` Protocol** (`app/repository.py`) with two implementations: a dict, and DynamoDB. Chosen at startup by whether `LINKS_TABLE_NAME` is set — unset means in-memory, so local development needs zero config. **`C-06` code is written and unit-tested but NOT verified against the real table**; that needs `C-05`, and the Deployment deliberately does not set `LINKS_TABLE_NAME` yet (`D-18`).
+**Storage is behind a `LinkRepository` Protocol** (`app/repository.py`) with two implementations: a dict, and DynamoDB. Chosen at startup by whether `LINKS_TABLE_NAME` is set — unset means in-memory, so local development needs zero config. **`C-06` is VERIFIED against the real table** (2026-09-13): first offline via `make verify-dynamo`, then in-cluster — a `POST` through gateway landed in `app-hub-links`, confirmed by the AWS CLI rather than by our own code. The Deployment now sets `LINKS_TABLE_NAME` alongside `serviceAccountName`, which `D-18` required to ship together and `validate-manifests.py` now enforces.
 
-**38 tests.** The storage ones run every assertion **twice**, against the dict and against a real DynamoDB table faked in-process by `moto`. Two are explicit regressions for the `D-01` bug where `POST` returned the right shape while every read lost its `id`.
+**38 tests** in links-service (138 across all three services). The storage ones run every assertion **twice**, against the dict and against a real DynamoDB table faked in-process by `moto`. Two are explicit regressions for the `D-01` bug where `POST` returned the right shape while every read lost its `id`.
 
 <!-- embed: links-service/Dockerfile -->
 ```dockerfile
@@ -513,11 +513,15 @@ app.mount("/static", RevalidatingStatic(directory=STATIC_DIR), name="static")
 manifests/
   00-namespace.yaml          namespace app-hub, restricted Pod Security Standard
   links-service/
-    deployment.yaml          replicas: 1 (in-memory state), securityContext, resources
+    00-serviceaccount.yaml   IRSA: eks.amazonaws.com/role-arn annotation (C-05)
+    deployment.yaml          replicas: 2 (DynamoDB-backed, D-02 closed), serviceAccountName, securityContext, resources
     service.yaml             type: LoadBalancer, NLB annotation, port 80 -> 8000
   gateway/
-    deployment.yaml          replicas: 2 (stateless), env: LINKS_SERVICE_URL
+    deployment.yaml          replicas: 2 (stateless), env: LINKS_SERVICE_URL + AGGREGATOR_URL
     service.yaml             type: ClusterIP (see E-06)
+  aggregator/
+    deployment.yaml          replicas: 1 (politeness, not correctness), env: LINKS_SERVICE_URL
+    service.yaml             type: ClusterIP, never public — that is the point (S-02)
 ```
 
 The namespace sits at the **top** of `manifests/`, not inside a service directory — it is shared, and `kubectl apply -f <dir>` sorts by filename *within* a directory and guarantees nothing across directories. `make deploy` applies it as an explicit first step.

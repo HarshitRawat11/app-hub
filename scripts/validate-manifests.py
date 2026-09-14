@@ -12,6 +12,7 @@ the invariants that are easy to break by hand and annoying to debug live:
 
 Usage:  python3 scripts/validate-manifests.py manifests/links-service
 """
+import re
 import sys
 import pathlib
 import yaml
@@ -124,6 +125,61 @@ def check(directory: str) -> None:
             print(f"   requests={req} limits={lim} -> QoS {qos}")
 
     cross_checks(service_accounts, deployments)
+    localhost_default_checks(directory, deployments)
+
+
+def localhost_default_checks(directory: str, deployments: list) -> None:
+    """Every env var the service defaults to localhost MUST be set in its Deployment.
+
+    THIS EXISTS BECAUSE THE SAME BUG HAPPENED TWICE.
+
+      - 2026-09-10: gateway's LINKS_SERVICE_URL was set to port 8000 -- the
+        CONTAINER's port -- when the Service exposes 80. Symptom was
+        ConnectTimeout, not ConnectError, because the ClusterIP resolves and
+        DNS works but no rule exists for that port, so packets are dropped
+        rather than refused.
+      - 2026-09-13: gateway's AGGREGATOR_URL was added to the code with a
+        localhost:8002 default and never added to the Deployment at all, so
+        in-cluster gateway dialled ITSELF and answered 503 for every /status.
+
+    Both are one pattern: a sensible local default, a Deployment that forgot to
+    override it, and a value nothing consumed until the day something finally
+    read it. **A config variable whose default is localhost is a landmine
+    unless the Deployment overrides it** -- in a pod, localhost is the pod.
+
+    A regex over the source rather than an import, deliberately: this script
+    must run with no service venv, no dependencies and no cluster. It reads
+    `os.getenv("NAME", "...localhost...")` and nothing cleverer, which is
+    exactly the shape all three services use. If a service starts reading
+    config some other way, this check goes quiet -- so it is a floor, not a
+    guarantee.
+    """
+    svc = pathlib.Path(directory).name
+    source = pathlib.Path(svc) / "app" / "main.py"
+    if not source.exists():
+        return  # not a service directory (e.g. manifests/ itself)
+
+    text = source.read_text(encoding="utf-8")
+    # os.getenv("NAME", "anything-with-localhost-in-it")
+    pattern = r'os\.getenv\(\s*["\'](\w+)["\']\s*,\s*["\']([^"\']*localhost[^"\']*)["\']'
+    localhost_vars = dict(re.findall(pattern, text))
+    if not localhost_vars:
+        return
+
+    for fname, pod, container in deployments:
+        declared = {e["name"] for e in (container.get("env") or [])}
+        for var, default in sorted(localhost_vars.items()):
+            if var in declared:
+                value = next(e.get("value") for e in container["env"] if e["name"] == var)
+                print(f"   {var} overridden -> {value}")
+                if "localhost" in str(value):
+                    fail(f"{fname}: {var} is set to {value!r} -- localhost in a pod IS "
+                         f"the pod, so this points the service at itself.")
+            else:
+                fail(f"{fname}: {source} defaults {var} to {default!r}, but the "
+                     f"Deployment does not set it. In a pod localhost is the pod, so "
+                     f"the service would call ITSELF. This is the D-21 / LINKS_SERVICE_URL "
+                     f"bug; it has happened twice.")
 
 
 def cross_checks(service_accounts: dict, deployments: list) -> None:

@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 119 across 7 repositories |
+| Commits | 124 across 7 repositories |
 | Active days | 20 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-14 00:03 IST |
+| Latest commit | 2026-09-14 10:11 IST |
 
 ---
 
@@ -233,3 +233,8 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
 | 00:03 | `app-hub` | `0f64587` | Log D-23 (EKS 1.31 on extended support); close D-18 |
+| 00:24 | `infra` | `581b817` | Fix D-22 and D-23: both cost controls now actually work |
+| 00:24 | `app-hub` | `6d17286` | Fix D-22 and D-23: both cost controls now actually work |
+| 10:03 | `app-hub` | `2548f4b` | Refresh the roadmap: items 1-3 and 5 are complete, R-05 is next |
+| 10:11 | `manifests` | `801b6aa` | Two stale facts found while preparing R-05 |
+| 10:11 | `app-hub` | `474474e` | Two stale facts found while preparing R-05 |

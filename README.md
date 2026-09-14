@@ -18,7 +18,7 @@ app-hub is deliberately three things at once:
 
 That combination sets the bar: working-on-my-machine isn't the finish line. Reproducible-from-a-clean-clone is.
 
-**Stack:** Python 3.14 · FastAPI · uv · Docker · Terraform 1.15 · AWS (EKS, ECR, VPC, S3, DynamoDB) · Kubernetes 1.31 · n8n · Make
+**Stack:** Python 3.14 · FastAPI · uv · Docker · Terraform 1.15 · AWS (EKS, ECR, VPC, S3, DynamoDB, IAM/IRSA) · Kubernetes 1.36 · n8n · Make
 
 ---
 
@@ -49,7 +49,8 @@ app-hub/
 │   #                     state files -- terraform does not recurse into subdirs.
 │   ├── providers.tf       # Terraform + AWS provider versions; S3 remote state backend
 │   ├── vpc.tf             # VPC 10.0.0.0/16, 2 AZs, public + private subnets, single NAT gateway
-│   ├── eks.tf             # EKS cluster "app-hub-eks" (k8s 1.31), 2x t3.medium managed node group
+│   ├── eks.tf             # EKS cluster "app-hub-eks" (k8s 1.36), 2x t3.medium managed node group
+│   ├── irsa.tf            # IAM role for the links-service pod via OIDC (C-05)
 │   ├── ecr.tf             # ECR repos for links-service and gateway, IMMUTABLE, force_delete
 │   ├── outputs.tf         # cluster name/endpoint, VPC id, private subnet ids
 │   ├── variables.tf       # aws_region (default ap-south-1)
@@ -93,11 +94,15 @@ app-hub/
 │   ├── 00-namespace.yaml   # SHARED by every service, so it sits above them.
 │   │                      # namespace app-hub, restricted Pod Security Standard
 │   ├── links-service/
-│   │   ├── deployment.yaml   # replicas: 1 (in-memory state), securityContext, limits
+│   │   ├── 00-serviceaccount.yaml  # IRSA role-arn annotation (C-05)
+│   │   ├── deployment.yaml   # replicas: 2 (DynamoDB-backed, D-02 closed), serviceAccountName
 │   │   └── service.yaml      # LoadBalancer (NLB), port 80 -> targetPort 8000
-│   └── gateway/
-│       ├── deployment.yaml   # replicas: 2 (stateless), env: LINKS_SERVICE_URL
-│       └── service.yaml      # ClusterIP -- see E-06
+│   ├── gateway/
+│   │   ├── deployment.yaml   # replicas: 2 (stateless), env: LINKS_SERVICE_URL + AGGREGATOR_URL
+│   │   └── service.yaml      # ClusterIP -- see E-06
+│   └── aggregator/
+│       ├── deployment.yaml   # replicas: 1 (politeness, not correctness)
+│       └── service.yaml      # ClusterIP, never public -- that is the point (S-02)
 │
 └── n8n/               # repo: HarshitRawat11/app-hub-n8n — workflow automation (self-hosted)
     ├── .env.example       # Template for N8N_BASE_URL / N8N_API_KEY
@@ -113,7 +118,7 @@ app-hub/
 |----------------|-------|
 | Account        | `314146298861` |
 | Region         | `ap-south-1` |
-| EKS cluster    | `app-hub-eks` (Kubernetes 1.31) |
+| EKS cluster    | `app-hub-eks` (Kubernetes 1.36 — see `D-23`, the version is a line item) |
 | Node group     | 2× `t3.medium` (min 1, max 2) |
 | ECR repositories | `app-hub/links-service`, `app-hub/gateway`, `app-hub/aggregator` — IMMUTABLE tags |
 | DynamoDB       | `app-hub-links`, on-demand — the **persistent** stack, never destroyed |

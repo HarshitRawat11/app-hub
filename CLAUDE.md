@@ -272,7 +272,7 @@ Consequences:
 
 ### Deploy targets
 
-- **AWS EKS in `ap-south-1` is canonical.** Cluster `app-hub-eks`, Kubernetes `1.31`.
+- **AWS EKS in `ap-south-1` is canonical.** Cluster `app-hub-eks`, Kubernetes **`1.36`** (raised from 1.31 on 2026-09-14, `D-23` — 1.31 was on extended support at 5× the control-plane rate).
 - **minikube is a local sandbox only.** `kubectl` currently points at `minikube` — always check `kubectl config current-context` before applying anything, and say which context you used.
 - Never assume the current kube context is the one the owner meant.
 
