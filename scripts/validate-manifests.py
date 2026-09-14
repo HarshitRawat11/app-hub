@@ -40,8 +40,21 @@ def check(directory: str) -> None:
     service_accounts = {}   # name -> does it carry a role-arn annotation
     deployments = []        # (filename, pod spec, first container)
 
+    service_monitors = []
+
     for f in files:
         doc = yaml.safe_load(f.read_text(encoding="utf-8"))
+
+        # Not every .yaml in a manifests/ directory is a Kubernetes object --
+        # manifests/monitoring/values.yaml is a Helm values file and has no
+        # `kind`. Skip those, but SAY SO rather than skipping silently: a
+        # genuinely malformed manifest that lost its `kind` would otherwise
+        # vanish from the checks with no indication, which is the exact kind
+        # of quiet gap this script exists to close.
+        if not isinstance(doc, dict) or "kind" not in doc:
+            print(f"{f.name}  ->  not a Kubernetes object (no `kind`), skipped")
+            continue
+
         kind = doc["kind"]
         meta = doc["metadata"]
         ns = meta["name"] if kind == "Namespace" else meta.get("namespace")
@@ -49,6 +62,13 @@ def check(directory: str) -> None:
 
         if kind != "Namespace" and not ns:
             fail(f"{f.name}: no namespace declared, would land in 'default'")
+
+        if kind == "ServiceMonitor":
+            service_monitors.append((f.name, doc))
+            spec = doc.get("spec", {})
+            ports = [e.get("port") for e in spec.get("endpoints", [])]
+            ns = spec.get("namespaceSelector", {}).get("matchNames", [])
+            print(f"   selects port name(s) {ports} in namespace(s) {ns}")
 
         if kind == "ServiceAccount":
             role = (meta.get("annotations") or {}).get("eks.amazonaws.com/role-arn")
@@ -125,7 +145,62 @@ def check(directory: str) -> None:
             print(f"   requests={req} limits={lim} -> QoS {qos}")
 
     cross_checks(service_accounts, deployments)
+    service_monitor_checks(service_monitors)
     localhost_default_checks(directory, deployments)
+
+
+def service_monitor_checks(service_monitors: list) -> None:
+    """A ServiceMonitor that matches nothing produces no target, and says nothing.
+
+    This is the single most common reason a ServiceMonitor "does not work",
+    and it happened here on 2026-09-14: all three Services were unlabelled and
+    their ports unnamed, so a monitor selecting `app in (...)` on port `http`
+    would have matched nothing at all. Prometheus would simply have shown no
+    new targets, with no error in the operator, the monitor, or Prometheus.
+
+    So: read every Service in manifests/ and check that each ServiceMonitor's
+    label selector and port NAME actually exist. A ServiceMonitor references a
+    port by name, never by number -- an unnamed port cannot be referenced.
+    """
+    if not service_monitors:
+        return
+
+    services = []
+    for svc_file in sorted(pathlib.Path("manifests").glob("*/service.yaml")):
+        doc = yaml.safe_load(svc_file.read_text(encoding="utf-8"))
+        if isinstance(doc, dict) and doc.get("kind") == "Service":
+            services.append(doc)
+    if not services:
+        print("   (no manifests/*/service.yaml found -- skipping cross-check)")
+        return
+
+    for fname, sm in service_monitors:
+        spec = sm.get("spec", {})
+        wanted = set()
+        for expr in spec.get("selector", {}).get("matchExpressions", []):
+            if expr.get("operator") == "In":
+                wanted.update(expr.get("values", []))
+        for k, v in (spec.get("selector", {}).get("matchLabels") or {}).items():
+            wanted.add(v)
+
+        for value in sorted(wanted):
+            match = [s for s in services
+                     if value in (s["metadata"].get("labels") or {}).values()]
+            if not match:
+                fail(f"{fname}: selects '{value}' but no Service in manifests/ "
+                     f"carries that label. The monitor would match nothing and "
+                     f"produce no target, silently.")
+                continue
+            for endpoint in spec.get("endpoints", []):
+                port_name = endpoint.get("port")
+                names = [p.get("name") for p in match[0]["spec"]["ports"]]
+                if port_name not in names:
+                    fail(f"{fname}: endpoint port '{port_name}' is not a port "
+                         f"NAME on Service '{match[0]['metadata']['name']}' "
+                         f"(it has {names}). A ServiceMonitor references ports "
+                         f"by name; an unnamed port cannot be referenced.")
+                else:
+                    print(f"   {value}: port '{port_name}' exists  OK")
 
 
 def localhost_default_checks(directory: str, deployments: list) -> None:

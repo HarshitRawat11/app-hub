@@ -139,6 +139,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Response
 
 from app.models import Link, LinkCreate
+from prometheus_fastapi_instrumentator import Instrumentator
+
 from app.repository import LinkRepository, build_repository
 
 
@@ -201,6 +203,27 @@ def remove_link(id: str):
     if not repo().delete(id):
         raise HTTPException(status_code=404, detail="Link not found")
     return {"deleted": id}
+
+# ---------------------------------------------------------------------------
+# /metrics for Prometheus (R-05).
+#
+# `instrument(app)` adds middleware that times every request; `expose(app)`
+# adds the /metrics endpoint Prometheus scrapes. Both at module scope, because
+# middleware has to be registered before the app starts serving.
+#
+# WHY A LIBRARY AND NOT A HAND-ROLLED COUNTER: the hard part of this is not
+# counting requests, it is LABEL CARDINALITY. A naive implementation labels by
+# the request path, so `/links/<uuid>` creates a brand new time series per id
+# -- and with server-generated UUIDs that is unbounded. Prometheus holds
+# series in memory; unbounded cardinality is the classic way to OOM it. This
+# library groups by the ROUTE TEMPLATE (`/links/{link_id}`) instead, so the
+# series count is bounded by the number of routes.
+#
+# Deliberately exposed on the same port as the app, not a second one. A
+# separate metrics port would need another containerPort, another Service
+# port and another ServiceMonitor endpoint, to hide something that is not
+# secret -- request counts and latencies, on a ClusterIP service.
+Instrumentator().instrument(app).expose(app)
 ```
 
 Handlers are `snake_case` (`D-10`), `POST` returns **`201 Created`** with a `Location` header (`D-16`), and **`id` is a UUID string, not an integer** (`C-06`) — an incrementing counter cannot survive more than one replica, and it is why the DynamoDB table declares `id` as type `S`.
@@ -288,6 +311,7 @@ from pathlib import Path
 import httpx2
 import logging
 import os
+from prometheus_fastapi_instrumentator import Instrumentator
 
 logger = logging.getLogger(__name__)
 
@@ -501,6 +525,27 @@ def dashboard():
 
 
 app.mount("/static", RevalidatingStatic(directory=STATIC_DIR), name="static")
+
+# ---------------------------------------------------------------------------
+# /metrics for Prometheus (R-05).
+#
+# `instrument(app)` adds middleware that times every request; `expose(app)`
+# adds the /metrics endpoint Prometheus scrapes. Both at module scope, because
+# middleware has to be registered before the app starts serving.
+#
+# WHY A LIBRARY AND NOT A HAND-ROLLED COUNTER: the hard part of this is not
+# counting requests, it is LABEL CARDINALITY. A naive implementation labels by
+# the request path, so `/links/<uuid>` creates a brand new time series per id
+# -- and with server-generated UUIDs that is unbounded. Prometheus holds
+# series in memory; unbounded cardinality is the classic way to OOM it. This
+# library groups by the ROUTE TEMPLATE (`/links/{link_id}`) instead, so the
+# series count is bounded by the number of routes.
+#
+# Deliberately exposed on the same port as the app, not a second one. A
+# separate metrics port would need another containerPort, another Service
+# port and another ServiceMonitor endpoint, to hide something that is not
+# secret -- request counts and latencies, on a ClusterIP service.
+Instrumentator().instrument(app).expose(app)
 ```
 
 **47 tests** across `tests/test_gateway.py` (failure mapping), `tests/test_proxy_crud.py` (the other three routes and the `passthrough` rule) and `tests/test_dashboard.py` (the static page). `links-service` is never started — upstream responses are faked with `httpx2.MockTransport`, which swaps the transport underneath the real `AsyncClient`, so client, `await`, timeout and exception handling are genuine while nothing touches a socket. **Both services are on `httpx2` 2.12.0** as of 2026-09-10 (`D-17`).
