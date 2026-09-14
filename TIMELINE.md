@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 124 across 7 repositories |
+| Commits | 133 across 7 repositories |
 | Active days | 20 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-14 10:11 IST |
+| Latest commit | 2026-09-14 17:59 IST |
 
 ---
 
@@ -238,3 +238,12 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 10:03 | `app-hub` | `2548f4b` | Refresh the roadmap: items 1-3 and 5 are complete, R-05 is next |
 | 10:11 | `manifests` | `801b6aa` | Two stale facts found while preparing R-05 |
 | 10:11 | `app-hub` | `474474e` | Two stale facts found while preparing R-05 |
+| 10:49 | `infra` | `ad739b7` | Stale-doc sweep; make the localhost-default bug a check |
+| 10:49 | `app-hub` | `40d9f2b` | Stale-doc sweep; make the localhost-default bug a check |
+| 14:37 | `manifests` | `4050407` | R-05 guided build: monitoring namespace and values.yaml |
+| 14:37 | `app-hub` | `a71d1a7` | R-05 guided build: monitoring namespace and values.yaml |
+| 17:40 | `links-service` | `ed8915a` | Expose /metrics for Prometheus (R-05) |
+| 17:40 | `gateway` | `b389506` | Expose /metrics for Prometheus (R-05) |
+| 17:40 | `aggregator` | `837f0f4` | Expose /metrics for Prometheus (R-05) |
+| 17:59 | `manifests` | `01f388e` | R-05: ServiceMonitor scraping app-hub, and the silent failures it hid |
+| 17:59 | `app-hub` | `3cbb441` | R-05: ServiceMonitor scraping app-hub, and the silent failures it hid |

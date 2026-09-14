@@ -151,7 +151,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 | R-02 | Add a `securityContext` (non-root, read-only rootfs) | **Done and VERIFIED on a live cluster** 2026-09-10 | None — enforcement confirmed. | `98f355b` + `e073761`. Dockerfile creates `appuser` uid 10001 and switches to it; Deployment sets `runAsNonRoot`, matching uid, `readOnlyRootFilesystem`, drops ALL capabilities, RuntimeDefault seccomp. **Verified locally**: the image runs as uid 10001 and serves fine under `docker run --read-only` with no tmpfs mounted at all. |
 | R-03 | Replace the mutable `:v1` tag with immutable tags | **Done** 2026-09-03 · 11:20 IST | None | `c06d65f`. `image_tag_mutability = "IMMUTABLE"` in `ecr.tf`; the Makefile derives the tag from the links-service commit SHA (a dirty tree gets a timestamp suffix so the push stays unique). A tag now names exactly the code it was built from. **Takes effect on the next `terraform apply`.** |
 | R-04 | Deploy into a dedicated namespace | **Done and VERIFIED on a live cluster** 2026-09-10 — **admission control demonstrably rejected a non-compliant pod** | None | `e073761`. New `00-namespace.yaml` (the `00-` prefix is load-bearing — `kubectl apply -f dir/` goes in filename order and everything else references the namespace). Enforces the **restricted** Pod Security Standard, so non-compliant manifests are rejected at admission rather than quietly running as root. 
-| R-05 | Observability: **Prometheus / Grafana via `kube-prometheus-stack`** | Not started — **OWNER's to write, in full.** Priority 4 — the real material | Depends on `E-04`. **Phase 2 in the owner roadmap — comes before CI/CD.** | Helm chart. Note this is *why* the node group is EC2 and not Fargate: `node-exporter` is a DaemonSet, which Fargate does not support. First stateful workload — the PVC/EBS teardown checklist in `CLAUDE.md § 9` becomes mandatory from here on. |
+| R-05 | Observability: **Prometheus / Grafana via `kube-prometheus-stack`** | **DONE and VERIFIED ON REAL EKS** 2026-09-14 — 22 targets all UP, five of them app-hub pods, scraped because of one `ServiceMonitor` with no config file edited and nothing restarted. Built as a **guided build** (`CLAUDE.md § 2`), a tier added this day at the owner's request: Claude wrote `values.yaml` and the `ServiceMonitor`, the owner ran every command and hit every failure. `learn/30` | Depends on `E-04`. **Phase 2 in the owner roadmap — comes before CI/CD.** | Helm chart. Note this is *why* the node group is EC2 and not Fargate: `node-exporter` is a DaemonSet, which Fargate does not support. First stateful workload — the PVC/EBS teardown checklist in `CLAUDE.md § 9` becomes mandatory from here on. |
 | R-06 | CI: **Jenkins in-cluster via Helm** | Not started — **OWNER's to write** (pipeline definitions + Helm values) | Depends on `R-05` landing first (owner roadmap phase 3) | Build, test, push image, then **commit a bumped image tag into the `manifests` repo**. Jenkins must never run `kubectl apply` — that is ArgoCD deliberately (see Decisions). |
 | R-07 | CD: **ArgoCD, GitOps from `app-hub-manifests`** | Not started — **OWNER's to write** (`Application` definitions) | Depends on `R-06` (owner roadmap phase 4) | ArgoCD watches the manifests repo and reconciles. Current state is *GitOps-shaped, not GitOps*: declarative and versioned, but still applied by hand. ArgoCD supplies the missing reconciliation half. |
 
@@ -260,6 +260,41 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-14 — `R-05` done: Prometheus, Grafana, and the operator pattern proven
+
+**The headline is not that Prometheus installed. It is that creating ONE Kubernetes object made it scrape five new endpoints, with no config file edited and nothing restarted.**
+
+```
+17 targets  ->  22 targets
+UP  aggregator      http://10.0.1.109:8002/metrics
+UP  gateway         http://10.0.2.157:8001/metrics
+UP  gateway         http://10.0.1.199:8001/metrics
+UP  links-service   http://10.0.1.38:8000/metrics
+UP  links-service   http://10.0.2.117:8000/metrics
+```
+
+**Five targets for three services** — one per *pod*, because the operator resolves the Service to its endpoints. Querying across them returned real data: gateway 76, links-service 80, aggregator 31 requests.
+
+**Built as a GUIDED BUILD, which is a new `CLAUDE.md § 2` tier added the same day at the owner's request.** Their reasoning, quoted in the rule: *"I don't know how to create these as this is my first time building this... when I build this at least 1 or 2 times then maybe in a different project we can start with just explanation."* That is correct — "explain, then you write" assumes a baseline a *first* Helm chart does not have. Claude wrote `values.yaml` and the `ServiceMonitor`, heavily commented; the owner ran every command and hit every failure. `learn/30` is a full seven-section file rather than a delegated short note, because the material is what `R-05` existed to teach.
+
+**A recommendation reversed by checking rather than assuming.** The first draft said to use a PVC so the EBS-orphan lesson would land. `aws eks describe-addon-versions` showed **`aws-ebs-csi-driver` is a separate addon and is not installed by default** — so a PVC would have sat `Pending` forever with nothing saying why, and Prometheus would never have started. `emptyDir` instead; persistence becomes a follow-up teaching the CSI addon and a **second** IRSA role, building on `C-05`.
+
+**Four defects found, three of them mine, two now mechanical.**
+
+**1. The Services were unlabelled with unnamed ports.** A ServiceMonitor selects by **label** and references ports by **name**. With neither, it matches nothing and produces no target — and the operator, the monitor and Prometheus all stay silent. That is the commonest reason a ServiceMonitor "does not work". `validate-manifests.py` now cross-references every ServiceMonitor against the real Services and fails if a selected label or endpoint port name does not exist. **Proven to fire** against a reproduction of the pre-fix state.
+
+**2. The validator crashed** on `manifests/monitoring/` because `values.yaml` is a Helm file with no `kind`. It now skips such documents **with a message** — silently skipping a manifest that lost its `kind` would be the exact gap the script exists to close.
+
+**3. Grafana OOMKilled twice** at the 256Mi limit Claude set. Raised to 512Mi. **The instructive part is how it presented:** the browser said *"Error loading: timeseries — make sure it was compiled"*, which sends you into plugin documentation. Only `kubectl get pod -o json` said `reason=OOMKilled exitCode=137`. The memory limit was chosen *because* OOMKill fails loudly — and it does, in `kubectl`, not in the UI. **Where a failure is loud and where you are looking are different questions.**
+
+**4. Disabling Alertmanager left a Grafana datasource pointing at it** — a Service that does not exist. **Turning a component off means turning off what points at it too**, or you get a permanently broken panel you learn to scroll past. Fixing it also needed a pod restart, not just a `helm upgrade`: **Grafana persists datasources in its own database once created**, so removing one from provisioning does not delete it.
+
+**And one wrong call of Claude's, worth recording because it repeats a pattern.** 46 seconds after applying the ServiceMonitor, the target count was still 17 and Claude said *"the ServiceMonitor matched nothing"*. It had matched fine — the generated config already contained `job_name: serviceMonitor/monitoring/app-hub/0`. **There are two reload delays, not one**: operator → config secret, then config-reloader → Prometheus. Same impatience that nearly misdiagnosed the teardown as hung after two minutes. **Confirm against the generated config before concluding the operator failed.**
+
+**`/metrics` on all three services**, via `prometheus-fastapi-instrumentator`. A library rather than a hand-rolled counter for one reason: **label cardinality**. A naive counter labels by request path, so `/links/<uuid>` creates a new series per id — unbounded, since ids are UUIDs, and the classic way to OOM Prometheus. The library groups by route template. **That claim is now a test**: `test_metrics.py` requests a fresh UUID and asserts it never reaches `/metrics` while `/links/{id}` does. 11 new tests, **149 total**.
+
+**Also closed today:** `N-01b`'s full path finally ran — the owner clicked Execute on `eks-cost-watchdog` with a live cluster and **the email arrived**. And `D-23` is fully exercised: the 1.36 cluster came up clean and all three services deployed onto it with **no API deprecations** from the five-version jump.
 
 ### 2026-09-14 — Stale-doc sweep, and the localhost-default bug is now a check
 
