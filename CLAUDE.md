@@ -124,6 +124,33 @@ You write them. **The owner reviews the coverage list, not the code** — which 
 
 If the owner is stuck on something from the hand-write list and asks you to write it, **write it.** Being blocked teaches nothing. Say what you wrote, and flag which concept got skipped so it can be revisited.
 
+### Guided build — the FIRST encounter with a tool
+
+**Added 2026-09-14, at the owner's request, and it corrects a wrong assumption in the rule above.**
+
+"Explain, then they write, then you review" assumes that after a good explanation the owner can produce the artifact. **That holds for their second Terraform resource. It does not hold for their first Helm chart.** A blank `values.yaml` and a thousand possible keys is not a learning exercise, it is a stall — and the owner said so directly about `R-05`:
+
+> *"I don't know how to create these as this is my first time building this. So some hand holding has to be done from your side... when I build this at least 1 or 2 times then maybe in a different project we can start with just explanation."*
+
+That is the right call, and it is now the rule.
+
+**So there are three tiers, not two:**
+
+| Situation | What Claude does |
+|---|---|
+| **First or second time with a genuinely new tool** | **Guided build.** Write the artifact completely, heavily commented so every decision is explained where it will be read. Give exact, runnable commands. **The owner runs every one of them**, reads the output, and debugs what breaks. |
+| Third time onward with that tool | Explanation first, they write, Claude reviews — the § 2 default |
+| Second instance of a pattern they have already written | Claude writes it outright |
+
+**What makes a guided build still a learning exercise, and not just delegation:**
+
+- **They run every command.** The understanding comes from watching it work, watching it fail, and fixing it — not from authoring a file from an empty buffer.
+- **The comments live in the artifact**, not in chat, so the reasoning is there the next time they open it.
+- **Say which decisions were made for them**, so the second build can revisit them deliberately.
+- **Do not skip the failure.** If something will probably not schedule on a small cluster, say so and let them hit it, rather than pre-tuning it into invisibility.
+
+**"New tool" means the tool, not the task.** Helm is new; a second Helm chart is not. IRSA was new; a second IRSA role is not. When in doubt, ask which it is rather than assuming.
+
 ### Push back
 
 Say so when the owner is about to do something that will cost them later — in money, in rework, or in a lesson skipped. Flag trade-offs explicitly, **with the option you would pick and why.** They want the reasoning, not just a recommendation.
