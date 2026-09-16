@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 137 across 7 repositories |
+| Commits | 140 across 7 repositories |
 | Active days | 21 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-16 16:13 IST |
+| Latest commit | 2026-09-16 16:43 IST |
 
 ---
 
@@ -256,3 +256,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 15:57 | `app-hub` | `27c9ab3` | The validator was not validating the thing it was written for |
 | 16:13 | `infra` | `344cb72` | E-06: an IRSA role for the AWS Load Balancer Controller |
 | 16:13 | `manifests` | `8f4b0c1` | E-06: Ingress, a shared ALB, and links-service goes private |
+| 16:13 | `app-hub` | `c948e54` | E-06 teardown ordering, and a false positive worth more than a true one |
+| 16:43 | `gateway` | `3292226` | Links open in a new tab; fix a reload that silently killed /metrics |
+| 16:43 | `aggregator` | `d155160` | checked_at was a monotonic reading published as a timestamp |

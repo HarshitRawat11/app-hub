@@ -172,3 +172,60 @@ Check the self-check actually fires by breaking it deliberately — change `IST_
 ---
 
 **The meta-lesson:** the system built to stop timestamps drifting produced drifted timestamps on its first two runs. It only became trustworthy once it could **check itself and refuse to run when wrong**. Generated data is not automatically correct — it is correct only when something verifies it.
+
+---
+
+## Postscript, 2026-09-16 — two clocks, and publishing the wrong one
+
+A third timestamp trap, found by *looking at the app* rather than by any test. `aggregator`'s `/status` was returning this:
+
+```json
+"checked_at": 120573.881128485,
+"age_seconds": 25.9
+```
+
+`checked_at` was `time.monotonic()`, published straight out of the cache entry.
+
+### The two clocks, and why a language gives you both
+
+**Wall clock** (`datetime.now(timezone.utc)`, `time.time()`) answers *"what time is it?"*. It is meaningful to other people and other machines — and it can **jump**, forwards or backwards, whenever NTP corrects it or someone changes the system time.
+
+**Monotonic** (`time.monotonic()`) answers *"how much time has passed?"*. It counts from an **arbitrary epoch**, usually boot, and is guaranteed never to go backwards.
+
+Neither can do the other's job, and this is the rule:
+
+> **Measure durations with monotonic. Report instants with the wall clock.**
+> Anything a caller will read, compare or print needs the wall clock. Anything you subtract > from itself needs monotonic.
+
+### Three ways publishing the monotonic value was actively wrong
+
+Not merely ugly — each of these is a real failure:
+
+- **A field named `checked_at` reads as a timestamp.** Any client renders it and gets a   date in 1970.
+- **It is not comparable across pods.** `links-service` runs `replicas: 2` and `gateway`   the same; two replicas booted minutes apart return wildly different `checked_at` for the   *same instant*. A dashboard showing "last checked" would flicker between two unrelated   numbers depending on which pod answered.
+- **It runs backwards after a restart**, because the epoch resets. A monotonically   increasing field that decreases is worse than a missing one.
+
+### What was actually right, and stayed
+
+The cache TTL comparison was **correct all along** and still uses monotonic. If it used the wall clock, an NTP correction could make a 5-second-old cache entry look an hour old, or an hour in the future — and the second of those means it never expires.
+
+`age_seconds` is likewise still derived from monotonic. Subtracting two wall-clock readings would report a **negative age** if the clock stepped back mid-request.
+
+So the cache now carries both, under names that say which is which:
+
+```python
+app.state.cache = {
+    "monotonic": time.monotonic(),          # for the TTL arithmetic
+    "wall": datetime.now(timezone.utc),     # for the response
+    ...
+}
+```
+
+**The bug was never *using* monotonic. It was *publishing* it.**
+
+### How it survived 50 tests
+
+`aggregator` had a test asserting `age_seconds >= 0`. **Nothing had ever asserted anything about `checked_at`** — it was in every response, visible, for as long as the service had existed. It took running the app and reading the output.
+
+The guard now **parses** the value rather than pattern-matching it: a float raises `TypeError` and a monotonic-looking string fails `fromisoformat`, so neither can pass. It then bounds the parsed time to the window the request ran in, which catches the subtler mistake — a correctly-formatted timestamp built from the wrong clock.
+

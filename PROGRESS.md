@@ -205,6 +205,8 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 
 | ID | Severity | Where | What is wrong |
 |----|----------|-------|---------------|
+| ~~`D-26`~~ | **RESOLVED same day** 2026-09-16 | [aggregator/app/main.py](aggregator/app/main.py) | `/status` published `checked_at` as a **`time.monotonic()` reading** — responses carried `"checked_at": 120573.88`. Monotonic counts from an arbitrary epoch (boot), so the value is meaningless outside the producing process. **Three real failures, not cosmetics:** a field named `checked_at` reads as a timestamp so clients render 1970; it is **not comparable across pods**, so two replicas disagree about the same instant; and it **runs backwards after a restart**. <br><br>Monotonic was, and remains, correct for the cache TTL — a wall clock there could make an entry look an hour old, or an hour in the future, after an NTP correction. `age_seconds` also stays monotonic-derived, since subtracting wall-clock readings could report a negative age. **The bug was publishing it, never using it.** Cache now carries `monotonic` and `wall` under honest names. <br><br>**Found by running the app and reading the output, not by a test.** 50 aggregator tests asserted `age_seconds >= 0` and **nothing had ever asserted anything about `checked_at`**, which had been visible in every response since the service existed. `learn/17` postscript. |
+| ~~`D-27`~~ | **RESOLVED same day** 2026-09-16 | [gateway/tests/test_gateway.py](gateway/tests/test_gateway.py) | **`importlib.reload(app.main)` left `/metrics` inert, silently.** `main.py` instruments at import time and `prometheus_client` keeps collectors in a process-wide `REGISTRY`; reloading re-registers the same names, the duplicate is swallowed rather than raised, and the reloaded app then **records nothing**. The old collectors survive holding their old values, so `/metrics` keeps serving a plausible body frozen at the moment of the reload. <br><br>This is what made `test_ids_do_not_become_labels` pass alone and fail in the suite for two days. **The application was never affected** — production imports the module once, and the live behaviour was confirmed correct against a running server (`handler="/links/{link_id}"` recorded, raw UUID absent). A test-harness artifact — and a good argument that **a flaky test is worse than no test**, since it went red for a reason unrelated to what it guards. <br><br>Fixed by unregistering the `http_` collectors before reload, so the fresh import registers cleanly. |
 | `D-24` | **High — the cost safety net's primary control is intermittently dead** | n8n `eks-cost-watchdog` (Schedule Trigger), n8n in Docker Desktop on the laptop | **The schedule trigger stops firing after the host sleeps, and still reports `active: true`.** <br><br>Evidence, all read 2026-09-16 with no cluster and no cost: execution **44** fired at `2026-09-14 21:00:05 IST`, `mode=trigger` — correct hour, correct timezone, the `D-22` fix working. Windows then slept `2026-09-14 22:45 UTC → 2026-09-15 05:46 UTC`. **Since that resume there has been no trigger execution at all**, although on 2026-09-15 the machine was awake `11:16–21:41 IST` — covering *both* the 17:00 and the 21:00 trigger — the container was up continuously (`StartedAt 2026-09-14 11:34 UTC`, never restarted), and the workflow is still `active: true` with empty `pinData`. <br><br>**Why this is worse than `D-22`, not a repeat of it.** `D-22` was reliably dead: wrong timezone, never fired, no email ever. This one fires *sometimes* — and an alert that arrives sometimes is what earns the trust that makes you stop running `make status`. <br><br>**The deeper problem is architectural and is the owner's call.** A watchdog for cloud spend runs on a laptop that sleeps. The window it must cover — cluster left up overnight — is *precisely* the window in which the laptop is off. Restarting the container re-registers the crons and is a workaround, not a fix. The durable answer is something that runs in AWS: an **AWS Budgets alert** (free, email, zero infrastructure) or an **EventBridge schedule**. Both are new services, so `CLAUDE.md § 4` says ask first. <br><br>**Until then: verify teardown with `make status`, never by the absence of an email.** |
 | `D-25` | **Medium — a teardown failed and the notification about it also failed** | `scripts/scheduled-destroy.sh`, WSL DNS, n8n SMTP | **The 2026-09-14 nightly teardown exited 2, and nothing told anyone for two days.** <br><br>`logs/scheduled-destroy-2026-09-14_174528.log` ends: `Error: validating provider credentials: retrieving caller identity from STS: ... lookup sts.ap-south-1.amazonaws.com on 8.8.8.8:53: i/o timeout` → `destroy finished: failure (exit 2)`. That is the documented WSL2 DNS failure (`CLAUDE.md § 5`), here across a sleep/resume. <br><br>**Then the second layer failed too.** The script did POST to `destroy-notifier`, which ran (execution **45**) and could not send: `connect ECONNREFUSED 192.178.158.108:465`. So the failure notification failed. <br><br>**No money was lost** — the cluster had already been destroyed by hand that evening, so the teardown was a no-op that failed rather than a real teardown that was skipped. The 2026-09-16 run succeeded (`0 destroyed`, `HTTP 200`). **That is luck, not design:** had a cluster been up, it would have billed until someone opened the logs. <br><br>**Also worth noting:** the log's own filename (`17:45:28` UTC) and its first line (`04:15 IST`) disagree by about five hours, and 04:15 IST is exactly when Windows went to sleep. The clock behaviour across suspend is **UNKNOWN** and deliberately not explained here rather than guessed at. <br><br>**The teardown is also not running at 23:30.** Both recent runs finished at ~11:18 and ~11:24 IST, minutes after the machine woke — Task Scheduler catching up a missed start. Same root cause as `D-24`: the laptop is asleep at 23:30. |
 | ~~`D-01`~~ | **RESOLVED** 2026-08-30 (`7b7b0bd`) | [links-service/app/main.py:29](links-service/app/main.py:29) | `createLink` builds `new_link = Link(id=next_id, ...)` but then stores the *incoming* `link` (a `LinkCreate`, which has no `id`). It returns `new_link`, so `POST` looks correct — but `GET /links` and `GET /links/{id}` return records with no `id` field. Fix: store `new_link`. |
@@ -282,6 +284,90 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-16 — Ran the app for review, and the review found what 149 tests had not
+
+**The owner asked to look at the app before moving further on infra.** It was
+brought up locally — three uvicorn processes in WSL, no AWS, no cluster, no
+cost — seeded with six links including one deliberately broken, and driven
+through the dashboard. **That hour found two defects and produced one requested
+change.**
+
+**The requested change: links open in a new tab** (`target="_blank"`). The
+dashboard is a launcher — open Grafana, look, come back — and
+navigating the tab away meant re-fetching `/links` and `/status` every return
+trip and losing whatever was typed in the search box.
+
+**`rel="noopener noreferrer"` was already there, which is the wrong way round.**
+That is precisely the mitigation `target="_blank"` requires, and it had been
+guarding nothing since the dashboard shipped. The new test pins the **pair**,
+because either half alone is a bug: without `noopener` the opened page can reach
+back through `window.opener` and navigate this one, and these URLs are chosen by
+anything that can `POST` to the API.
+
+**`D-26`: `checked_at` was a monotonic reading published as a timestamp.**
+`/status` returned `"checked_at": 120573.88`. The full reasoning is in `D-26`
+and the `learn/17` postscript; the short version is that monotonic time counts
+from an arbitrary epoch, so the value is not comparable **across pods** and runs
+**backwards** after a restart. Monotonic was right for the cache TTL and still
+drives it. **The bug was publishing it, not using it.**
+
+**Fifty aggregator tests asserted `age_seconds >= 0`. Not one had ever asserted
+anything about `checked_at`** — which had been sitting in every response,
+in plain view, since the service was written. It took reading the output.
+
+**`D-27`: `importlib.reload` silently killed `/metrics`.** This is the one worth
+reading twice. `test_ids_do_not_become_labels` — the test written during
+`R-05` to prove the label-cardinality claim — **passed alone and failed in
+the suite**, and had done for two days.
+
+**The application was never affected**, and that was established before touching
+anything, by querying the live server rather than trusting either test result:
+
+```
+handler="/links/{link_id}",method="GET",status="4xx"    <- route template
+raw uuid in metrics: 0
+```
+
+**Root-causing it took four wrong turns, and the wrong turns are the lesson.**
+The first hypothesis — the reload tests — was tested directly and
+**disproved**: reload test plus metrics test passed. Bisecting every single test
+against the metrics test found **no** individual trigger. Only a prefix bisect
+found it, and the minimal reproducer was a *pair*: a test that makes requests,
+followed by a reload.
+
+**The mechanism, once measured instead of reasoned about:** reloading
+re-registers collector names already in the process-wide `REGISTRY`; the
+duplicate is swallowed rather than raised, and the reloaded app records nothing
+while the old collectors keep serving their frozen values. So `/metrics` returns
+a plausible body that stopped updating.
+
+```
+fresh import, 3 hits             http_requests_total{...} 3.0
+DIRTY reload, +5 hits            http_requests_total{...} 3.0   <- dead
+CLEAN reload (cleared), +5 hits  http_requests_total{...} 5.0   <- alive
+```
+
+**And then the first regression test written for it was decoration.** It
+reloaded *before* making any request, and **passed against the bug**. Checking
+that — rather than accepting the green tick — revealed that a reload
+alone is harmless: the damage needs a labelled child series to already exist.
+
+```
+3 requests, THEN reload, then 5 more  ->  3.0   (the 5 vanish)
+reload FIRST, then 5 requests         ->  5.0   (fine)
+```
+
+**Every one of the three fixes was verified by removing it and watching the
+matching test fail**, then restoring. That is the only reason the regression
+tests are known to guard anything.
+
+**A flaky test is worse than no test.** This one went red for a reason that had
+nothing to do with what it guards, which makes ignoring it the *rational*
+response — and that is how a real failure would have been ignored too.
+
+**152 tests**, up from 149: 42 links-service, 59 gateway, 51 aggregator. All
+green. Nothing is billing.
 
 ### 2026-09-16 — `E-06` written: Ingress, a shared ALB, and a teardown order that is not reversible
 
