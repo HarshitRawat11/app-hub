@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>app-hub — a self-hosted platform on EKS</title>
+<meta name="description" content="A personal platform on AWS EKS: three FastAPI services, Terraform, Prometheus and Grafana, destroyed and rebuilt every night on purpose.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🗂️</text></svg>">
+<style>
+/* Same tokens as the dashboard's stylesheet, so the demo does not feel like a
+   different product. No CDN, no webfont: the project's own rule is that a page
+   which goes blank because someone else's server is down is not a page. */
+:root {
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --border: #e3e1dd;
+  --text: #1f1e1c;
+  --muted: #6f6c67;
+  --accent: #2f6f4f;
+  --danger: #a13b2d;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17171a;
+    --surface: #1f1f23;
+    --border: #33333a;
+    --text: #ecEAE6;
+    --muted: #9a968e;
+    --accent: #6fc79a;
+    --danger: #e0806f;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 62rem; margin: 0 auto; padding: 0 1.25rem; }
+a { color: var(--accent); }
+
+header.hero { padding: 4.5rem 0 2.5rem; }
+.eyebrow {
+  font-size: 0.78rem; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 0.9rem;
+}
+h1 { font-size: clamp(2.1rem, 5.5vw, 3.1rem); line-height: 1.12; margin: 0 0 1rem; letter-spacing: -0.02em; }
+.lede { font-size: clamp(1.02rem, 2.2vw, 1.2rem); color: var(--muted); max-width: 46rem; margin: 0 0 1.8rem; }
+.lede strong { color: var(--text); font-weight: 600; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+.btn {
+  display: inline-block; padding: 0.6rem 1.1rem; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  text-decoration: none; font-size: 0.93rem; font-weight: 500;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.btn:hover { border-color: var(--accent); }
+
+section { padding: 2.6rem 0; border-top: 1px solid var(--border); }
+h2 { font-size: 1.28rem; margin: 0 0 0.5rem; letter-spacing: -0.01em; }
+.sub { color: var(--muted); margin: 0 0 1.6rem; max-width: 46rem; font-size: 0.95rem; }
+
+.grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.1rem 1.15rem;
+}
+.card h3 { margin: 0 0 0.4rem; font-size: 0.97rem; }
+.card p { margin: 0; color: var(--muted); font-size: 0.89rem; line-height: 1.6; }
+
+figure { margin: 0; }
+svg { display: block; width: 100%; height: auto; }
+figcaption { color: var(--muted); font-size: 0.83rem; margin-top: 0.9rem; }
+
+/* The table scrolls INSIDE its own box rather than pushing the page wide.
+   Caught at a 293px viewport: three columns of prose could not fit, so the
+   whole document gained a horizontal scrollbar and every section below went
+   off-centre. A portfolio page opened on a phone is the common case, not the
+   edge case. min-width stops the columns crushing into unreadable slivers
+   instead. */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; min-width: 30rem; border-collapse: collapse; font-size: 0.9rem; }
+th, td { text-align: left; padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+td.t { color: var(--muted); }
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.87em; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; padding: 0.05em 0.35em;
+}
+.tag { font-size: 0.72rem; padding: 0.12rem 0.45rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+.tag.live { color: var(--accent); border-color: var(--accent); }
+
+ul.repos { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
+ul.repos a { display: flex; justify-content: space-between; gap: 0.8rem; align-items: baseline;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.65rem 0.85rem; text-decoration: none; color: var(--text); font-size: 0.9rem; }
+ul.repos a:hover { border-color: var(--accent); }
+ul.repos span { color: var(--muted); font-size: 0.8rem; text-align: right; }
+
+.stats { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+.stat b { display: block; font-size: 1.5rem; letter-spacing: -0.02em; }
+.stat span { color: var(--muted); font-size: 0.8rem; }
+
+blockquote {
+  margin: 0; padding: 0.9rem 1.1rem; background: var(--surface);
+  border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); color: var(--muted); font-size: 0.93rem;
+}
+blockquote strong { color: var(--text); }
+
+footer { border-top: 1px solid var(--border); padding: 2rem 0 3.5rem; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Personal infrastructure · AWS <code>ap-south-1</code></p>
+    <h1>app-hub</h1>
+    <p class="lede">
+      A self-hosted home for the tools I build for myself — three FastAPI
+      services on <strong>AWS EKS</strong>, provisioned by <strong>Terraform</strong>,
+      deployed from Git-tracked Kubernetes manifests, and
+      <strong>destroyed every single night on purpose</strong>.
+    </p>
+    <div class="actions">
+      <a class="btn primary" href="/demo.html">Open the dashboard demo</a>
+      <a class="btn" href="https://github.com/HarshitRawat11/app-hub">Source on GitHub</a>
+    </div>
+  </header>
+
+  <section>
+    <h2>Why it exists</h2>
+    <p class="sub">Three purposes at once, and none of them is a pretext.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>A learning vehicle</h3>
+        <p>Targeted at exactly the stack my organisation is migrating to — EKS,
+           Terraform, Prometheus, Grafana, Jenkins, ArgoCD, n8n — because I am
+           the Principal SRE who has to own it. Where speed and understanding
+           conflict on the infrastructure, understanding wins.</p>
+      </div>
+      <div class="card">
+        <h3>Software I actually use</h3>
+        <p>Not a demo. The dashboard is the catalogue of what runs where, and
+           it has to work and stay up. That constraint is what stops the
+           project becoming a pile of tutorials.</p>
+      </div>
+      <div class="card">
+        <h3>Something worth showing</h3>
+        <p>The bar is <em>"would this survive a review by someone I want to
+           impress?"</em> — not <em>"does it work on my machine?"</em>. Which is
+           why the write-ups below record the failures, not just the outcomes.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>How a request travels</h2>
+    <p class="sub">
+      Three services, deliberately. <code>gateway</code> exists to prove
+      service-to-service discovery by Kubernetes DNS name; <code>aggregator</code>
+      is never publicly reachable, so a call from it is pod-to-pod with neither
+      end being the front door.
+    </p>
+    <figure>
+      <svg viewBox="0 0 860 330" role="img" aria-label="Architecture: an internet request reaches an ALB, then the gateway pod, which calls links-service and aggregator inside the cluster. links-service reads and writes DynamoDB outside the cluster. Prometheus scrapes all three services.">
+        <defs>
+          <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.5" color="var(--muted)">
+          <line x1="96"  y1="60" x2="182" y2="60" marker-end="url(#a)"/>
+          <line x1="278" y1="60" x2="362" y2="60" marker-end="url(#a)"/>
+          <line x1="424" y1="92" x2="424" y2="146" marker-end="url(#a)"/>
+          <line x1="470" y1="92" x2="610" y2="146" marker-end="url(#a)"/>
+          <line x1="424" y1="210" x2="424" y2="258" marker-end="url(#a)"/>
+          <line x1="656" y1="210" x2="740" y2="258" marker-end="url(#a)"/>
+        </g>
+
+        <!-- cluster boundary -->
+        <rect x="330" y="20" width="500" height="215" rx="10" fill="none"
+              stroke="var(--border)" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="342" y="40" font-size="11" fill="var(--muted)"
+              font-family="ui-monospace, monospace">EKS cluster · app-hub-eks · v1.36</text>
+
+        <g font-family="ui-sans-serif, system-ui, sans-serif">
+          <!-- internet -->
+          <rect x="12" y="40" width="84" height="40" rx="7" fill="var(--surface)" stroke="var(--border)"/>
+          <text x="54" y="65" font-size="12.5" text-anchor="middle" fill="var(--text)">Internet</text>
+
+          <!-- ALB -->
+          <rect x="182" y="38" width="96" height="44" rx="7" fill="var(--surface)" stroke="var(--border)"/>
+          <text x="230" y="58" font-size="12.5" text-anchor="middle" fill="var(--text)">ALB</text>
+          <text x="230" y="73" font-size="10" text-anchor="middle" fill="var(--muted)">Ingress</text>
+
+          <!-- gateway -->
+          <rect x="362" y="38" width="124" height="54" rx="7" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/>
+          <text x="424" y="60" font-size="13" text-anchor="middle" fill="var(--text)">gateway</text>
+          <text x="424" y="76" font-size="10" text-anchor="middle" fill="var(--muted)">proxy + dashboard</text>
+
+          <!-- links-service -->
+          <rect x="356" y="146" width="136" height="54" rx="7" fill="var(--surface)" stroke="var(--border)"/>
+          <text x="424" y="168" font-size="12.5" text-anchor="middle" fill="var(--text)">links-service</text>
+          <text x="424" y="184" font-size="10" text-anchor="middle" fill="var(--muted)">CRUD · ClusterIP</text>
+
+          <!-- aggregator -->
+          <rect x="590" y="146" width="132" height="54" rx="7" fill="var(--surface)" stroke="var(--border)"/>
+          <text x="656" y="168" font-size="12.5" text-anchor="middle" fill="var(--text)">aggregator</text>
+          <text x="656" y="184" font-size="10" text-anchor="middle" fill="var(--muted)">liveness probes</text>
+
+          <!-- dynamo -->
+          <rect x="356" y="258" width="136" height="48" rx="7" fill="var(--surface)" stroke="var(--border)" stroke-dasharray="4 3"/>
+          <text x="424" y="278" font-size="12" text-anchor="middle" fill="var(--text)">DynamoDB</text>
+          <text x="424" y="294" font-size="9.5" text-anchor="middle" fill="var(--muted)">survives teardown</text>
+
+          <!-- outbound -->
+          <rect x="740" y="258" width="108" height="48" rx="7" fill="var(--surface)" stroke="var(--border)" stroke-dasharray="4 3"/>
+          <text x="794" y="278" font-size="12" text-anchor="middle" fill="var(--text)">your tools</text>
+          <text x="794" y="294" font-size="9.5" text-anchor="middle" fill="var(--muted)">probed, not proxied</text>
+
+          <text x="436" y="126" font-size="10" fill="var(--muted)" font-family="ui-monospace, monospace">links-service:80</text>
+          <text x="540" y="128" font-size="10" fill="var(--muted)" font-family="ui-monospace, monospace">aggregator:8002</text>
+        </g>
+      </svg>
+      <figcaption>
+        DynamoDB sits outside the dashed boundary deliberately: it lives in a
+        second Terraform stack with its own state file, so the nightly
+        <code>terraform destroy</code> cannot reach it — by construction, not by care.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Nothing runs overnight, and that is the design</h2>
+    <p class="sub">
+      Run 24×7 this would cost roughly <strong>$200/month</strong> — the NAT
+      gateway and the EKS control plane bill whether or not anything is
+      deployed. So the cluster is destroyed at the end of every session, and
+      <em>"nothing is deployed"</em> is the normal resting state.
+    </p>
+    <blockquote>
+      <strong>This is why the demo above is a stub rather than the live system.</strong>
+      EKS issues a new API endpoint on every cluster creation, so a permanent
+      link to the real thing would be dead most of the time and point at the
+      wrong host the rest.
+    </blockquote>
+    <div class="stats" style="margin-top:1.4rem">
+      <div class="stat"><b>~$0.28</b><span>per hour, cluster up</span></div>
+      <div class="stat"><b>23:30</b><span>automated nightly teardown</span></div>
+      <div class="stat"><b>59</b><span>resources destroyed, then rebuilt</span></div>
+      <div class="stat"><b>$0</b><span>resting cost</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The stack, and what is actually running</h2>
+    <p class="sub">Honest status. "Planned" means written or not started — not quietly implied to be live.</p>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Piece</th><th>What it does</th><th>State</th></tr></thead>
+      <tbody>
+        <tr><td><code>Terraform</code></td><td class="t">VPC, EKS, ECR, IRSA roles. Two stacks — one ephemeral, one never destroyed.</td><td><span class="tag live">running</span></td></tr>
+        <tr><td><code>EKS 1.36</code></td><td class="t">Two <code>t3.medium</code> nodes in private subnets, across two AZs.</td><td><span class="tag live">running</span></td></tr>
+        <tr><td><code>FastAPI ×3</code></td><td class="t">links-service, gateway, aggregator. Read-only root filesystem, non-root, all capabilities dropped.</td><td><span class="tag live">running</span></td></tr>
+        <tr><td><code>IRSA</code></td><td class="t">A pod identity for DynamoDB with no stored credential anywhere.</td><td><span class="tag live">running</span></td></tr>
+        <tr><td><code>Prometheus + Grafana</code></td><td class="t">Installed by Helm; scrape config is a <code>ServiceMonitor</code>, never a config file.</td><td><span class="tag live">running</span></td></tr>
+        <tr><td><code>n8n</code></td><td class="t">Cost watchdog and teardown notifier, running off-cluster.</td><td><span class="tag live">running</span></td></tr>
+        <tr><td><code>Ingress + shared ALB</code></td><td class="t">One public entry point; links-service drops to <code>ClusterIP</code>.</td><td><span class="tag">written</span></td></tr>
+        <tr><td><code>Jenkins · ArgoCD</code></td><td class="t">Build and push, then reconcile from the manifests repo.</td><td><span class="tag">planned</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Seven repositories</h2>
+    <p class="sub">
+      A polyrepo on purpose: each component has its own history and its own
+      remote, and the umbrella repo tracks only what belongs to no single one.
+    </p>
+    <ul class="repos">
+      <li><a href="https://github.com/HarshitRawat11/app-hub">app-hub <span>docs · write-ups · tooling</span></a></li>
+      <li><a href="https://github.com/HarshitRawat11/app-hub-infra">app-hub-infra <span>Terraform, two stacks</span></a></li>
+      <li><a href="https://github.com/HarshitRawat11/app-hub-links-service">app-hub-links-service <span>the catalogue API</span></a></li>
+      <li><a href="https://github.com/HarshitRawat11/app-hub-gateway">app-hub-gateway <span>proxy + dashboard</span></a></li>
+      <li><a href="https://github.com/HarshitRawat11/app-hub-aggregator">app-hub-aggregator <span>liveness probes</span></a></li>
+      <li><a href="https://github.com/HarshitRawat11/app-hub-manifests">app-hub-manifests <span>Kubernetes objects</span></a></li>
+      <li><a href="https://github.com/HarshitRawat11/app-hub-n8n">app-hub-n8n <span>workflows as code</span></a></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>The write-ups are the point</h2>
+    <p class="sub">
+      Every step has a file in <code>learn/</code> — what was done, why, and
+      what bit us. They record the mistakes, because the mistakes are where the
+      understanding came from.
+    </p>
+    <div class="grid">
+      <div class="card">
+        <h3>A monitor that died three times</h3>
+        <p>An expired OAuth token, then a timezone that made it check at 2:30 AM,
+           then a laptop sleep that stopped its scheduler. Every time, the UI
+           said <code>active</code>. <em>Active means "intends to run", never
+           "has run".</em></p>
+      </div>
+      <div class="card">
+        <h3>"I cannot see it" ≠ "it is not there"</h3>
+        <p>A wrong <code>--query</code> that returned <code>None</code> instead of
+           erroring; a <code>grep</code> that counted its own shell. The fix is to
+           run the same check against something you <em>know</em> is absent —
+           if both answers match, your check cannot tell the difference.</p>
+      </div>
+      <div class="card">
+        <h3>A five-times price in one string</h3>
+        <p>An EKS version past standard support billed at $0.50/hour instead of
+           $0.10. It was 74% of one session's bill and looked like nothing at
+           all in the Terraform.</p>
+      </div>
+    </div>
+    <p style="margin-top:1.3rem">
+      <a class="btn" href="https://github.com/HarshitRawat11/app-hub/tree/master/learn">Read all 32 write-ups →</a>
+    </p>
+  </section>
+
+  <footer>
+    <p>
+      Built by Harshit Rawat · started July 2026 ·
+      <a href="https://github.com/HarshitRawat11/app-hub">github.com/HarshitRawat11/app-hub</a>
+    </p>
+    <p>
+      This page is static and always up. The system it describes is not —
+      and that is deliberate.
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>

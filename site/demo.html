@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>app-hub — dashboard demo</title>
+  <meta name="description" content="A running demo of the app-hub dashboard, served without a backend.">
+
+  <!-- MIRRORS gateway/app/static/index.html, and differs from it in exactly
+       two ways: the demo banner below, and the demo-api.js script tag.
+
+       The stylesheet and app.js are vendored BYTE FOR BYTE and verified by
+       `python3 scripts/check-doc-drift.py`, which also checks that every id
+       app.js looks up still exists in this file. If gateway's index.html
+       gains an element, that check fails here rather than the demo silently
+       half-working. -->
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🗂️</text></svg>">
+  <style>
+    /* Scoped to the demo. Nothing here touches the vendored stylesheet. */
+    .demo-note {
+      max-width: 60rem;
+      margin: 1rem auto 0;
+      padding: 0.7rem 0.9rem;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .demo-note strong { color: var(--text); }
+    .demo-note a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <p class="demo-note">
+    <strong>Demo.</strong> This is the real dashboard — the same
+    <code>app.js</code> and stylesheet that run in the cluster — with a stub
+    standing in for the API. <strong>Adding and deleting work</strong>, but
+    changes live in this tab only and a reload restores the seed data.
+    The live system runs on AWS EKS and is destroyed every night on purpose.
+    <a href="/">What is this?</a>
+  </p>
+
+  <header>
+    <h1>app-hub</h1>
+    <input id="search" type="search" placeholder="Search…  (press /)"
+           autocomplete="off" spellcheck="false" aria-label="Filter links">
+    <button id="toggle-add" type="button" aria-expanded="false">+ Add</button>
+  </header>
+
+  <form id="add-form" hidden>
+    <input name="name" placeholder="Name" required maxlength="80">
+    <input name="url" placeholder="https://…" required type="url">
+    <input name="category" placeholder="Category" required maxlength="40" list="categories">
+    <datalist id="categories"></datalist>
+    <input name="icon" placeholder="Icon (emoji, optional)" maxlength="8">
+    <button type="submit">Save</button>
+    <button type="button" id="cancel-add">Cancel</button>
+  </form>
+
+  <div id="banner" role="alert" hidden></div>
+
+  <main id="links" aria-busy="true"></main>
+
+  <footer>
+    <span id="count"></span>
+    <span id="summary"></span>
+    <a href="/">About</a>
+    <a href="https://github.com/HarshitRawat11/app-hub">Source</a>
+  </footer>
+
+  <!-- ORDER MATTERS. demo-api.js replaces window.fetch, and app.js captures
+       whatever `fetch` is when it runs. Swap these two lines and every request
+       goes to Netlify's static host and 404s. -->
+  <script src="/static/demo-api.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 143 across 7 repositories |
+| Commits | 144 across 7 repositories |
 | Active days | 21 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-16 23:34 IST |
+| Latest commit | 2026-09-16 23:35 IST |
 
 ---
 
@@ -262,3 +262,4 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 16:46 | `app-hub` | `06c4532` | Running the app for review found what 149 tests had not |
 | 23:34 | `infra` | `2a8436e` | A daily spend guardrail that runs in AWS, not on the laptop |
 | 23:34 | `manifests` | `802f698` | Point the E-06 runbook at learn/32, not learn/31 |
+| 23:35 | `app-hub` | `8831c3b` | Record the daily spend guardrail; learn/31 |

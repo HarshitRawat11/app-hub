@@ -1,0 +1,55 @@
+# Netlify configuration for the app-hub project site.
+#
+# WHAT THIS DEPLOYS, AND WHAT IT DELIBERATELY DOES NOT
+#
+# app-hub itself CANNOT run on Netlify. Netlify Functions are JavaScript,
+# TypeScript and Go; all three app-hub services are Python/FastAPI, and two of
+# them talk to DynamoDB with an IRSA-derived identity that only exists inside
+# the cluster. So this is not a deployment of the system.
+#
+# It is the PORTFOLIO half of the project (CLAUDE.md section 1, purpose 3): a
+# permanent page describing the architecture, plus the real dashboard running
+# against a stubbed API so a visitor can use it rather than look at a
+# screenshot.
+#
+# WHY NOT POINT THE PAGE AT THE REAL CLUSTER: EKS issues a NEW API endpoint
+# hostname on every cluster creation, and the cluster is destroyed every night
+# by policy. A permanent link to the live system would be dead most of the time
+# and aimed at a stale host the rest of it.
+
+[build]
+  # No build step. The site is hand-written static files -- no bundler, no npm
+  # install, nothing to go stale or to break a deploy six months from now.
+  #
+  # `publish` is the umbrella repo's site/ directory. The five component
+  # directories (infra/, gateway/, ...) are SEPARATE git repositories that this
+  # repo gitignores, so they are not present in a Netlify checkout at all --
+  # which is exactly why site/static/ vendors its two files from gateway rather
+  # than referencing them across the boundary. `make validate` checks the
+  # copies have not drifted.
+  publish = "site"
+  command = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # The page loads nothing from anywhere else, so the policy can be strict
+    # and stay strict. 'unsafe-inline' covers the inline <style> block and the
+    # inline SVG favicon; there is no inline SCRIPT -- both scripts are files.
+    Content-Security-Policy = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"
+
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    # Short, not immutable. These files are vendored copies of gateway's
+    # dashboard and get refreshed whenever the real one changes; a year-long
+    # immutable cache would leave visitors on an old copy with no way to know.
+    Cache-Control = "public, max-age=300"
+
+# The dashboard demo talks to a stub that replaces window.fetch, so there is no
+# API to redirect to and no rewrite rule here on purpose. A catch-all 200
+# rewrite would make every mistyped path render the dashboard, which is how a
+# broken link starts looking like a working one.

@@ -130,6 +130,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
+| P-10 | Public project page on **Netlify** | **BUILT 2026-09-16, NOT YET DEPLOYED** — `site/` plus `netlify.toml` at the repo root. Landing page (architecture, cost policy, seven repos, write-ups) and **the real dashboard running with no backend** at `/demo.html`. Verified locally: every asset 200s, the stub matches the real API's status codes (201/204/404), and `check-doc-drift.py` gained a vendored-copy check. `learn/32` | **Needs the owner** — connecting the repo means logging into Netlify and authorising it against GitHub, which is not something to hand to an agent | Follow `site/README.md`: Netlify → Add new site → import `HarshitRawat11/app-hub`, **leave every build setting blank** (`netlify.toml` sets `publish = "site"` and an empty command). Every push to `master` redeploys after that. |
 | P-01 | Version-control the root docs (`CLAUDE.md`, `README.md`, `PROGRESS.md`, `CONTEXT-BRIEF.md`, `learn/`) | **Done** | None | Done 2026-08-30 (`2dfcc93`). Chose an **umbrella repo at the root** that tracks only the cross-cutting docs and gitignores `infra/`, `links-service/`, `manifests/`, `n8n/` so they stay fully independent. Remote not created yet — see `P-08`. |
 | P-02 | Commit the untracked `links-service/Dockerfile` | **Done** | None | Committed 2026-08-30 as `5e312ef`, after fixing `P-03` and `D-11` in the same file |
 | P-03 | Fix Dockerfile base image / Python version mismatch | **Done** | None | Committed 2026-08-30 as `5e312ef`. Base moved to `python:3.14-slim` (verified to exist, currently 3.14.7) so the tag matches `requires-python >=3.14`. Fixed together with `D-11`. |
@@ -161,7 +162,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 | E-03 | Build and push `links-service:v1` to ECR | **DONE** 2026-08-31 · 16:13 IST | None | Built and pushed from **WSL via `docker.exe`**, digest `sha256:d9caf579…`, 70.7 MB. Done in parallel with the EKS control plane still `CREATING` — the push depends only on ECR, not the cluster. Note two **untagged** buildkit attestation digests also landed; `batch-delete-image --image-ids imageTag=v1` will not remove those at teardown (`learn/15`). 
 | E-04 | Deploy manifests to EKS and reach `/health` | **DONE** 2026-08-31 · 16:15 IST | None | `kubectl apply` → 1 pod `Running` on `10.0.2.118`, Service ClusterIP `172.20.10.137`, endpoints resolved correctly. **Verified in-cluster by DNS name**: `curl http://links-service:8000/health` → `{"status":"ok"}`. Full CRUD round-trip passed, and `GET /links` returned `"id":1` — the `C-01` fix confirmed on real EKS. `GET /links/999` → 404. 
 | E-05 | Expose the service outside the cluster | **DONE** 2026-08-31 · 16:32 IST | None | Switched the Service to `type: LoadBalancer` with the NLB annotation (`99381d0`), listening on port 80. Public at `a79280cd18615491e88aa093ea8dd157-273fe97dadab1bf9.elb.ap-south-1.amazonaws.com`. NLB took ~110s to go `provisioning` → `active`. Verified externally: full CRUD, 404 path, and `/docs` all reachable. **Right-sized for one service only** — see `E-06`. 
-| E-06 | Migrate from per-service LoadBalancer to a shared ALB via Ingress | **WRITTEN 2026-09-16, NEVER APPLIED TO A CLUSTER** — built as a **guided build** at the owner's choice. Claude wrote `infra/alb-controller-irsa.tf`, `manifests/alb-controller/values.yaml`, `manifests/ingress/` (IngressClass + Ingress), flipped `links-service` to `ClusterIP`, and encoded the new teardown ordering in `make down`. Passes `make validate` offline — terraform `validate`/`fmt`, and the manifest checker — and **has met no API server**. The owner runs every command in `manifests/ingress/README.md`. No `learn/` file yet, deliberately: it gets written after it runs, so it records what happened rather than what was intended. **It will be `learn/32`** — 31 went to the budget guardrail, which was built first | `Ingress`/`IngressClass` are Kubernetes object types the owner has not written, and the ALB controller's Helm values are on the hand-write list — so this stays whole rather than splitting. Wait until `gateway` is deployed, so there are actually two services to route between. <br><br>**Decided 2026-09-10 — the flip is confirmed, only the implementation waits:** `gateway` becomes the publicly reachable service via Ingress + a shared ALB, and **`links-service` becomes `ClusterIP`, not reachable from outside at all.** That is the entire point of having a gateway, and it removes the public endpoint `E-05` verified — deliberately. Deciding now means `gateway`'s Service manifest never needs revisiting; it is `ClusterIP` today only to avoid a second ELB and a second bill before the Ingress exists. | Every `type: LoadBalancer` Service provisions its **own** ELB — N services means N load balancers and N bills. An Ingress + the AWS Load Balancer Controller gives one shared ALB with path-based L7 routing. Premature with a single service; the right move once there are two. |
+| E-06 | Migrate from per-service LoadBalancer to a shared ALB via Ingress | **WRITTEN 2026-09-16, NEVER APPLIED TO A CLUSTER** — built as a **guided build** at the owner's choice. Claude wrote `infra/alb-controller-irsa.tf`, `manifests/alb-controller/values.yaml`, `manifests/ingress/` (IngressClass + Ingress), flipped `links-service` to `ClusterIP`, and encoded the new teardown ordering in `make down`. Passes `make validate` offline — terraform `validate`/`fmt`, and the manifest checker — and **has met no API server**. The owner runs every command in `manifests/ingress/README.md`. No `learn/` file yet, deliberately: it gets written after it runs, so it records what happened rather than what was intended. **Its number is deliberately not stated here** — `learn/` files are numbered in the order steps are *performed*, so a number claimed in advance moves every time something else lands first. This one was written as `31`, then `32`, in a single day | `Ingress`/`IngressClass` are Kubernetes object types the owner has not written, and the ALB controller's Helm values are on the hand-write list — so this stays whole rather than splitting. Wait until `gateway` is deployed, so there are actually two services to route between. <br><br>**Decided 2026-09-10 — the flip is confirmed, only the implementation waits:** `gateway` becomes the publicly reachable service via Ingress + a shared ALB, and **`links-service` becomes `ClusterIP`, not reachable from outside at all.** That is the entire point of having a gateway, and it removes the public endpoint `E-05` verified — deliberately. Deciding now means `gateway`'s Service manifest never needs revisiting; it is `ClusterIP` today only to avoid a second ELB and a second bill before the Ingress exists. | Every `type: LoadBalancer` Service provisions its **own** ELB — N services means N load balancers and N bills. An Ingress + the AWS Load Balancer Controller gives one shared ALB with path-based L7 routing. Premature with a single service; the right move once there are two. |
 
 ### Phase 3 — Production readiness
 
@@ -284,6 +285,70 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-16 — A public page on Netlify, and what it deliberately is not
+
+**Netlify is a new cloud provider, so `CLAUDE.md § 4` says flag it rather
+than quietly add it.** The flag, and the scoping that followed, are the whole
+story here.
+
+**app-hub cannot run on Netlify.** Its Functions are JavaScript, TypeScript and
+Go; all three services are Python/FastAPI, and two of them reach DynamoDB with
+an IRSA-derived identity that exists only inside the cluster. So this deploys
+**purpose 3 from § 1 — the portfolio piece** — and nothing else.
+Said before building, not after.
+
+**Pointing the page at the live cluster was considered and rejected**, and the
+reason is already a lesson in this project: EKS issues a **new API endpoint
+hostname on every creation**, and the cluster is destroyed nightly by policy. A
+permanent link to the real thing would be dead most of the time and aimed at a
+stale host the rest of it.
+
+**The demo runs the REAL `app.js`, unmodified.** Every call it makes goes
+through one `api()` helper calling `fetch(path, …)`, so
+`site/static/demo-api.js` replaces `window.fetch` before `app.js` loads and
+serves an in-memory catalogue. Verified against the running page: `POST` →
+`201` with an id, `DELETE` → `204`, `DELETE` of a missing id → `404`,
+list 8 → 9 → 8. **Adding and deleting genuinely work.**
+
+**Nothing persists, deliberately.** `localStorage` would have been two lines and
+would have made the demo lie in a subtler way — a visitor returning a week
+later would see their own edits and conclude a backend was answering.
+
+**The polyrepo forced a copy, so the copy is now checked.** `gateway/` is a
+separate repository that the umbrella **gitignores**, so a Netlify checkout of
+`app-hub` contains no `gateway/` at all. `style.css` and `app.js` are therefore
+vendored into `site/static/`, and `scripts/check-doc-drift.py` gained a
+`COPIES` byte-comparison with `--fix` to re-copy. **A portfolio page claiming to
+show the real dashboard while showing a three-month-old one is worse than a
+screenshot that admits what it is.**
+
+`site/demo.html` cannot be a byte copy — it adds the banner and the stub
+script tag — so the **mechanical part** is checked instead: every id
+`app.js` looks up via `getElementById` must exist in `demo.html`. **Both checks
+were proven by breaking them on purpose** and watching them report `DRIFT` and
+`FAIL` with exit 1.
+
+**A real layout bug, found by measuring rather than looking.** The stack table
+overflowed at a **293px viewport** — 328px of content — giving the whole
+document a horizontal scrollbar and pushing every section below it off-centre.
+**Invisible at desktop width, and the first thing anyone opening the link on a
+phone would have seen.** Fixed with `overflow-x: auto` on a wrapper so the table
+scrolls inside its own box, plus a `min-width` so the columns do not crush
+instead.
+
+> A page that is only ever checked at the width you built it at has only ever
+> been checked at one width.
+
+**The `learn/` number was predicted twice and moved twice in a single day** —
+E-06's file was going to be 31, then 32, and is now neither. The references to it
+no longer name a number at all. Numbers follow the order steps are *performed*,
+so predicting one creates a cross-reference that rots on the next commit; this
+is the same failure as every stale claim here, just faster.
+
+**Deploying needs a login and is the owner's to do.** Claude wrote the site and
+the config; authorising Netlify against a GitHub account is not something to
+hand to an agent. Steps are in `site/README.md`.
 
 ### 2026-09-16 — A spend guardrail that runs in AWS, and a budget that already existed
 
@@ -444,8 +509,9 @@ green. Nothing is billing.
 **has never met a real API server.** The runbook is
 `manifests/ingress/README.md`; the owner runs every command in it. There is no
 `learn/` file yet on purpose — writing the record before the thing runs is how
-documents start lying. **It will be `learn/32`**, since 31 went to the budget
-guardrail built later the same day.
+documents start lying. **Its number is deliberately not named**: `learn/`
+files are numbered in the order steps are performed, and this one's predicted
+number moved twice in a single day as other work landed first.
 
 **Built as a guided build**, the owner's choice when asked which `CLAUDE.md
 § 2` tier applied. Helm encounter #2, and their first `Ingress`.
