@@ -161,7 +161,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 | E-03 | Build and push `links-service:v1` to ECR | **DONE** 2026-08-31 · 16:13 IST | None | Built and pushed from **WSL via `docker.exe`**, digest `sha256:d9caf579…`, 70.7 MB. Done in parallel with the EKS control plane still `CREATING` — the push depends only on ECR, not the cluster. Note two **untagged** buildkit attestation digests also landed; `batch-delete-image --image-ids imageTag=v1` will not remove those at teardown (`learn/15`). 
 | E-04 | Deploy manifests to EKS and reach `/health` | **DONE** 2026-08-31 · 16:15 IST | None | `kubectl apply` → 1 pod `Running` on `10.0.2.118`, Service ClusterIP `172.20.10.137`, endpoints resolved correctly. **Verified in-cluster by DNS name**: `curl http://links-service:8000/health` → `{"status":"ok"}`. Full CRUD round-trip passed, and `GET /links` returned `"id":1` — the `C-01` fix confirmed on real EKS. `GET /links/999` → 404. 
 | E-05 | Expose the service outside the cluster | **DONE** 2026-08-31 · 16:32 IST | None | Switched the Service to `type: LoadBalancer` with the NLB annotation (`99381d0`), listening on port 80. Public at `a79280cd18615491e88aa093ea8dd157-273fe97dadab1bf9.elb.ap-south-1.amazonaws.com`. NLB took ~110s to go `provisioning` → `active`. Verified externally: full CRUD, 404 path, and `/docs` all reachable. **Right-sized for one service only** — see `E-06`. 
-| E-06 | Migrate from per-service LoadBalancer to a shared ALB via Ingress | **WRITTEN 2026-09-16, NEVER APPLIED TO A CLUSTER** — built as a **guided build** at the owner's choice. Claude wrote `infra/alb-controller-irsa.tf`, `manifests/alb-controller/values.yaml`, `manifests/ingress/` (IngressClass + Ingress), flipped `links-service` to `ClusterIP`, and encoded the new teardown ordering in `make down`. Passes `make validate` offline — terraform `validate`/`fmt`, and the manifest checker — and **has met no API server**. The owner runs every command in `manifests/ingress/README.md`. No `learn/31` yet, deliberately: it gets written after it runs, so it records what happened rather than what was intended | `Ingress`/`IngressClass` are Kubernetes object types the owner has not written, and the ALB controller's Helm values are on the hand-write list — so this stays whole rather than splitting. Wait until `gateway` is deployed, so there are actually two services to route between. <br><br>**Decided 2026-09-10 — the flip is confirmed, only the implementation waits:** `gateway` becomes the publicly reachable service via Ingress + a shared ALB, and **`links-service` becomes `ClusterIP`, not reachable from outside at all.** That is the entire point of having a gateway, and it removes the public endpoint `E-05` verified — deliberately. Deciding now means `gateway`'s Service manifest never needs revisiting; it is `ClusterIP` today only to avoid a second ELB and a second bill before the Ingress exists. | Every `type: LoadBalancer` Service provisions its **own** ELB — N services means N load balancers and N bills. An Ingress + the AWS Load Balancer Controller gives one shared ALB with path-based L7 routing. Premature with a single service; the right move once there are two. |
+| E-06 | Migrate from per-service LoadBalancer to a shared ALB via Ingress | **WRITTEN 2026-09-16, NEVER APPLIED TO A CLUSTER** — built as a **guided build** at the owner's choice. Claude wrote `infra/alb-controller-irsa.tf`, `manifests/alb-controller/values.yaml`, `manifests/ingress/` (IngressClass + Ingress), flipped `links-service` to `ClusterIP`, and encoded the new teardown ordering in `make down`. Passes `make validate` offline — terraform `validate`/`fmt`, and the manifest checker — and **has met no API server**. The owner runs every command in `manifests/ingress/README.md`. No `learn/` file yet, deliberately: it gets written after it runs, so it records what happened rather than what was intended. **It will be `learn/32`** — 31 went to the budget guardrail, which was built first | `Ingress`/`IngressClass` are Kubernetes object types the owner has not written, and the ALB controller's Helm values are on the hand-write list — so this stays whole rather than splitting. Wait until `gateway` is deployed, so there are actually two services to route between. <br><br>**Decided 2026-09-10 — the flip is confirmed, only the implementation waits:** `gateway` becomes the publicly reachable service via Ingress + a shared ALB, and **`links-service` becomes `ClusterIP`, not reachable from outside at all.** That is the entire point of having a gateway, and it removes the public endpoint `E-05` verified — deliberately. Deciding now means `gateway`'s Service manifest never needs revisiting; it is `ClusterIP` today only to avoid a second ELB and a second bill before the Ingress exists. | Every `type: LoadBalancer` Service provisions its **own** ELB — N services means N load balancers and N bills. An Ingress + the AWS Load Balancer Controller gives one shared ALB with path-based L7 routing. Premature with a single service; the right move once there are two. |
 
 ### Phase 3 — Production readiness
 
@@ -207,7 +207,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 |----|----------|-------|---------------|
 | ~~`D-26`~~ | **RESOLVED same day** 2026-09-16 | [aggregator/app/main.py](aggregator/app/main.py) | `/status` published `checked_at` as a **`time.monotonic()` reading** — responses carried `"checked_at": 120573.88`. Monotonic counts from an arbitrary epoch (boot), so the value is meaningless outside the producing process. **Three real failures, not cosmetics:** a field named `checked_at` reads as a timestamp so clients render 1970; it is **not comparable across pods**, so two replicas disagree about the same instant; and it **runs backwards after a restart**. <br><br>Monotonic was, and remains, correct for the cache TTL — a wall clock there could make an entry look an hour old, or an hour in the future, after an NTP correction. `age_seconds` also stays monotonic-derived, since subtracting wall-clock readings could report a negative age. **The bug was publishing it, never using it.** Cache now carries `monotonic` and `wall` under honest names. <br><br>**Found by running the app and reading the output, not by a test.** 50 aggregator tests asserted `age_seconds >= 0` and **nothing had ever asserted anything about `checked_at`**, which had been visible in every response since the service existed. `learn/17` postscript. |
 | ~~`D-27`~~ | **RESOLVED same day** 2026-09-16 | [gateway/tests/test_gateway.py](gateway/tests/test_gateway.py) | **`importlib.reload(app.main)` left `/metrics` inert, silently.** `main.py` instruments at import time and `prometheus_client` keeps collectors in a process-wide `REGISTRY`; reloading re-registers the same names, the duplicate is swallowed rather than raised, and the reloaded app then **records nothing**. The old collectors survive holding their old values, so `/metrics` keeps serving a plausible body frozen at the moment of the reload. <br><br>This is what made `test_ids_do_not_become_labels` pass alone and fail in the suite for two days. **The application was never affected** — production imports the module once, and the live behaviour was confirmed correct against a running server (`handler="/links/{link_id}"` recorded, raw UUID absent). A test-harness artifact — and a good argument that **a flaky test is worse than no test**, since it went red for a reason unrelated to what it guards. <br><br>Fixed by unregistering the `http_` collectors before reload, so the fresh import registers cleanly. |
-| `D-24` | **High — the cost safety net's primary control is intermittently dead** | n8n `eks-cost-watchdog` (Schedule Trigger), n8n in Docker Desktop on the laptop | **The schedule trigger stops firing after the host sleeps, and still reports `active: true`.** <br><br>Evidence, all read 2026-09-16 with no cluster and no cost: execution **44** fired at `2026-09-14 21:00:05 IST`, `mode=trigger` — correct hour, correct timezone, the `D-22` fix working. Windows then slept `2026-09-14 22:45 UTC → 2026-09-15 05:46 UTC`. **Since that resume there has been no trigger execution at all**, although on 2026-09-15 the machine was awake `11:16–21:41 IST` — covering *both* the 17:00 and the 21:00 trigger — the container was up continuously (`StartedAt 2026-09-14 11:34 UTC`, never restarted), and the workflow is still `active: true` with empty `pinData`. <br><br>**Why this is worse than `D-22`, not a repeat of it.** `D-22` was reliably dead: wrong timezone, never fired, no email ever. This one fires *sometimes* — and an alert that arrives sometimes is what earns the trust that makes you stop running `make status`. <br><br>**The deeper problem is architectural and is the owner's call.** A watchdog for cloud spend runs on a laptop that sleeps. The window it must cover — cluster left up overnight — is *precisely* the window in which the laptop is off. Restarting the container re-registers the crons and is a workaround, not a fix. The durable answer is something that runs in AWS: an **AWS Budgets alert** (free, email, zero infrastructure) or an **EventBridge schedule**. Both are new services, so `CLAUDE.md § 4` says ask first. <br><br>**Until then: verify teardown with `make status`, never by the absence of an email.** |
+| `D-24` | **High — the cost safety net's primary control is intermittently dead** | n8n `eks-cost-watchdog` (Schedule Trigger), n8n in Docker Desktop on the laptop | **The schedule trigger stops firing after the host sleeps, and still reports `active: true`.** <br><br>Evidence, all read 2026-09-16 with no cluster and no cost: execution **44** fired at `2026-09-14 21:00:05 IST`, `mode=trigger` — correct hour, correct timezone, the `D-22` fix working. Windows then slept `2026-09-14 22:45 UTC → 2026-09-15 05:46 UTC`. **Since that resume there has been no trigger execution at all**, although on 2026-09-15 the machine was awake `11:16–21:41 IST` — covering *both* the 17:00 and the 21:00 trigger — the container was up continuously (`StartedAt 2026-09-14 11:34 UTC`, never restarted), and the workflow is still `active: true` with empty `pinData`. <br><br>**Why this is worse than `D-22`, not a repeat of it.** `D-22` was reliably dead: wrong timezone, never fired, no email ever. This one fires *sometimes* — and an alert that arrives sometimes is what earns the trust that makes you stop running `make status`. <br><br>**The deeper problem is architectural and is the owner's call.** A watchdog for cloud spend runs on a laptop that sleeps. The window it must cover — cluster left up overnight — is *precisely* the window in which the laptop is off. Restarting the container re-registers the crons and is a workaround, not a fix. The durable answer is something that runs in AWS: an **AWS Budgets alert** (free, email, zero infrastructure) or an **EventBridge schedule**. Both are new services, so `CLAUDE.md § 4` says ask first. <br><br>**MITIGATION WRITTEN 2026-09-16, not yet applied.** `infra/persistent/budget.tf` — a **daily** $3 AWS Budget with `ACTUAL` alerts at 100% and 200%, in the persistent stack so `make down` cannot destroy it. `terraform plan` clean: **1 to add, 0 to change, 0 to destroy**. It is a **backstop, not a replacement** — billing data updates roughly daily, so it catches "yesterday cost too much", never "the cluster came up 20 minutes ago". `learn/31`. <br><br>**Until it is applied, and afterwards: verify teardown with `make status`, never by the absence of an email.** |
 | `D-25` | **Medium — a teardown failed and the notification about it also failed** | `scripts/scheduled-destroy.sh`, WSL DNS, n8n SMTP | **The 2026-09-14 nightly teardown exited 2, and nothing told anyone for two days.** <br><br>`logs/scheduled-destroy-2026-09-14_174528.log` ends: `Error: validating provider credentials: retrieving caller identity from STS: ... lookup sts.ap-south-1.amazonaws.com on 8.8.8.8:53: i/o timeout` → `destroy finished: failure (exit 2)`. That is the documented WSL2 DNS failure (`CLAUDE.md § 5`), here across a sleep/resume. <br><br>**Then the second layer failed too.** The script did POST to `destroy-notifier`, which ran (execution **45**) and could not send: `connect ECONNREFUSED 192.178.158.108:465`. So the failure notification failed. <br><br>**No money was lost** — the cluster had already been destroyed by hand that evening, so the teardown was a no-op that failed rather than a real teardown that was skipped. The 2026-09-16 run succeeded (`0 destroyed`, `HTTP 200`). **That is luck, not design:** had a cluster been up, it would have billed until someone opened the logs. <br><br>**Also worth noting:** the log's own filename (`17:45:28` UTC) and its first line (`04:15 IST`) disagree by about five hours, and 04:15 IST is exactly when Windows went to sleep. The clock behaviour across suspend is **UNKNOWN** and deliberately not explained here rather than guessed at. <br><br>**The teardown is also not running at 23:30.** Both recent runs finished at ~11:18 and ~11:24 IST, minutes after the machine woke — Task Scheduler catching up a missed start. Same root cause as `D-24`: the laptop is asleep at 23:30. |
 | ~~`D-01`~~ | **RESOLVED** 2026-08-30 (`7b7b0bd`) | [links-service/app/main.py:29](links-service/app/main.py:29) | `createLink` builds `new_link = Link(id=next_id, ...)` but then stores the *incoming* `link` (a `LinkCreate`, which has no `id`). It returns `new_link`, so `POST` looks correct — but `GET /links` and `GET /links/{id}` return records with no `id` field. Fix: store `new_link`. |
 | ~~`D-16`~~ | **RESOLVED** 2026-09-10 | [links-service/app/main.py](links-service/app/main.py) | Was: `POST /links` returned **`200`**, not `201 Created`. REST convention for a request that creates a resource is `201` plus a `Location` header pointing at it. Nothing is broken — `gateway` only checks `>= 400`, and the tests assert current behaviour — but it is a public API contract, so **flagged for the owner's decision rather than changed**. **Owner decided: change it.** Now `status_code=201` with a `Location` header pointing at `/links/{id}`, plus a test asserting the header resolves. Done while nothing external consumed the API and `gateway` only checks `>= 400` — the last cheap moment before something depended on `200`. |
@@ -284,6 +284,75 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-16 — A spend guardrail that runs in AWS, and a budget that already existed
+
+**Written, not applied.** `terraform plan` on the persistent stack is clean —
+**1 to add, 0 to change, 0 to destroy** — and `0 to destroy` is the line
+that matters there: the DynamoDB table is untouched. **Applying needs the
+owner's approval and has not happened.**
+
+Written by Claude via the `§ 2` escape hatch at the owner's request, with
+the explanation given first. **Concept skipped and flagged in the file:**
+`aws_budgets_budget` is this project's first Terraform resource with **nested
+repeated blocks** — `notification` appears twice in one resource, the same
+shape as `ingress` rules in a security group.
+
+**Checking first changed the design, and that is the whole story of this
+entry.** The account already had a budget: *"My Monthly Cost Budget"*, $15/month,
+four notifications, all emailing the owner, created in the console on
+2025-02-01 and **not in Terraform**. Two of its forecast alerts were **in
+`ALARM` at the moment of checking** — forecast $24.10 against a $15 limit.
+
+So the question stopped being *"add a budget"* and became *"what does the
+existing one not do"*. One line of AWS documentation answered it:
+
+> *"Actual alerts are only sent out once per budget, **per budget period**, when
+> a budget first reached the actual alert threshold."*
+
+**A monthly budget has a monthly voice.** Once it fires in September it is
+silent for the rest of September whatever gets left running — and this one
+had already fired. A **daily** budget's period is one day, so it can speak
+again tomorrow. That is why the new file is `DAILY` rather than a second
+monthly budget, and it is not a detail: a second monthly budget would have felt
+like progress and added nothing.
+
+**$3/day is a threshold between two measured numbers**, not a round guess. A
+real 6-hour session is ~$1.70 at the measured $0.28/hour; a cluster forgotten
+for 12 hours or more is $3.40+. Legitimate work stays under, anything that
+outlived the session goes over. Thresholds are `ACTUAL` at 100% and 200% —
+*"this outlived your session"* and *"this ran all day"*.
+
+**Two facts I had stated wrongly in chat, corrected against the source.**
+
+- I said budget data refreshes *"about three times a day"*. The AWS docs say
+  billing data is updated **"at least once per day"**. That matters, because it
+  is the difference between a watchdog and a backstop — and this is a
+  backstop.
+- I said *"first two budgets free, then $0.02/day"*. Alert-only budgets are
+  **free regardless of count**; the two-free limit applies to **action-enabled**
+  budgets, at **$0.10/day** beyond two. Budget *actions* remain a deliberate
+  non-goal — a budget that can shut resources down is a far larger blast
+  radius than an email, and the failure being fixed is "nobody was told".
+
+**No cost filter, deliberately, and for the project's usual reason.** A tag
+filter sounds more precise, but a tag only reaches cost data once activated as
+a **cost allocation tag** in the Billing console — a manual step outside
+Terraform. A filter on an unactivated tag matches nothing, so the budget would
+sit at $0.00 forever and never fire. **A guardrail silent because it is broken
+looks exactly like one silent because all is well.**
+
+**`var.budget_alert_email` has no default on purpose.** A default would be
+either a personal address committed to a public repo or an empty string that
+applies cleanly and notifies nobody. With none, `plan` fails until a value is
+supplied — the right failure. `infra/.gitignore`'s `*.tfvars` line covers
+the persistent stack; **verified with `git check-ignore -v`** rather than
+assumed.
+
+**The existing console-created budget was left alone**, and that is a recorded
+gap rather than an oversight: it works, it is the account-wide monthly
+backstop, and importing it into Terraform is a separate task with its own
+approval.
 
 ### 2026-09-16 — Ran the app for review, and the review found what 149 tests had not
 
@@ -374,8 +443,9 @@ green. Nothing is billing.
 **Written, not verified.** Everything below passes `make validate` offline and
 **has never met a real API server.** The runbook is
 `manifests/ingress/README.md`; the owner runs every command in it. There is no
-`learn/31` yet on purpose — writing the record before the thing runs is how
-documents start lying.
+`learn/` file yet on purpose — writing the record before the thing runs is how
+documents start lying. **It will be `learn/32`**, since 31 went to the budget
+guardrail built later the same day.
 
 **Built as a guided build**, the owner's choice when asked which `CLAUDE.md
 § 2` tier applied. Helm encounter #2, and their first `Ingress`.

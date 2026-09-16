@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 140 across 7 repositories |
+| Commits | 143 across 7 repositories |
 | Active days | 21 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-16 16:43 IST |
+| Latest commit | 2026-09-16 23:34 IST |
 
 ---
 
@@ -259,3 +259,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 16:13 | `app-hub` | `c948e54` | E-06 teardown ordering, and a false positive worth more than a true one |
 | 16:43 | `gateway` | `3292226` | Links open in a new tab; fix a reload that silently killed /metrics |
 | 16:43 | `aggregator` | `d155160` | checked_at was a monotonic reading published as a timestamp |
+| 16:46 | `app-hub` | `06c4532` | Running the app for review found what 149 tests had not |
+| 23:34 | `infra` | `2a8436e` | A daily spend guardrail that runs in AWS, not on the laptop |
+| 23:34 | `manifests` | `802f698` | Point the E-06 runbook at learn/32, not learn/31 |
