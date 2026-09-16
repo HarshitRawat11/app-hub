@@ -17,6 +17,20 @@ import sys
 import pathlib
 import yaml
 
+# Kinds that exist OUTSIDE any namespace. Listed explicitly rather than
+# inferred, because there is no way to know an unfamiliar CRD's scope from
+# the YAML alone -- the API server is the only authority, and this script is
+# deliberately offline so it can run with no cluster.
+CLUSTER_SCOPED = {
+    "Namespace",
+    "IngressClass",      # E-06 -- an IngressClass serves every namespace
+    "StorageClass",
+    "ClusterRole",
+    "ClusterRoleBinding",
+    "CustomResourceDefinition",
+    "PersistentVolume",
+}
+
 BAD = 0
 
 
@@ -58,9 +72,22 @@ def check(directory: str) -> None:
         kind = doc["kind"]
         meta = doc["metadata"]
         ns = meta["name"] if kind == "Namespace" else meta.get("namespace")
-        print(f"{f.name}  ->  {kind}  namespace={ns}")
+        print(f"{f.name}  ->  {kind}  namespace={ns}"
+              + ("  (cluster-scoped)" if kind in CLUSTER_SCOPED else ""))
 
-        if kind != "Namespace" and not ns:
+        # A cluster-scoped object has no namespace BY DESIGN, so demanding one
+        # is a false positive -- and a false positive in a validator is worse
+        # than a missing check, because the fix people reach for is to stop
+        # running it. E-06's IngressClass is what exposed this: the check had
+        # only ever special-cased Namespace, which was the only cluster-scoped
+        # kind in the repo until then.
+        #
+        # This is an ALLOWLIST on purpose. An unrecognised kind still gets
+        # flagged for a missing namespace, which is the safe direction to be
+        # wrong in: a namespaced object silently landing in `default` is a
+        # real deployment bug, while a new cluster-scoped kind costs one line
+        # here and says exactly what to add.
+        if kind not in CLUSTER_SCOPED and not ns:
             fail(f"{f.name}: no namespace declared, would land in 'default'")
 
         if kind == "ServiceMonitor":

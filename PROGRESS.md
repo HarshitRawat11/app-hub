@@ -93,7 +93,9 @@ The naive order put four delegated tasks in front of `R-05`, which would have me
 
 **So the next task is `E-06` — Ingress and a shared ALB — and it is the owner's.** Everything ahead of it is closed, and Claude's queue is empty again.
 
-`E-06` is the right next one rather than `R-06` Jenkins for two reasons. It is **smaller** — one new object type (`Ingress`) plus a second Helm chart, against Jenkins' pipeline language, credentials and agent model. And it **pays for itself immediately**: `gateway` becomes the one public entry point and `links-service` drops to `ClusterIP`, which removes a load balancer from every future session's bill and shrinks the teardown ordering problem that `learn/15` exists for.
+`E-06` is the right next one rather than `R-06` Jenkins for two reasons. It is **smaller** — one new object type (`Ingress`) plus a second Helm chart, against Jenkins' pipeline language, credentials and agent model. And it **fixes the shape**: `gateway` becomes the one public entry point and `links-service` drops to `ClusterIP`, so the gateway stops being a front door with the back door propped open beside it.
+
+*(An earlier draft of this paragraph, written hours before the build, claimed E-06 "pays for itself immediately" by removing a load balancer from every session's bill. **That was wrong on both counts and is corrected here rather than quietly deleted.** One NLB is replaced by one ALB at roughly the same ~$16–18/month, so today it is cost-NEUTRAL; the saving arrives at services four and five, which become routing rules rather than more load balancers. And the teardown ordering gets **stricter**, not simpler — an Ingress-created ALB is invisible to the old `--field-selector spec.type=LoadBalancer` sweep.)*
 
 **There is also a cheap follow-on to `R-05` whenever it is wanted:** Prometheus persistence, via the EBS CSI addon and a *second* IRSA role. It builds directly on `C-05`, and `learn/30` already explains why the first attempt used `emptyDir`.
 
@@ -159,7 +161,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 | E-03 | Build and push `links-service:v1` to ECR | **DONE** 2026-08-31 · 16:13 IST | None | Built and pushed from **WSL via `docker.exe`**, digest `sha256:d9caf579…`, 70.7 MB. Done in parallel with the EKS control plane still `CREATING` — the push depends only on ECR, not the cluster. Note two **untagged** buildkit attestation digests also landed; `batch-delete-image --image-ids imageTag=v1` will not remove those at teardown (`learn/15`). 
 | E-04 | Deploy manifests to EKS and reach `/health` | **DONE** 2026-08-31 · 16:15 IST | None | `kubectl apply` → 1 pod `Running` on `10.0.2.118`, Service ClusterIP `172.20.10.137`, endpoints resolved correctly. **Verified in-cluster by DNS name**: `curl http://links-service:8000/health` → `{"status":"ok"}`. Full CRUD round-trip passed, and `GET /links` returned `"id":1` — the `C-01` fix confirmed on real EKS. `GET /links/999` → 404. 
 | E-05 | Expose the service outside the cluster | **DONE** 2026-08-31 · 16:32 IST | None | Switched the Service to `type: LoadBalancer` with the NLB annotation (`99381d0`), listening on port 80. Public at `a79280cd18615491e88aa093ea8dd157-273fe97dadab1bf9.elb.ap-south-1.amazonaws.com`. NLB took ~110s to go `provisioning` → `active`. Verified externally: full CRUD, 404 path, and `/docs` all reachable. **Right-sized for one service only** — see `E-06`. 
-| E-06 | Migrate from per-service LoadBalancer to a shared ALB via Ingress | Not started — **OWNER's to write, in full.** **Direction decided 2026-09-10** (see next step) | `Ingress`/`IngressClass` are Kubernetes object types the owner has not written, and the ALB controller's Helm values are on the hand-write list — so this stays whole rather than splitting. Wait until `gateway` is deployed, so there are actually two services to route between. <br><br>**Decided 2026-09-10 — the flip is confirmed, only the implementation waits:** `gateway` becomes the publicly reachable service via Ingress + a shared ALB, and **`links-service` becomes `ClusterIP`, not reachable from outside at all.** That is the entire point of having a gateway, and it removes the public endpoint `E-05` verified — deliberately. Deciding now means `gateway`'s Service manifest never needs revisiting; it is `ClusterIP` today only to avoid a second ELB and a second bill before the Ingress exists. | Every `type: LoadBalancer` Service provisions its **own** ELB — N services means N load balancers and N bills. An Ingress + the AWS Load Balancer Controller gives one shared ALB with path-based L7 routing. Premature with a single service; the right move once there are two. |
+| E-06 | Migrate from per-service LoadBalancer to a shared ALB via Ingress | **WRITTEN 2026-09-16, NEVER APPLIED TO A CLUSTER** — built as a **guided build** at the owner's choice. Claude wrote `infra/alb-controller-irsa.tf`, `manifests/alb-controller/values.yaml`, `manifests/ingress/` (IngressClass + Ingress), flipped `links-service` to `ClusterIP`, and encoded the new teardown ordering in `make down`. Passes `make validate` offline — terraform `validate`/`fmt`, and the manifest checker — and **has met no API server**. The owner runs every command in `manifests/ingress/README.md`. No `learn/31` yet, deliberately: it gets written after it runs, so it records what happened rather than what was intended | `Ingress`/`IngressClass` are Kubernetes object types the owner has not written, and the ALB controller's Helm values are on the hand-write list — so this stays whole rather than splitting. Wait until `gateway` is deployed, so there are actually two services to route between. <br><br>**Decided 2026-09-10 — the flip is confirmed, only the implementation waits:** `gateway` becomes the publicly reachable service via Ingress + a shared ALB, and **`links-service` becomes `ClusterIP`, not reachable from outside at all.** That is the entire point of having a gateway, and it removes the public endpoint `E-05` verified — deliberately. Deciding now means `gateway`'s Service manifest never needs revisiting; it is `ClusterIP` today only to avoid a second ELB and a second bill before the Ingress exists. | Every `type: LoadBalancer` Service provisions its **own** ELB — N services means N load balancers and N bills. An Ingress + the AWS Load Balancer Controller gives one shared ALB with path-based L7 routing. Premature with a single service; the right move once there are two. |
 
 ### Phase 3 — Production readiness
 
@@ -280,6 +282,84 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-16 — `E-06` written: Ingress, a shared ALB, and a teardown order that is not reversible
+
+**Written, not verified.** Everything below passes `make validate` offline and
+**has never met a real API server.** The runbook is
+`manifests/ingress/README.md`; the owner runs every command in it. There is no
+`learn/31` yet on purpose — writing the record before the thing runs is how
+documents start lying.
+
+**Built as a guided build**, the owner's choice when asked which `CLAUDE.md
+§ 2` tier applied. Helm encounter #2, and their first `Ingress`.
+
+**What it does.** `gateway` becomes the single public entry point behind one
+ALB; `links-service` drops from `LoadBalancer` to `ClusterIP` and is no longer
+reachable from outside the cluster at all. That is the shape `gateway` was built
+for — until now it was a front door with the back door propped open beside
+it.
+
+**Cost is neutral today, and an earlier claim of mine in this file said
+otherwise.** One NLB is replaced by one ALB at roughly the same $16–18 a
+month. The saving arrives at services four and five, which become routing rules
+instead of more load balancers. The overstatement is corrected in place above
+rather than deleted.
+
+**The new teardown constraint, stated before it was encoded** (`§ 2`):
+
+> An Ingress-created ALB is **neither Terraform-tracked nor a
+> `Service type: LoadBalancer`**, so `make down`'s existing sweep did not match
+> it. And the order looks reversible and is not — delete the Ingress, wait
+> for the ALB, **then** uninstall the controller. Uninstall first and nothing
+> remains to act on the deletion: the Ingress vanishes from Kubernetes while the
+> ALB survives in AWS, unreachable by `kubectl`, billing quietly.
+
+`make down` step 1 now deletes Ingresses first and uninstalls the controller
+last. It also **warns when load balancers are still present after five
+minutes** — that loop used to fall through in silence, so a stuck ALB
+surfaced as a confusing `terraform destroy` failure minutes later instead of a
+reason at the point of failure.
+
+**The validator caught the first mistake within a minute of the directory
+existing**, which is the morning's `make validate` fix paying for itself
+immediately: `manifests/ingress/` was picked up automatically by the new glob,
+and `00-ingressclass.yaml` failed with *"no namespace declared, would land in
+'default'"*.
+
+**That was a FALSE POSITIVE, and worth more than a true one.** `IngressClass` is
+cluster-scoped; the check had only ever special-cased `Namespace`, the sole
+cluster-scoped kind in the repo until now. Fixed with an explicit
+`CLUSTER_SCOPED` allowlist rather than by loosening the rule — an
+unrecognised kind still gets flagged, because a namespaced object silently
+landing in `default` is a real deployment bug while a new cluster-scoped kind
+costs one line. **A false positive in a validator is worse than a missing
+check: the fix people reach for is to stop running it.**
+
+**Two decisions worth naming, both made for the owner and both listed in the
+runbook's table so the second build can revisit them.**
+
+`target-type: ip` rather than `instance` is the most consequential line in the
+Ingress. `instance` mode targets nodes on a NodePort — which would have
+forced *both* Services to `type: NodePort`, added a kube-proxy hop and lost the
+client IP. `ip` mode targets pod IPs directly and is only possible because EKS
+uses the AWS VPC CNI. **That annotation and the Service type are one decision,
+not two.**
+
+`vpcId` is **not** in the committed values file, and the reason is the whole
+ephemeral/persistent split in one line. The role ARN *is* hardcoded, because the
+role name is fixed and survives rebuilds. The VPC id is destroyed and recreated
+nightly, so committing today's value produces something correct this evening and
+silently wrong tomorrow. It is passed from `terraform output` at install time.
+**A value the nightly teardown changes cannot live in a committed file.**
+
+**HTTP only, no TLS — an accepted gap, not an oversight.** HTTPS needs an
+ACM certificate, which needs a domain this project does not own. Written into
+the Ingress and the runbook so the day something sensitive gets hosted here is a
+decision rather than a discovery.
+
+**Verified rather than assumed:** `helm uninstall --ignore-not-found` exists on
+the WSL Helm (v3.21.3) before being put in a teardown path that runs unattended.
 
 ### 2026-09-16 — The validator was not validating the thing it was written for
 

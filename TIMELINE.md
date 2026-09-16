@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 134 across 7 repositories |
-| Active days | 20 |
+| Commits | 137 across 7 repositories |
+| Active days | 21 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-14 18:14 IST |
+| Latest commit | 2026-09-16 16:13 IST |
 
 ---
 
@@ -248,3 +248,11 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 17:59 | `manifests` | `01f388e` | R-05: ServiceMonitor scraping app-hub, and the silent failures it hid |
 | 17:59 | `app-hub` | `3cbb441` | R-05: ServiceMonitor scraping app-hub, and the silent failures it hid |
 | 18:14 | `app-hub` | `68962e1` | Record R-05 and the clean teardown; add learn/30 |
+
+## 2026-09-16
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 15:57 | `app-hub` | `27c9ab3` | The validator was not validating the thing it was written for |
+| 16:13 | `infra` | `344cb72` | E-06: an IRSA role for the AWS Load Balancer Controller |
+| 16:13 | `manifests` | `8f4b0c1` | E-06: Ingress, a shared ALB, and links-service goes private |

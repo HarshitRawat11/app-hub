@@ -164,6 +164,23 @@ deploy: guard
 	  kubectl apply -f "manifests/$$svc/" || exit 1; \
 	  kubectl -n $(NAMESPACE) rollout status "deployment/$$svc" --timeout=180s || exit 1; \
 	done
+	@# E-06. Applied last, because the Ingress routes to gateway's Service and
+	@# there is no reason to ask AWS for a load balancer in front of pods that
+	@# are not up yet.
+	@#
+	@# The controller is installed by HELM, not by this target -- it is a
+	@# one-line `helm upgrade --install` documented in
+	@# manifests/alb-controller/values.yaml. Checking for it here rather than
+	@# silently applying an Ingress nothing will act on: that combination gives
+	@# you an Ingress with a permanently empty ADDRESS and no error anywhere.
+	@if kubectl -n kube-system get deploy aws-load-balancer-controller >/dev/null 2>&1; then \
+	  echo "== applying manifests/ingress =="; \
+	  kubectl apply -f "$(MANIFEST_ROOT)/ingress/" || exit 1; \
+	else \
+	  echo "== SKIPPING manifests/ingress — aws-load-balancer-controller is not installed =="; \
+	  echo "   install it first (see manifests/alb-controller/values.yaml), or the"; \
+	  echo "   Ingress would sit with no ADDRESS and nothing would say why."; \
+	fi
 	@$(MAKE) --no-print-directory verify
 
 verify:
@@ -209,7 +226,20 @@ verify:
 ## Destroy the cluster first and those controllers die, orphaning the AWS
 ## resources permanently. See learn/15.
 down: guard
-	@echo "== 1/5 deleting LoadBalancer Services (releases NLB + its ENIs) =="
+	@echo "== 1/5 deleting Ingresses, then LoadBalancer Services (releases the ALB/NLB and their ENIs) =="
+	@# THE INGRESS COMES FIRST, AND THE ORDER IS LOAD-BEARING (added with E-06).
+	@#
+	@# An ALB created from an Ingress is not tracked by Terraform AND is not a
+	@# `Service type: LoadBalancer`, so the svc delete below does not match it.
+	@# Before E-06 this step would have left the ALB and its ENIs in place, and
+	@# `terraform destroy` would then fail on the VPC.
+	@#
+	@# The ALB is deleted by the CONTROLLER reacting to the Ingress going away.
+	@# So the controller has to still be running when that happens. Uninstall it
+	@# first and the Ingress disappears from Kubernetes while the ALB survives in
+	@# AWS -- an orphan no kubectl command can reach, billing quietly, findable
+	@# only in the console. Hence: Ingress, wait, THEN uninstall.
+	-kubectl delete ingress --all-namespaces --ignore-not-found
 	-kubectl delete svc --all-namespaces --field-selector spec.type=LoadBalancer --ignore-not-found
 	@echo "   waiting for AWS to actually remove them..."
 	@for i in $$(seq 1 30); do \
@@ -217,6 +247,13 @@ down: guard
 	  [ "$$n" = "0" ] && { echo "   load balancers gone"; break; }; \
 	  printf '.'; sleep 10; \
 	done
+	@# The loop above used to fall through SILENTLY after five minutes, so a
+	@# load balancer that never went away produced a confusing `terraform
+	@# destroy` failure several minutes later instead of a reason here.
+	@n=$$(aws elbv2 describe-load-balancers --region $(REGION) --query 'length(LoadBalancers)' --output text 2>/dev/null || echo 0); \
+	  [ "$$n" = "0" ] || echo "   WARNING: $$n load balancer(s) still present after 5 min — destroy will likely fail on the VPC"
+	@# Only now is it safe to remove the controller: the ALB it manages is gone.
+	-helm uninstall aws-load-balancer-controller -n kube-system --ignore-not-found
 	@echo "== 2/5 deleting PVCs (their EBS volumes are invisible to Terraform) =="
 	-kubectl delete pvc --all --all-namespaces --ignore-not-found
 	@echo "== 3/5 emptying ECR — tagStatus=ANY, because the default hides untagged digests =="
