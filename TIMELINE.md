@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 133 across 7 repositories |
+| Commits | 134 across 7 repositories |
 | Active days | 20 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-14 17:59 IST |
+| Latest commit | 2026-09-14 18:14 IST |
 
 ---
 
@@ -247,3 +247,4 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 17:40 | `aggregator` | `837f0f4` | Expose /metrics for Prometheus (R-05) |
 | 17:59 | `manifests` | `01f388e` | R-05: ServiceMonitor scraping app-hub, and the silent failures it hid |
 | 17:59 | `app-hub` | `3cbb441` | R-05: ServiceMonitor scraping app-hub, and the silent failures it hid |
+| 18:14 | `app-hub` | `68962e1` | Record R-05 and the clean teardown; add learn/30 |

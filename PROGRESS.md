@@ -2,7 +2,7 @@
 
 Live status board. **Update this at the end of every working session** — status, blocker, next step, plus a line in the log.
 
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-16
 
 ---
 
@@ -10,9 +10,13 @@ Live status board. **Update this at the end of every working session** — statu
 
 **Claude: surface this block first, before anything else.**
 
-### ✅ Nothing is deployed — verified clean at 2026-08-31 · 17:05 IST
+### ✅ Nothing is deployed — re-verified 2026-09-16 · 14:34 IST
 
-**Phase 2 is complete** (`E-02`–`E-05`) and everything was torn down afterwards: `Destroy complete! Resources: 55 destroyed`, with a full orphan audit showing no clusters, NAT gateways, load balancers, VPC, EC2, EBS volumes or unassociated EIPs. **$0/hour.**
+`make status` run live: no EKS clusters, no NAT gateways, no load balancers, **0** running EC2, no available EBS volumes, no unassociated EIPs. **$0/hour.** The persistent stack is intact — `app-hub-links` still listed, exactly as designed.
+
+The last real teardown was **2026-09-14**: `Destroy complete! Resources: 59 destroyed`, matching the 59 created, and verified with the AWS CLI **independently of `make down`'s own audit** — that script had just run and would otherwise be marking its own homework. The `C-05` IRSA role is gone; `app-hub-links` survived, `ACTIVE`, 0 items.
+
+*(This block said "verified clean at 2026-08-31 · 17:05 IST" with 55 destroyed until 2026-09-16 — two teardowns out of date, in the one block this file instructs Claude to read first.)*
 
 Confirm before assuming — it takes two seconds:
 
@@ -24,15 +28,23 @@ All empty = clean. **To bring it back up**, the whole loop is proven and documen
 
 **When tearing down again, order matters** (`learn/15`): delete LoadBalancer Services first so their ENIs release, then empty ECR **with `--filter tagStatus=ANY`** (the default hides untagged digests), then `terraform destroy`, then audit for orphans.
 
-### ✅ The email path is fixed — but `cost-watchdog` is still unproven
+### ⚠️ The cost watchdog fired on schedule ONCE, then went silent when the laptop slept
 
 `D-13` is **resolved** (2026-09-05). Both workflows moved off Gmail OAuth to `emailSend` with an SMTP credential, which removes the ~7-day refresh-token expiry for good. `destroy-notifier` is verified end to end: both branches route correctly and SMTP reported the mail accepted.
 
 **`N-01b` CLOSED 2026-09-13.** `cost-watchdog` has now **actually sent an email, and it arrived in the inbox** — execution **38**, `mode=manual`, `status=success`, 07:25:25 UTC (12:55 IST). That is the first email this project has ever sent in its life, and the inbox is the only evidence that counts: a green tick means *"did not halt"*, not *"delivered"*.
 
-**What is proven and what is not.** The email node sends, the SMTP credential works for *this* workflow, and the subject and body render. The **end-to-end** path — HTTP Request seeing a live cluster and triggering the email on its own — is still unproven, and needs a cluster. It will test itself: the Schedule Trigger fires at **17:00 and 21:00**, so a cluster left up past 5 PM exercises the whole chain with no clicking. **No pinned data was left behind** (verified via the API: `pinData` is empty, workflow still `active`), which matters — a pin would have made it email every day regardless of cluster state.
+**What is proven and what is not.** The email node sends, the SMTP credential works for *this* workflow, and the subject and body render. The **end-to-end** path — HTTP Request seeing a live cluster and triggering the email on its own — is still unproven, and needs a cluster. **That was the plan, and 2026-09-16 showed it does not hold** — see `D-24` below: the trigger fires reliably only until the host sleeps. **No pinned data was left behind** (verified via the API: `pinData` is empty, workflow still `active`), which matters — a pin would have made it email every day regardless of cluster state.
 
-**So the next time a cluster is up, click "Test workflow" on `cost-watchdog` in the n8n UI.** Thirty seconds, and it closes the last gap in the cost safety net. Until then, still verify teardown with `make status` rather than trusting an email that has never been observed to arrive.
+**What 2026-09-16 added, from reading the execution history rather than waiting for a mail.**
+
+**The good half.** Execution **44**, `2026-09-14 21:00:05 IST`, `mode=trigger` — the first time in this project's life that `cost-watchdog` has fired **on its own schedule, at the intended IST hour**. It hit the EKS API, got `404 No cluster found for name: app-hub-eks`, and halted. That is textbook correct behaviour, and it confirms the `D-22` timezone fix on the *real* workflow rather than on the throwaway probe.
+
+**And it also means a live cluster is no longer needed to prove the trigger fires.** The 404 path leaves an execution row just as the 200 path would. `D-22` said the remaining test was "leave a cluster up past 17:00"; it was not — the cheaper test was to look.
+
+**The bad half, now `D-24`.** It has not fired since. 2026-09-15 had **both** trigger hours pass with the machine awake (11:16–21:41 IST), the container up continuously, and the workflow `active: true` — and there is **no execution row at all**. A host sleep sits between the last good fire and the silence.
+
+**So keep verifying teardown with `make status`.** The watchdog is now known to be *intermittently* dead rather than reliably dead, which is worse: it will sometimes email, which is exactly what builds the trust it does not deserve.
 
 ### There is now a Makefile — use it
 
@@ -46,9 +58,11 @@ wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub && mak
 
 ### ⚠️ First thing when the cluster next comes up
 
-`R-01`–`R-04` (namespace, resource limits, securityContext, immutable tags) were all added on 2026-09-03 **without a cluster to test against**. They pass offline validation and the image was verified locally under `docker run --read-only`, but the `securityContext` and the restricted Pod Security Standard have **never been enforced by a real API server**. If `make deploy` fails at admission, that is why — read the rejection message for the specific field.
+**Refresh the kubeconfig before anything else.** EKS issues a new endpoint hostname on every create, so it is stale by definition — and it is *visibly* stale right now: the 2026-09-16 teardown log is full of `lookup 8A1389C0E89FB1263FA1B3657D3AE76F.gr7...: no such host`, which is the old cluster's endpoint. `make up` does this for you.
 
-Also: `R-03` set ECR to `IMMUTABLE`, which only takes effect on the next `terraform apply`.
+**Then check `cost-watchdog` actually fires** (`D-24`). Restarting the n8n container re-registers its crons; without that the cluster can sit up overnight with nothing watching it. Confirm by execution row, not by the workflow saying `active`.
+
+*(This block warned until 2026-09-16 that `R-01`–`R-04` had never met a real API server. They have — verified on the cluster 2026-09-10 and again on 1.36 on 2026-09-14, and `R-03`'s `IMMUTABLE` setting has been applied. The warning had simply outlived the risk.)*
 
 ### ⚠️ The work split changed on 2026-09-09 — read `CLAUDE.md § 2` before writing anything
 
@@ -69,7 +83,7 @@ The naive order put four delegated tasks in front of `R-05`, which would have me
 
 3. ~~**One batched cluster session**~~ — **DONE 2026-09-13.** `S-01` step 6 deployed, ~~`N-01b`~~ closed (no cluster needed after all), `R-01`–`R-04` verified as the cluster enforces them, and beyond the original scope: `C-05` IRSA applied and proven, `C-06` verified against the real table from a pod, `S-02` and `S-03` deployed, and **`D-02` closed** — the `replicas: 1` pin held since 2026-08-30. Torn down the same night, by the scheduled task, unattended.
 
-4. **`R-05` Prometheus/Grafana — OWNER.** The real material: Helm values, dashboards, PromQL, and specifically translating Nagios checks the owner already knows from work. First stateful workload, so the PVC/EBS teardown checklist in `CLAUDE.md § 9` becomes mandatory from here.
+4. ~~**`R-05` Prometheus/Grafana**~~ — **DONE and verified on real EKS 2026-09-14.** 22 scrape targets all UP, five of them app-hub pods, from one `ServiceMonitor` with no config file edited and nothing restarted. Built as a **guided build**, the `CLAUDE.md § 2` tier added that day. `learn/30`.
 
 5. ~~**Background, Claude, between cluster sessions**~~ — **ALL CLOSED.** ~~`C-02`~~, ~~`D-09`~~, ~~`D-10`~~, ~~`C-06` code~~, ~~`S-03` dashboard~~, and ~~`S-02` aggregator~~ (2026-09-13, once the owner created `HarshitRawat11/app-hub-aggregator` — the seventh repo).
 
@@ -77,7 +91,11 @@ The naive order put four delegated tasks in front of `R-05`, which would have me
 
 **Remaining, all the owner's:** `E-06` Ingress + ALB controller, `R-06` Jenkins, `R-07` ArgoCD, `N-06` n8n on EKS. (~~`C-05` IRSA~~ done and verified 2026-09-13 — written by Claude via the § 2 escape hatch, with the skipped concept flagged in `learn/29`.)
 
-**So the next task is item 4: `R-05`.** Nothing above it is outstanding, and nothing else is waiting on Claude.
+**So the next task is `E-06` — Ingress and a shared ALB — and it is the owner's.** Everything ahead of it is closed, and Claude's queue is empty again.
+
+`E-06` is the right next one rather than `R-06` Jenkins for two reasons. It is **smaller** — one new object type (`Ingress`) plus a second Helm chart, against Jenkins' pipeline language, credentials and agent model. And it **pays for itself immediately**: `gateway` becomes the one public entry point and `links-service` drops to `ClusterIP`, which removes a load balancer from every future session's bill and shrinks the teardown ordering problem that `learn/15` exists for.
+
+**There is also a cheap follow-on to `R-05` whenever it is wanted:** Prometheus persistence, via the EBS CSI addon and a *second* IRSA role. It builds directly on `C-05`, and `learn/30` already explains why the first attempt used `emptyDir`.
 
 ---
 
@@ -85,7 +103,7 @@ The naive order put four delegated tasks in front of `R-05`, which would have me
 
 **Milestone 2 is COMPLETE.** On 2026-08-31 the loop was rebuilt end to end on real EKS with every known defect fixed: `terraform apply` → build → push to ECR → deploy → reach `/health` by Kubernetes DNS name. Verified in-cluster, not just locally.
 
-**Currently nothing is deployed, and that is the correct resting state.** Torn down 2026-08-31 · 17:05 IST after Phase 2 completed, verified clean by a full orphan audit. The cluster only exists while it is being worked on.
+**Currently nothing is deployed, and that is the correct resting state.** Torn down 2026-09-14 after the `R-05` session — 59 destroyed, verified clean, and re-verified live on 2026-09-16. The cluster only exists while it is being worked on.
 
 What that leaves:
 
@@ -96,7 +114,7 @@ What that leaves:
 
 - **The work split changed on 2026-09-09** — application code, Dockerfiles, tests, tooling and docs are now Claude's; Terraform, PromQL, Grafana, Helm values, ArgoCD, Jenkins, n8n GUI work, new Kubernetes object types and all infra debugging stay the owner's. See `CLAUDE.md § 2`; every open row below names its side.
 - **`gateway` is complete and was deployed on real EKS** (`S-01`, all six steps; 1–3 owner-written, 4–6 Claude's). It proxies the full links CRUD, maps upstream failures to `502`/`503`/`504`, and **serves the dashboard at `/`** (`S-03`, committed 2026-09-13 · 00:01 IST). *This line said "half built… not containerised and not deployed" for two days after `S-01` closed — noted here because it is the same rot the drift checker was built for, in prose it cannot reach.*
-  **The dashboard itself has never run on the cluster.** It is verified locally only, and the image predates `app/static/`, so deploying it needs a rebuild and push.
+  **The dashboard has since run on the cluster** — deployed and exercised 2026-09-13, and its `/status` panel is what surfaced `D-21`.
 
 **Next milestone — make it durable and repeatable:** finish `S-01` steps 4–5 (no cluster, no cost) → `C-02` (tests) → `C-04`/`C-05` (persistent DynamoDB stack + IRSA) → `C-06` (repository refactor, then raise replicas). `P-09` automates the loop so teardown is never skipped. `S-01` step 6 and `E-06` (shared ALB) fold into whichever session next brings the cluster up.
 
@@ -185,11 +203,13 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 
 | ID | Severity | Where | What is wrong |
 |----|----------|-------|---------------|
+| `D-24` | **High — the cost safety net's primary control is intermittently dead** | n8n `eks-cost-watchdog` (Schedule Trigger), n8n in Docker Desktop on the laptop | **The schedule trigger stops firing after the host sleeps, and still reports `active: true`.** <br><br>Evidence, all read 2026-09-16 with no cluster and no cost: execution **44** fired at `2026-09-14 21:00:05 IST`, `mode=trigger` — correct hour, correct timezone, the `D-22` fix working. Windows then slept `2026-09-14 22:45 UTC → 2026-09-15 05:46 UTC`. **Since that resume there has been no trigger execution at all**, although on 2026-09-15 the machine was awake `11:16–21:41 IST` — covering *both* the 17:00 and the 21:00 trigger — the container was up continuously (`StartedAt 2026-09-14 11:34 UTC`, never restarted), and the workflow is still `active: true` with empty `pinData`. <br><br>**Why this is worse than `D-22`, not a repeat of it.** `D-22` was reliably dead: wrong timezone, never fired, no email ever. This one fires *sometimes* — and an alert that arrives sometimes is what earns the trust that makes you stop running `make status`. <br><br>**The deeper problem is architectural and is the owner's call.** A watchdog for cloud spend runs on a laptop that sleeps. The window it must cover — cluster left up overnight — is *precisely* the window in which the laptop is off. Restarting the container re-registers the crons and is a workaround, not a fix. The durable answer is something that runs in AWS: an **AWS Budgets alert** (free, email, zero infrastructure) or an **EventBridge schedule**. Both are new services, so `CLAUDE.md § 4` says ask first. <br><br>**Until then: verify teardown with `make status`, never by the absence of an email.** |
+| `D-25` | **Medium — a teardown failed and the notification about it also failed** | `scripts/scheduled-destroy.sh`, WSL DNS, n8n SMTP | **The 2026-09-14 nightly teardown exited 2, and nothing told anyone for two days.** <br><br>`logs/scheduled-destroy-2026-09-14_174528.log` ends: `Error: validating provider credentials: retrieving caller identity from STS: ... lookup sts.ap-south-1.amazonaws.com on 8.8.8.8:53: i/o timeout` → `destroy finished: failure (exit 2)`. That is the documented WSL2 DNS failure (`CLAUDE.md § 5`), here across a sleep/resume. <br><br>**Then the second layer failed too.** The script did POST to `destroy-notifier`, which ran (execution **45**) and could not send: `connect ECONNREFUSED 192.178.158.108:465`. So the failure notification failed. <br><br>**No money was lost** — the cluster had already been destroyed by hand that evening, so the teardown was a no-op that failed rather than a real teardown that was skipped. The 2026-09-16 run succeeded (`0 destroyed`, `HTTP 200`). **That is luck, not design:** had a cluster been up, it would have billed until someone opened the logs. <br><br>**Also worth noting:** the log's own filename (`17:45:28` UTC) and its first line (`04:15 IST`) disagree by about five hours, and 04:15 IST is exactly when Windows went to sleep. The clock behaviour across suspend is **UNKNOWN** and deliberately not explained here rather than guessed at. <br><br>**The teardown is also not running at 23:30.** Both recent runs finished at ~11:18 and ~11:24 IST, minutes after the machine woke — Task Scheduler catching up a missed start. Same root cause as `D-24`: the laptop is asleep at 23:30. |
 | ~~`D-01`~~ | **RESOLVED** 2026-08-30 (`7b7b0bd`) | [links-service/app/main.py:29](links-service/app/main.py:29) | `createLink` builds `new_link = Link(id=next_id, ...)` but then stores the *incoming* `link` (a `LinkCreate`, which has no `id`). It returns `new_link`, so `POST` looks correct — but `GET /links` and `GET /links/{id}` return records with no `id` field. Fix: store `new_link`. |
 | ~~`D-16`~~ | **RESOLVED** 2026-09-10 | [links-service/app/main.py](links-service/app/main.py) | Was: `POST /links` returned **`200`**, not `201 Created`. REST convention for a request that creates a resource is `201` plus a `Location` header pointing at it. Nothing is broken — `gateway` only checks `>= 400`, and the tests assert current behaviour — but it is a public API contract, so **flagged for the owner's decision rather than changed**. **Owner decided: change it.** Now `status_code=201` with a `Location` header pointing at `/links/{id}`, plus a test asserting the header resolves. Done while nothing external consumed the API and `gateway` only checks `>= 400` — the last cheap moment before something depended on `200`. |
 | ~~`D-17`~~ | **RESOLVED** 2026-09-10 | [gateway/pyproject.toml](gateway/pyproject.toml) | Was: the two services used **different HTTP clients**: `links-service` moved to `httpx2` 2.12.0 (starlette's `TestClient` deprecates `httpx`), while `gateway` still uses `httpx` 0.28 as a **runtime** dependency for its `AsyncClient`. Nothing is broken and no deprecation applies to gateway's usage — but two services in one project on different HTTP clients will surprise someone later, and `S-02` will have to pick one. **Owner decided: move `gateway` to `httpx2` as well.** Done while gateway was still undeployed, which was the cheapest moment — its whole surface is one `AsyncClient`, one `get` and three exception types, and every name it uses (`TimeoutException`, `RequestError`, `ConnectError`, `MockTransport`, `Response`) exists identically in `httpx2` 2.12.0, with `TimeoutException` still subclassing `RequestError`. A pure import swap; 15 tests pass and the starlette deprecation warning is gone. **`S-02` now has an obvious answer instead of a coin-flip.** |
 | ~~`D-23`~~ | **RESOLVED 2026-09-14** — `cluster_version` raised to **1.36** (standard support to 2027-08-02). `terraform validate` and `plan` both clean, 59 to add, plan confirms the new version. **Not yet exercised by a real `make up`** — the next cluster session is the proof. 1.34 was rejected deliberately: its standard support ends 2026-12-02, which would put this task straight back on the board. | [infra/eks.tf](infra/eks.tf) | **`cluster_version = "1.31"` is in EXTENDED support, and that is 74% of every cluster bill.** Verified 2026-09-13 via `aws eks describe-cluster-versions`: 1.31 left standard support on **2025-11-26** and extended support ends **2026-11-26**. The AWS Pricing API gives the only non-Auto EKS rate in `ap-south-1` as `APS3-AmazonEKS-Hours:extendedSupport` at **$0.50/hour — five times the $0.10 standard rate**. <br><br>**Measured, not estimated.** The 2026-09-13 session ran 3.54 control-plane hours and cost **$2.40 (~Rs 211)** in total, of which **$1.77 was the control plane**. On standard support the same session would have been **$0.98 (~Rs 87)**. <br><br>**`CLAUDE.md` § 4's "$150–200/month if left up 24×7" is therefore understated** — the control plane alone at $0.50/h is ~$365/month. That figure needs correcting once the version is decided. <br><br>**Also a deadline, not just a cost:** after 2026-11-26 AWS force-upgrades the control plane on its own schedule. <br><br>**Fix is one line** — `cluster_version` to `1.34` (standard support until 2026-12-02) or later. It is the owner's: a Terraform change to the EKS module, and a version jump can surface API deprecations, so it wants a `plan` read rather than a blind bump. |
-| ~~`D-22`~~ | **RESOLVED AND BEHAVIOURALLY VERIFIED 2026-09-14** | n8n `cost-watchdog` (Schedule Trigger) | **The cost watchdog has never fired on schedule, and structurally cannot.** Its trigger is set to hours 17 and 21, but n8n interprets those in `GENERIC_TIMEZONE`, which is **unset on this container** — so n8n falls back to its default, `America/New_York`. Verified: `docker exec n8n env` shows neither `GENERIC_TIMEZONE` nor `TZ` set, the container clock is UTC, and the workflow's own `settings` carry no timezone override. **17:00 America/New_York = 02:30 IST and 21:00 = 06:30 IST** (EDT is `-0400`, IST is `+0530`). <br><br>**So it checks at 2:30am and 6:30am**, by which time the 23:30 nightly teardown has already destroyed the cluster — meaning it can never find one running and can never email. A monitor that runs at a time when the condition it watches for is impossible. <br><br>**Proven by omission on 2026-09-13**: the cluster was up from 20:30 IST, past both intended trigger times, and the n8n API shows **no scheduled execution at all** — the most recent run is that morning's manual test. n8n itself was up 12 hours, so it was not a downtime problem. <br><br>**This is `learn/17`'s timezone trap in a different tool**, and it is why `N-01b` closing was not the same as the watchdog working: `N-01b` proved the email NODE sends, never that the workflow FIRES. <br><br>**FIXED 2026-09-14.** The container was recreated with `-e GENERIC_TIMEZONE=Asia/Kolkata -e TZ=Asia/Kolkata`; the `n8n_data` volume persisted, and both workflows plus both credentials (`AWS (IAM) account`, `SMTP account`) came back intact. **`--restart unless-stopped` was added at the same time** — the container's restart policy had been `no`, which is why it was found `Exited (137)` earlier that day and needed a manual start. **A watchdog whose n8n is not running cannot fire either**, so that was part of the same defect. <br><br>**Verified behaviourally, not by reading the setting back** — reading it back is precisely what would have hidden this again. A throwaway workflow was created via the API with cron `22 0 * * *`, three minutes in the future **IST**. It fired at **00:22:08 IST**, `mode=trigger`, `status=success`. Under `America/New_York` that same cron would have been ~9.5 hours away and nothing would have happened. Probe deactivated and deleted; only the two real workflows remain. <br><br>**Still worth doing once:** leave a cluster up past 17:00 IST and confirm `cost-watchdog` itself emails. The scheduler is proven; that workflow's own end-to-end path still has not run. |
+| ~~`D-22`~~ | **RESOLVED AND BEHAVIOURALLY VERIFIED 2026-09-14** | n8n `cost-watchdog` (Schedule Trigger) | **The cost watchdog has never fired on schedule, and structurally cannot.** Its trigger is set to hours 17 and 21, but n8n interprets those in `GENERIC_TIMEZONE`, which is **unset on this container** — so n8n falls back to its default, `America/New_York`. Verified: `docker exec n8n env` shows neither `GENERIC_TIMEZONE` nor `TZ` set, the container clock is UTC, and the workflow's own `settings` carry no timezone override. **17:00 America/New_York = 02:30 IST and 21:00 = 06:30 IST** (EDT is `-0400`, IST is `+0530`). <br><br>**So it checks at 2:30am and 6:30am**, by which time the 23:30 nightly teardown has already destroyed the cluster — meaning it can never find one running and can never email. A monitor that runs at a time when the condition it watches for is impossible. <br><br>**Proven by omission on 2026-09-13**: the cluster was up from 20:30 IST, past both intended trigger times, and the n8n API shows **no scheduled execution at all** — the most recent run is that morning's manual test. n8n itself was up 12 hours, so it was not a downtime problem. <br><br>**This is `learn/17`'s timezone trap in a different tool**, and it is why `N-01b` closing was not the same as the watchdog working: `N-01b` proved the email NODE sends, never that the workflow FIRES. <br><br>**FIXED 2026-09-14.** The container was recreated with `-e GENERIC_TIMEZONE=Asia/Kolkata -e TZ=Asia/Kolkata`; the `n8n_data` volume persisted, and both workflows plus both credentials (`AWS (IAM) account`, `SMTP account`) came back intact. **`--restart unless-stopped` was added at the same time** — the container's restart policy had been `no`, which is why it was found `Exited (137)` earlier that day and needed a manual start. **A watchdog whose n8n is not running cannot fire either**, so that was part of the same defect. <br><br>**Verified behaviourally, not by reading the setting back** — reading it back is precisely what would have hidden this again. A throwaway workflow was created via the API with cron `22 0 * * *`, three minutes in the future **IST**. It fired at **00:22:08 IST**, `mode=trigger`, `status=success`. Under `America/New_York` that same cron would have been ~9.5 hours away and nothing would have happened. Probe deactivated and deleted; only the two real workflows remain. <br><br>**PARTLY ANSWERED 2026-09-16, and it did not need a cluster.** Execution **44** shows `cost-watchdog` firing at `2026-09-14 21:00:05 IST`, `mode=trigger` — on its own schedule, at the right IST hour, for the first time ever. It 404'd and halted because the cluster was already gone, which is correct. **So the trigger half is proven; only the "sees a live cluster, therefore emails" half is not.** <br><br>**But see `D-24`** — it has not fired since, and the fix verified here turns out to survive only until the host sleeps. |
 | ~~`D-21`~~ | **RESOLVED same day** 2026-09-13 | [manifests/gateway/deployment.yaml](manifests/gateway/deployment.yaml) | `AGGREGATOR_URL` was added to gateway's code with a `http://localhost:8002` default but **never added to its Deployment**. In a pod `localhost` is the pod, so gateway dialled *itself* on 8002 and answered `503 aggregator unavailable` for every `/status` request. **Second instance of one pattern** — identical in shape to the `LINKS_SERVICE_URL` port bug of 2026-09-10 (`:8000` vs `:80`): a sensible local default, a Deployment that forgot to override it, and nothing consuming the value until the day something did. **A config variable whose default is `localhost` is a landmine unless the Deployment overrides it.** Worth noting the error mapping worked exactly as designed — it said *aggregator* unavailable, naming the right service, which is the whole reason gateway distinguishes 502/503/504. Also note aggregator's Service exposes **8002 targeting 8002**, unlike links-service's 80→8000; copying the `:80` out of symmetry is how this recurs. |
 | `D-20` | Informational — **mitigated by design** | [aggregator/app/probe.py](aggregator/app/probe.py) | `aggregator` fetches URLs that **anyone who can `POST` to `links-service` chose**, from inside the cluster — textbook SSRF, where the value of the attack is precisely the network position the service has. **Logged even though it is mitigated**, because the mitigation is narrow on purpose and a future reader needs to know why rather than "fixing" it. The reflex answer — block private address space — is **wrong here**: app-hub exists to catalogue apps on `10.x`, `192.168.x` and `localhost`, so that would block the product, and a guard that breaks the use case gets deleted within a day. It refuses link-local (`169.254.0.0/16`, the instance metadata endpoint), cloud metadata hostnames, and non-HTTP schemes; hostnames are resolved before checking. **Known gap, stated rather than hidden:** DNS can answer differently between our lookup and the client's (DNS rebinding). Closing it means pinning the resolved address via a custom transport — worth doing if this ever probes URLs from an untrusted source. **This matters more after `C-05`**, which attaches a real IAM role to this namespace. |
 | `D-19` | Informational — **fixed same day** | [gateway/app/static/style.css](gateway/app/static/style.css) | The dashboard's add form was marked `hidden` and rendered anyway, and the JS toggling `.hidden` did nothing at all — silently. `hidden` is not a behaviour, it is one rule in the browser's default stylesheet (`[hidden] { display: none }`), and **any author rule setting `display` outranks it**; `#add-form { display: flex }` did. Fixed with `[hidden] { display: none !important; }`. **Kept in this table because of what it says about the tests, not the bug:** all 47 passed, including seven that assert the page is served, typed correctly, does not shadow `/health`, and references only assets that exist. Every one was true and every one was blind to the rendered result. **"The tests pass" and "it works" are different claims about a user interface.** A follow-on of the same shape: the CSS fix appeared to do nothing because the browser reused a cached `style.css` without revalidating — which after a deploy means new HTML with an old stylesheet and no error anywhere. `/` and `/static/*` now send `Cache-Control: no-cache` (meaning *revalidate*, not *do not cache*). |
@@ -260,6 +280,83 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-16 — The validator was not validating the thing it was written for
+
+**No cluster, no cost. Three findings, one fixed, two recorded.**
+
+**1. `make validate` never opened `manifests/monitoring/`.** The loop was
+`$(MANIFEST_ROOT) $(foreach s,$(SERVICES),...)`, and `SERVICES` is
+`links-service gateway aggregator`. `monitoring/` is not a service, so it was
+not in the list — which means the ServiceMonitor cross-check added on
+2026-09-14, **written specifically for the file in that directory**, had never
+once run under `make validate`. The command printed `all checks passed` without
+opening the file it was built to check.
+
+`SERVICES` could not simply be extended: it also drives build/push/deploy, so
+`monitoring` would have been handed to `docker build` with no source tree.
+**Fixed by deleting the list rather than extending it** — the loop is now a
+shell glob over `$(MANIFEST_ROOT)/*/`, so a new manifest directory is covered
+the moment it exists. Same failure family as `ECR_REPOS` and the root
+`.gitignore`: a hand-maintained list that nothing reconciles against the
+filesystem, failing by **omission**, which produces silence rather than an error.
+
+**Proven, not assumed.** A copy of the real ServiceMonitor with `port: http`
+changed to `port: bogus-port-name` was run through the validator: three `FAIL`
+lines, exit 1. `make validate` now walks six directories including `monitoring`,
+and passes.
+
+**2. `cost-watchdog` fired on its own schedule for the first time ever — and
+then stopped.** Execution **44**, `2026-09-14 21:00:05 IST`, `mode=trigger`:
+correct hour, correct timezone, `404 No cluster found`, halted. The `D-22`
+timezone fix confirmed on the real workflow rather than on the throwaway probe.
+
+**The method is the transferable part.** `D-22`'s row said the one remaining
+test was *"leave a cluster up past 17:00 IST"*. That was wrong, and expensively
+so — it put a ~$0.28/hour cluster in the way of a question that the
+**execution list already answered for free**. The 404 branch writes an execution
+row exactly like the 200 branch would. *When a check needs an expensive
+precondition, ask what the cheap half of it would already have told you.*
+
+**3. But it has not fired since, and that is `D-24`.** On 2026-09-15 both
+trigger hours passed with the machine awake (`11:16–21:41 IST`), the
+container up continuously, `active: true`, empty `pinData` — and **no
+execution row at all**. A Windows sleep sits between the last good fire and the
+silence.
+
+**This is worse than `D-22`, not a repeat of it.** `D-22` was reliably dead.
+This is *intermittently alive*, and an alert that arrives sometimes is what
+earns the trust that stops you running `make status`. **The architecture is the
+real defect:** a watchdog for cloud spend runs on a laptop, and the window it
+exists to cover — a cluster left up overnight — is precisely the window
+in which the laptop is asleep. The durable answer runs in AWS (a Budgets alert
+is free and needs no infrastructure), which is a new service and therefore the
+owner's call under `CLAUDE.md § 4`.
+
+**4. A teardown failed, and so did the notification about it — `D-25`.** The
+2026-09-14 nightly run exited 2 on `lookup sts.ap-south-1.amazonaws.com ... i/o
+timeout`, the documented WSL2 DNS failure, across a sleep/resume. It did POST to
+`destroy-notifier`, which then could not send: `connect ECONNREFUSED
+...:465`. **Both layers of the safety net failed in the same night and nothing
+said so for two days.** No money was lost only because the cluster had already
+been destroyed by hand — luck, not design.
+
+Also visible in those logs: **the teardown is not running at 23:30.** Both
+recent runs finished just after the machine woke, ~11:18 and ~11:24 IST —
+Task Scheduler catching up a missed start, because the laptop is asleep at 23:30.
+Same root cause as `D-24`.
+
+**Verified live at 14:34 IST: nothing is billing.** No clusters, NAT gateways,
+load balancers, running EC2, available EBS or unassociated EIPs. `app-hub-links`
+intact.
+
+**Stale-doc sweep of the START HERE block**, which is the block this file tells
+Claude to read first and which still pointed at `R-05` as the next task. It
+claimed a teardown two teardowns out of date, warned that `R-01`–`R-04` had
+never met a real API server (they have, twice), and said the dashboard had never
+run on the cluster (it has, since 2026-09-13). All corrected, each with a note
+saying what it used to say — per `learn/25`, a silently corrected document
+teaches nothing.
 
 ### 2026-09-14 — `R-05` done: Prometheus, Grafana, and the operator pattern proven
 

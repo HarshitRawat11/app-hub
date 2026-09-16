@@ -323,8 +323,25 @@ validate:
 	python3 scripts/check-doc-drift.py
 	@echo "== manifests =="
 	@# Validated per directory, because the checker globs *.yaml in one level.
-	@for d in $(MANIFEST_ROOT) $(foreach s,$(SERVICES),$(MANIFEST_ROOT)/$(s)); do \
-	  python3 scripts/validate-manifests.py "$$d" || exit 1; \
+	@#
+	@# The directory list is a SHELL GLOB, not $(SERVICES). It was $(SERVICES)
+	@# until 2026-09-16, and that silently excluded manifests/monitoring/ --
+	@# the one directory holding the ServiceMonitor that the validator's
+	@# newest check was written FOR. `make validate` printed "all checks
+	@# passed" without ever opening it.
+	@#
+	@# Same shape as a service missing from ECR_REPOS, or a repo missing from
+	@# the root .gitignore: a hand-maintained list that nothing reconciles
+	@# against the filesystem, so it fails by OMISSION rather than by error.
+	@# Deriving the list removes the thing there was to forget.
+	@#
+	@# SERVICES cannot simply be extended -- it also drives build/push/deploy,
+	@# which would then try to `docker build` a monitoring/ directory that has
+	@# no source tree at all.
+	@for d in $(MANIFEST_ROOT) $(MANIFEST_ROOT)/*/; do \
+	  [ -d "$$d" ] || continue; \
+	  echo "-- $${d%/}"; \
+	  python3 scripts/validate-manifests.py "$${d%/}" || exit 1; \
 	done
 	@echo "== terraform: ephemeral stack =="
 	cd infra && terraform fmt -check -recursive . && terraform validate

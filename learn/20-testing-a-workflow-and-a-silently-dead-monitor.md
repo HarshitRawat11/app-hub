@@ -197,3 +197,59 @@ wsl -e bash -lc 'cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub/n8n &&
 ---
 
 **Open:** `D-13`. Until the Gmail credential is reconnected, **verify teardown with `make status`, not by waiting for an email.** The watchdog cannot warn you.
+
+---
+
+## Postscript, 2026-09-16 — the third way this monitor died
+
+`D-13` (expired OAuth token) is long fixed, and so is `D-22` (the trigger ran on
+`America/New_York`, so it checked at 2:30 AM when the cluster was always already
+gone). This file now has a third entry, and the three together are the actual
+lesson.
+
+**What was found.** Execution **44** shows `cost-watchdog` firing at
+`2026-09-14 21:00:05 IST`, `mode=trigger` — the first genuine scheduled run
+in the project's life, at the right hour, in the right timezone. **It has not
+fired since.** On 2026-09-15 both trigger hours passed with the laptop awake
+(`11:16–21:41 IST`), the container up continuously, the workflow
+`active: true` and `pinData` empty. No execution row exists. A Windows
+sleep/resume sits between the last good fire and the silence.
+
+**Three deaths, one symptom.** Expired credential, wrong timezone, host sleep.
+Every time, the n8n UI said `active`. **`active` means "n8n intends to run this",
+never "n8n has run this".** The only honest signal is an **execution row**, and
+that is the thing to check.
+
+### The cheap-half question
+
+`D-22`'s row said the remaining test was *"leave a cluster up past 17:00 IST and
+confirm it emails"* — a test costing about $0.28/hour plus an evening of
+waiting. It was never necessary. **The 404 branch writes an execution row just
+like the 200 branch does**, so the trigger half was provable for free by reading
+the execution list. Only the narrow *"sees a live cluster, therefore emails"*
+half ever needed a cluster.
+
+> When a check seems to need an expensive precondition, ask what the cheap half
+> of it would already have told you.
+
+### The part that is not a bug
+
+The two earlier deaths were defects with fixes. This one is a **design flaw**,
+and it is worth seeing clearly:
+
+> The watchdog runs on a laptop. The window it exists to cover — a cluster
+> left running overnight — is exactly the window in which the laptop is
+> asleep.
+
+Restarting the container re-registers the crons, which is a workaround. The
+durable answer is something that runs **in AWS, not on the laptop**: an AWS
+Budgets alert costs nothing and needs no infrastructure at all; an EventBridge
+schedule is the heavier option. Both are new services, so `CLAUDE.md § 4`
+makes that the owner's decision rather than Claude's.
+
+The same night exposed the second layer failing too: the nightly teardown exited
+2 on a WSL DNS timeout, POSTed the failure to `destroy-notifier`, and **that
+could not send either** (`connect ECONNREFUSED ...:465`). Recorded as `D-25`.
+**A safety net with two layers is not twice as safe when both layers sit on the
+same sleeping laptop.**
+
