@@ -70,7 +70,13 @@
       .then(function (r) { return r.ok ? r.json() : { projects: [] }; })
       .then(function (data) {
         (data.projects || []).forEach(function (p, i) {
-          if (!p.url) return; // not yet supplied -- see projects.json
+          // `public` matters here for the same reason it does on the landing
+          // page: THIS DEMO IS ALSO PUBLIC. It is served from the same Netlify
+          // site, so a localhost entry would give every visitor a card that
+          // does nothing -- and one that reports "up" in the status panel,
+          // because the stub does not really probe anything. A dead link that
+          // claims to be healthy is worse than no link.
+          if (!p.url || !p.public) return; // see projects.json
           links.push({
             // Deterministic ids so a reload does not reshuffle them, and
             // prefixed so they cannot collide with the seed uuids above.

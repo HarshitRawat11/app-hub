@@ -78,7 +78,17 @@
       return r.json();
     })
     .then(function (data) {
-      const ready = (data.projects || []).filter(function (p) { return p.url; });
+      // `public` is the load-bearing filter, not `url`.
+      //
+      // Three of the owner's projects are reachable only from their own
+      // machine -- two localhost dev servers and a personal Xiaomi account.
+      // Those are correct entries for a private start page and dead links on
+      // a public portfolio page, where every visitor would get a connection
+      // error. Rendering them here would be the single most obviously broken
+      // thing on the site.
+      const ready = (data.projects || []).filter(function (p) {
+        return p.url && p.public;
+      });
       if (!ready.length) return; // section stays hidden
       ready.forEach(function (p) { list.appendChild(card(p)); });
       section.hidden = false;

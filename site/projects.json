@@ -4,46 +4,76 @@
     "Three things read this file: the Projects section on site/index.html, the",
     "demo catalogue in site/static/demo-api.js, and scripts/seed-projects.py,",
     "which writes them into the real links catalogue when a cluster is up.",
-    "Writing the same four links in three places is exactly the duplication",
-    "this project keeps paying for, so scripts/check-doc-drift.py verifies the",
-    "HTML section against this file and fails if they disagree.",
     "",
-    "url: null means NOT YET SUPPLIED. Every consumer skips those entries",
-    "rather than rendering a dead link, and the drift checker reports them as",
-    "pending. A placeholder that renders is worse than one that does not: a",
-    "broken link on a portfolio page is read as carelessness, not as a TODO.",
+    "url: null means NOT YET SUPPLIED. Every consumer skips those entries, and",
+    "the seeder names them rather than skipping in silence.",
     "",
-    "repo is a fallback, never a substitute. It is shown as a secondary link",
-    "where it exists, so a project with no deployment still has somewhere to go."
+    "public DECIDES WHERE AN ENTRY IS ALLOWED TO APPEAR, and it is the field",
+    "that matters most here.",
+    "",
+    "  public: true   goes everywhere -- the portfolio page, the demo",
+    "                 catalogue, and the real catalogue.",
+    "  public: false  ONLY the real catalogue, which is the owner's private",
+    "                 start page.",
+    "",
+    "Three of these four are reachable only by the owner: two are localhost and",
+    "one is behind a personal Xiaomi account. Those are entirely CORRECT links",
+    "for a personal start page -- pointing at your own dev server is what a",
+    "start page is for -- and entirely WRONG on a public portfolio page, where",
+    "every visitor gets a connection error and reads it as carelessness.",
+    "",
+    "So the flag is not a quality judgement. It is the difference between 'a",
+    "link that works for me' and 'a link that works for anyone'."
   ],
   "projects": [
+    {
+      "name": "log-book",
+      "url": "https://log-book-hr.netlify.app/train",
+      "repo": "https://github.com/HarshitRawat11/log-book",
+      "public": true,
+      "blurb": "",
+      "stack": "TypeScript",
+      "icon": "📓"
+    },
     {
       "name": "Procedo",
       "url": null,
       "repo": "https://github.com/HarshitRawat11/Procedo",
+      "public": true,
       "blurb": "",
-      "stack": "Astro"
-    },
-    {
-      "name": "log-book",
-      "url": null,
-      "repo": "https://github.com/HarshitRawat11/log-book",
-      "blurb": "",
-      "stack": "TypeScript"
+      "stack": "Astro",
+      "icon": "✅",
+      "note": "No URL supplied yet. Astro, so it can be deployed like log-book was."
     },
     {
       "name": "Notes",
-      "url": null,
+      "url": "https://in.i.mi.com/note/h5#/",
       "repo": null,
+      "public": false,
       "blurb": "",
-      "stack": ""
+      "stack": "",
+      "icon": "📝",
+      "note": "Xiaomi Mi Cloud notes. Returns 200 to anyone, but it is the owner's personal account -- a visitor gets a login screen, not the notes."
     },
     {
       "name": "Acharya Amit",
-      "url": null,
+      "url": "http://localhost:4322/",
       "repo": "https://github.com/HarshitRawat11/acharya-amit-pur",
+      "public": false,
       "blurb": "",
-      "stack": ""
+      "stack": "",
+      "icon": "🌐",
+      "note": "Local dev server. Port 4322 rather than Astro's default 4321, which is what Procedo's README uses -- so the two can run side by side."
+    },
+    {
+      "name": "app-hub",
+      "url": "http://localhost:8001/",
+      "repo": "https://github.com/HarshitRawat11/app-hub",
+      "public": false,
+      "blurb": "",
+      "stack": "FastAPI",
+      "icon": "🗂️",
+      "note": "gateway running locally. In-cluster the equivalent is the ALB from E-06, whose hostname changes on every rebuild and so cannot be written down here."
     }
   ]
 }

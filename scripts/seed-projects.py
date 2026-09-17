@@ -72,7 +72,16 @@ def main() -> int:
     data = json.loads(PROJECTS.read_text(encoding="utf-8"))
     entries = data.get("projects", [])
 
-    # A project with no URL is not ready. Reported rather than skipped in
+    # NOTE THIS DOES NOT FILTER ON `public`, and that is deliberate.
+    #
+    # The landing page and the demo catalogue both skip non-public entries,
+    # because both are served to strangers. This one writes into the OWNER'S
+    # OWN start page, where a localhost dev server or a personal notes account
+    # is exactly the kind of link that belongs -- that is what a start page is
+    # for. Filtering here would strip out three of the four and quietly defeat
+    # the point.
+    #
+    # A project with no URL is still not ready. Reported rather than skipped in
     # silence -- "nothing happened" and "nothing was ready" are different
     # facts, and a seeder that prints neither is one you stop trusting.
     ready = [p for p in entries if p.get("url")]
