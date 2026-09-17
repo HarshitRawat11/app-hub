@@ -40,13 +40,13 @@
     },
     {
       "name": "Procedo Infosystems",
-      "url": null,
+      "url": "https://procedoinfo-preview.netlify.app/",
       "repo": "https://github.com/HarshitRawat11/Procedo",
       "public": true,
       "blurb": "Marketing site for an infrastructure-first IT firm — IT infrastructure, security, audio-visual, telecom and power systems.",
       "stack": "Astro",
       "icon": "🏢",
-      "note": "No URL yet, but it is READY to deploy: static Astro build, netlify.toml already committed, default branch master. Likely belongs on the client's own domain rather than a netlify.app subdomain."
+      "note": "Live at a netlify.app preview subdomain. If it moves to the client own domain, change it here -- this file is the only place it is written."
     },
     {
       "name": "Acharya Amit Puri",
