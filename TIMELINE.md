@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 144 across 7 repositories |
-| Active days | 21 |
+| Commits | 148 across 7 repositories |
+| Active days | 22 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-16 23:35 IST |
+| Latest commit | 2026-09-17 12:35 IST |
 
 ---
 
@@ -263,3 +263,12 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 23:34 | `infra` | `2a8436e` | A daily spend guardrail that runs in AWS, not on the laptop |
 | 23:34 | `manifests` | `802f698` | Point the E-06 runbook at learn/32, not learn/31 |
 | 23:35 | `app-hub` | `8831c3b` | Record the daily spend guardrail; learn/31 |
+| 23:51 | `app-hub` | `a25d4b1` | A public project page on Netlify, and what it deliberately is not |
+| 23:51 | `manifests` | `57a391b` | Stop naming E-06 learn number in advance |
+
+## 2026-09-17
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 11:23 | `app-hub` | `afd34dd` | Projects section: one source of truth, three readers |
+| 12:35 | `app-hub` | `16d1ffd` | Projects: split by who the link actually works for |

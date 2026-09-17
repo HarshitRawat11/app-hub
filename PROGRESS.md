@@ -130,7 +130,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
-| P-10 | Public project page on **Netlify** | **BUILT 2026-09-16, NOT YET DEPLOYED** — `site/` plus `netlify.toml` at the repo root. Landing page (architecture, cost policy, seven repos, write-ups) and **the real dashboard running with no backend** at `/demo.html`. Verified locally: every asset 200s, the stub matches the real API's status codes (201/204/404), and `check-doc-drift.py` gained a vendored-copy check. `learn/32` | **Needs the owner** — connecting the repo means logging into Netlify and authorising it against GitHub, which is not something to hand to an agent | Follow `site/README.md`: Netlify → Add new site → import `HarshitRawat11/app-hub`, **leave every build setting blank** (`netlify.toml` sets `publish = "site"` and an empty command). Every push to `master` redeploys after that. |
+| P-10 | Public project page on **Netlify** | **BUILT 2026-09-16, NOT YET DEPLOYED** — `site/` plus `netlify.toml` at the repo root. Landing page (architecture, cost policy, seven repos, write-ups) and **the real dashboard running with no backend** at `/demo.html`. Verified locally: every asset 200s, the stub matches the real API's status codes (201/204/404), and `check-doc-drift.py` gained a vendored-copy check. `learn/32` | **Needs the owner** — connecting the repo means logging into Netlify and authorising it against GitHub, which is not something to hand to an agent | Follow `site/README.md`: Netlify → Add new site → import `HarshitRawat11/app-hub`, **leave every build setting blank** (`netlify.toml` sets `publish = "site"` and an empty command). Every push to `master` redeploys after that. <br><br>**Projects section added 2026-09-17.** `site/projects.json` is the single source of truth, read by three things: the landing-page section, the demo catalogue, and `scripts/seed-projects.py`. A **`public` flag** decides where each entry may appear — three of the owner's four URLs are reachable only from their own machine (`localhost:4322`, `localhost:8001`, and a personal Xiaomi notes account), which is correct for a private start page and wrong on a public portfolio page. <br><br>**Still open:** `Procedo` has no URL (it was swapped for `app-hub` in the list that came back), and every `blurb` is empty — `log-book` is the only publicly-visible card, so it is the one that matters. |
 | P-01 | Version-control the root docs (`CLAUDE.md`, `README.md`, `PROGRESS.md`, `CONTEXT-BRIEF.md`, `learn/`) | **Done** | None | Done 2026-08-30 (`2dfcc93`). Chose an **umbrella repo at the root** that tracks only the cross-cutting docs and gitignores `infra/`, `links-service/`, `manifests/`, `n8n/` so they stay fully independent. Remote not created yet — see `P-08`. |
 | P-02 | Commit the untracked `links-service/Dockerfile` | **Done** | None | Committed 2026-08-30 as `5e312ef`, after fixing `P-03` and `D-11` in the same file |
 | P-03 | Fix Dockerfile base image / Python version mismatch | **Done** | None | Committed 2026-08-30 as `5e312ef`. Base moved to `python:3.14-slim` (verified to exist, currently 3.14.7) so the tag matches `requires-python >=3.14`. Fixed together with `D-11`. |
@@ -285,6 +285,64 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-17 — A projects section, and a flag for who a link actually works for
+
+**One file, three readers.** `site/projects.json` holds the owner's other
+projects; the landing-page section, the demo catalogue and
+`scripts/seed-projects.py` all read it. Four links written out in three places
+is the duplication this project keeps paying for, so the section is *rendered*
+rather than written into the HTML and there is no copy to drift.
+
+**The interesting part was the data, not the plumbing.** Of the four URLs
+supplied, **three are reachable only from the owner's own machine**:
+`acharya-amit` at `localhost:4322`, `app-hub` at `localhost:8001`, and `Notes`
+behind a personal Xiaomi account that returns `200` to anyone and shows a login
+screen to everyone but them.
+
+Those are **correct** entries for a private start page — pointing at your own
+dev server is what a start page is *for* — and **wrong** on a public
+portfolio page, where every visitor gets a connection error and reads it as
+carelessness. So `projects.json` gained a `public` flag, and it decides *where*
+an entry may appear rather than being a quality judgement:
+
+```
+public: true    portfolio page + demo catalogue + real catalogue
+public: false   real catalogue only
+```
+
+**The demo case is the subtler one.** It is served from the same public Netlify
+site, and the stub does not really probe anything — so a `localhost` card
+would render **and report itself `up`** in the status panel. **A dead link
+claiming to be healthy is worse than no link.**
+
+**`seed-projects.py` deliberately does NOT filter on `public`**, and that is
+commented, because the asymmetry reads as an oversight otherwise. It writes into
+the owner's own catalogue, so filtering there would strip three of the four and
+defeat the point.
+
+**Verified all three readers at once** rather than assuming the flag threaded
+through: public landing page — one card, `log-book`, with its source link;
+public demo — one project and **no `localhost` URL anywhere** in the
+catalogue; real catalogue via the seeder — all four created, `localhost`
+included, `Procedo` reported pending. The seeder is idempotent **by name**, so a
+rename creates a second record rather than updating the first.
+
+**URLs were checked, not assumed.** `log-book` returns 200; `localhost:4322` was
+up on this machine and `localhost:8001` was not — which is precisely the
+point being made.
+
+**Two process notes worth keeping.** Twice in this session a `curl` immediately
+after starting a server reported a connection failure that was **only a race
+with startup**, and once two `uvicorn` processes **died silently because their
+ports were still held** by servers from earlier — so a test appeared to pass
+while running against something else entirely. Both are the same shape as the
+measurement artifacts already recorded in `CLAUDE.md § 9`.
+
+**And this entry itself was late.** The code was committed and pushed before
+`PROGRESS.md` was touched, which `§ 7` does not allow; it was caught only
+when the owner next asked for the pending list. Recorded rather than quietly
+backdated.
 
 ### 2026-09-16 — A public page on Netlify, and what it deliberately is not
 
