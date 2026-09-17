@@ -102,6 +102,28 @@ ul.repos a { display: flex; justify-content: space-between; gap: 0.8rem; align-i
 ul.repos a:hover { border-color: var(--accent); }
 ul.repos span { color: var(--muted); font-size: 0.8rem; text-align: right; }
 
+/* Projects list. Two links per row -- the live site, and "source" where the
+   repo is public -- so a project with no deployment still has somewhere to go. */
+ul.projects { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
+ul.projects li { display: flex; align-items: stretch; gap: 0.4rem; }
+ul.projects li > a:first-child {
+  flex: 1; display: flex; flex-direction: column; gap: 0.15rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.7rem 0.9rem;
+  text-decoration: none; color: var(--text); font-size: 0.93rem; }
+ul.projects li > a:first-child:hover { border-color: var(--accent); }
+ul.projects .blurb { color: var(--muted); font-size: 0.83rem; line-height: 1.5; }
+ul.projects .stack { color: var(--muted); font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; }
+ul.projects a.repo {
+  display: flex; align-items: center; padding: 0 0.7rem;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--muted);
+  text-decoration: none; font-size: 0.78rem; white-space: nowrap; }
+ul.projects a.repo:hover { border-color: var(--accent); color: var(--accent); }
+/* [hidden] must win over any author display rule -- learn/ D-19. */
+[hidden] { display: none !important; }
+
 .stats { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
 .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
 .stat b { display: block; font-size: 1.5rem; letter-spacing: -0.02em; }
@@ -281,6 +303,16 @@ footer { border-top: 1px solid var(--border); padding: 2rem 0 3.5rem; color: var
     </div>
   </section>
 
+  <!-- Rendered from projects.json by /static/projects.js, and hidden until at
+       least one project has a live URL. `hidden` is honoured because nothing
+       in this stylesheet sets `display` on a section -- the same trap that bit
+       the dashboard in D-19, where an author rule outranked the UA default. -->
+  <section id="projects" hidden>
+    <h2>Other things I've built</h2>
+    <p class="sub">Separate projects, not part of app-hub. Live links, with source where it is public.</p>
+    <ul class="projects" id="projects-list"></ul>
+  </section>
+
   <section>
     <h2>Seven repositories</h2>
     <p class="sub">
@@ -344,5 +376,7 @@ footer { border-top: 1px solid var(--border); padding: 2rem 0 3.5rem; color: var
   </footer>
 
 </div>
+
+<script src="/static/projects.js"></script>
 </body>
 </html>

@@ -27,6 +27,11 @@
 (function () {
   "use strict";
 
+  // Captured BEFORE window.fetch is replaced below, so the shim can still make
+  // one real network request -- for projects.json. Calling the replaced fetch
+  // would route it back into this shim and 404 against its own router.
+  const realFetch = window.fetch.bind(window);
+
   // The seed catalogue. Real tools, because a portfolio demo full of "Example
   // Service 1" tells a visitor nothing about what the thing is for.
   let links = [
@@ -47,6 +52,39 @@
     "aab32389-22bc-4b8a-8b1c-6d7e8f9a0b08":
       { status: "down", http_status: null, latency_ms: 218, detail: "ConnectError" },
   };
+
+  // The owner's other projects, merged in from the SAME file the landing page
+  // renders from (site/projects.json) rather than repeated here. Four links
+  // written out in three places is the duplication this project keeps paying
+  // for; one file with three readers has nothing to drift.
+  //
+  // Loaded once, lazily, and every failure mode is survivable: a missing file,
+  // a parse error or an entry with no URL simply means the demo catalogue is
+  // the seed list without the projects. The dashboard is not broken by the
+  // absence of an extra category.
+  let projectsMerged = null;
+
+  function mergeProjects() {
+    if (projectsMerged) return projectsMerged;
+    projectsMerged = realFetch("/projects.json")
+      .then(function (r) { return r.ok ? r.json() : { projects: [] }; })
+      .then(function (data) {
+        (data.projects || []).forEach(function (p, i) {
+          if (!p.url) return; // not yet supplied -- see projects.json
+          links.push({
+            // Deterministic ids so a reload does not reshuffle them, and
+            // prefixed so they cannot collide with the seed uuids above.
+            id: "project-" + i + "-" + p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+            name: p.name,
+            url: p.url,
+            category: "projects",
+            icon: p.icon || "🧱",
+          });
+        });
+      })
+      .catch(function () { /* demo works without them */ });
+    return projectsMerged;
+  }
 
   function probeFor(id) {
     return probes[id] || { status: "up", http_status: 200, latency_ms: 40 + ((parseInt(id.slice(0, 4), 16) || 0) % 900), detail: null };
@@ -91,22 +129,27 @@
     const url = String(path).replace(/^https?:\/\/[^/]+/, "");
 
     if (method === "GET" && url === "/links") {
-      return slow(reply(200, links.slice()));
+      return mergeProjects().then(function () { return slow(reply(200, links.slice())); });
     }
 
     if (method === "GET" && url === "/status") {
-      const decorated = links.map(function (l) {
-        return Object.assign({}, l, { probe: probeFor(l.id) });
+      // Also waits for the merge. app.js happens to call /links first today,
+      // which would make this redundant -- but relying on that would make the
+      // status dots silently miss the projects the day the call order changes.
+      return mergeProjects().then(function () {
+        const decorated = links.map(function (l) {
+          return Object.assign({}, l, { probe: probeFor(l.id) });
+        });
+        const summary = { total: decorated.length, up: 0, down: 0, blocked: 0 };
+        decorated.forEach(function (l) { summary[l.probe.status] += 1; });
+        return slow(reply(200, {
+          checked_at: new Date().toISOString(),
+          age_seconds: 0.0,
+          cached: false,
+          summary: summary,
+          links: decorated,
+        }));
       });
-      const summary = { total: decorated.length, up: 0, down: 0, blocked: 0 };
-      decorated.forEach(function (l) { summary[l.probe.status] += 1; });
-      return slow(reply(200, {
-        checked_at: new Date().toISOString(),
-        age_seconds: 0.0,
-        cached: false,
-        summary: summary,
-        links: decorated,
-      }));
     }
 
     if (method === "POST" && url === "/links") {

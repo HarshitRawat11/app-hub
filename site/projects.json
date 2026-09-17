@@ -1,0 +1,49 @@
+{
+  "_comment": [
+    "THE ONE SOURCE OF TRUTH for the owner's other projects.",
+    "Three things read this file: the Projects section on site/index.html, the",
+    "demo catalogue in site/static/demo-api.js, and scripts/seed-projects.py,",
+    "which writes them into the real links catalogue when a cluster is up.",
+    "Writing the same four links in three places is exactly the duplication",
+    "this project keeps paying for, so scripts/check-doc-drift.py verifies the",
+    "HTML section against this file and fails if they disagree.",
+    "",
+    "url: null means NOT YET SUPPLIED. Every consumer skips those entries",
+    "rather than rendering a dead link, and the drift checker reports them as",
+    "pending. A placeholder that renders is worse than one that does not: a",
+    "broken link on a portfolio page is read as carelessness, not as a TODO.",
+    "",
+    "repo is a fallback, never a substitute. It is shown as a secondary link",
+    "where it exists, so a project with no deployment still has somewhere to go."
+  ],
+  "projects": [
+    {
+      "name": "Procedo",
+      "url": null,
+      "repo": "https://github.com/HarshitRawat11/Procedo",
+      "blurb": "",
+      "stack": "Astro"
+    },
+    {
+      "name": "log-book",
+      "url": null,
+      "repo": "https://github.com/HarshitRawat11/log-book",
+      "blurb": "",
+      "stack": "TypeScript"
+    },
+    {
+      "name": "Notes",
+      "url": null,
+      "repo": null,
+      "blurb": "",
+      "stack": ""
+    },
+    {
+      "name": "Acharya Amit",
+      "url": null,
+      "repo": "https://github.com/HarshitRawat11/acharya-amit-pur",
+      "blurb": "",
+      "stack": ""
+    }
+  ]
+}
