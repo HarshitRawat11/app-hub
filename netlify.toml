@@ -16,12 +16,35 @@
 # hostname on every cluster creation, and the cluster is destroyed every night
 # by policy. A permanent link to the live system would be dead most of the time
 # and aimed at a stale host the rest of it.
+#
+# ---------------------------------------------------------------------------
+# THE HEADERS USED TO LIVE HERE. THEY ARE NOW IN site/_headers.
+#
+# Moved 2026-09-18. Netlify and Cloudflare Pages both read the `_headers`
+# format from the published directory, so keeping the rules in a Netlify-only
+# file made the hosting choice a lock-in for no benefit. With them in
+# site/_headers, switching providers -- or running both -- is a dashboard
+# change rather than a code change.
+#
+# What is left here is only what has no portable equivalent: the publish
+# directory and the empty build command. Cloudflare Pages expresses the same
+# two things in its own dashboard rather than in a file:
+#
+#     Build command:           (leave empty)
+#     Build output directory:  site
+#     Root directory:          (leave empty)
+#
+# DO NOT re-add a [[headers]] block here. Two sources of truth for the same
+# headers is exactly the drift this project keeps paying for, and this one
+# would be invisible: Netlify merges toml headers with _headers, so a stale
+# rule here would quietly override the file everyone reads.
+# ---------------------------------------------------------------------------
 
 [build]
   # No build step. The site is hand-written static files -- no bundler, no npm
   # install, nothing to go stale or to break a deploy six months from now.
   #
-  # `publish` is the umbrella repo's site/ directory. The five component
+  # `publish` is the umbrella repo's site/ directory. The six component
   # directories (infra/, gateway/, ...) are SEPARATE git repositories that this
   # repo gitignores, so they are not present in a Netlify checkout at all --
   # which is exactly why site/static/ vendors its two files from gateway rather
@@ -29,25 +52,6 @@
   # copies have not drifted.
   publish = "site"
   command = ""
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    # The page loads nothing from anywhere else, so the policy can be strict
-    # and stay strict. 'unsafe-inline' covers the inline <style> block and the
-    # inline SVG favicon; there is no inline SCRIPT -- both scripts are files.
-    Content-Security-Policy = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    X-Frame-Options = "DENY"
-
-[[headers]]
-  for = "/static/*"
-  [headers.values]
-    # Short, not immutable. These files are vendored copies of gateway's
-    # dashboard and get refreshed whenever the real one changes; a year-long
-    # immutable cache would leave visitors on an old copy with no way to know.
-    Cache-Control = "public, max-age=300"
 
 # The dashboard demo talks to a stub that replaces window.fetch, so there is no
 # API to redirect to and no rewrite rule here on purpose. A catch-all 200

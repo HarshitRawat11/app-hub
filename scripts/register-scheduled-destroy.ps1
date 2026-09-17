@@ -142,11 +142,43 @@ $trigger = New-ScheduledTaskTrigger -Daily -At $Time
 # calls, not a disk-indexing job. Spending that on battery is fine; spending
 # $0.30/hour on a forgotten NAT gateway is not.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# -WakeToRun, added 2026-09-18 for D-25.
+#
+# -StartWhenAvailable (above) already makes Task Scheduler catch up a missed
+# run -- but it catches up WHEN THE MACHINE NEXT WAKES, which is the morning.
+# Observed: runs at 11:18 and 11:22 IST on nights the laptop slept, against
+# 23:30:04 and 23:40:55 IST on the two nights it was awake. The task was never
+# broken; the machine was simply asleep.
+#
+# That distinction is cheap to ignore and expensive to be wrong about: a
+# cluster left up on a night the lid is shut bills from 23:30 until whenever
+# the laptop next opens. Roughly 12 hours at ~$0.28/hour is about $3.40 -- more
+# than a whole working session costs.
+#
+# THE TRADE, STATED PLAINLY because it affects the owner's machine rather than
+# the cloud bill: the laptop will now wake at 23:30 every night, run for a
+# couple of minutes and sleep again. On a night with nothing deployed that is
+# pure waste -- a few seconds of CPU and a little battery. It is accepted
+# because the alternative is only noticed on the nights it costs money.
+#
+# NOT SUFFICIENT ON ITS OWN. -WakeToRun sets the task's intent; Windows power
+# policy decides whether wake timers are honoured at all, and it is commonly
+# DISABLED on battery. A task with WakeToRun under a policy that forbids wake
+# timers simply does not wake -- silently, which is this project's recurring
+# failure shape. The verification below checks both.
+#
+# To undo: re-run this script with the line removed, or
+#   Set-ScheduledTask -TaskName "app-hub nightly teardown" -Settings (
+#     New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries
+#     -DontStopIfGoingOnBatteries -DontStopOnIdleEnd)
+# ---------------------------------------------------------------------------
 $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -DontStopOnIdleEnd `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
+    -WakeToRun `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 45)
 
 Register-ScheduledTask `
@@ -199,6 +231,49 @@ if ($st.DisallowStartIfOnBatteries -or $st.StopIfGoingOnBatteries) {
     Write-Host "It will sit in state 'Queued' and produce no output, no error and no"
     Write-Host "completion event -- on exactly the nights a laptop is unplugged."
     exit 1
+}
+
+# Assert WakeToRun took, and then assert the thing the task cannot control.
+#
+# Two separate facts, and only checking the first is how this ends up looking
+# configured and behaving exactly as before:
+#   1. the TASK asks to wake the machine        -> $st.WakeToRun
+#   2. WINDOWS POLICY permits wake timers       -> powercfg
+Write-Host "  wake to run: $($st.WakeToRun)"
+if (-not $st.WakeToRun) {
+    Write-Host ""
+    Write-Host "WARNING: -WakeToRun did not take." -ForegroundColor Red
+    Write-Host "The teardown will only run when the machine happens to be awake at"
+    Write-Host "23:30, and otherwise catch up the next morning -- billing a forgotten"
+    Write-Host "cluster overnight. See D-25."
+    exit 1
+}
+
+# GUIDs rather than names: `powercfg /q SCHEME_CURRENT SUB_SLEEP RTCWAKE` works
+# on English Windows and fails on localised installs, where the friendly alias
+# differs. The GUID is the same everywhere.
+#   SUB_SLEEP = 238c9fa8-...  RTCWAKE (Allow wake timers) = bd3b718a-...
+# Values: 0 = Disable, 1 = Enable, 2 = Important Wake Timers Only.
+$wake = powercfg /query SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d 2>$null
+if ($wake) {
+    $ac = ($wake | Select-String 'Current AC Power Setting Index:\s*0x(\w+)').Matches.Groups[1].Value
+    $dc = ($wake | Select-String 'Current DC Power Setting Index:\s*0x(\w+)').Matches.Groups[1].Value
+    $names = @{ '00000000' = 'Disabled'; '00000001' = 'Enabled'; '00000002' = 'Important only' }
+    Write-Host "  wake timers: plugged in = $($names[$ac]) / on battery = $($names[$dc])"
+    if ($dc -eq '00000000') {
+        Write-Host ""
+        Write-Host "WARNING: wake timers are DISABLED on battery." -ForegroundColor Yellow
+        Write-Host "-WakeToRun is set on the task, but Windows will ignore it whenever the"
+        Write-Host "laptop is unplugged -- which is most nights. The task will not fail; it"
+        Write-Host "will simply not wake, and catch up in the morning as before."
+        Write-Host ""
+        Write-Host "To allow it (your call -- it lets scheduled tasks wake the machine on"
+        Write-Host "battery):"
+        Write-Host "  powercfg /setdcvalueindex SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d 1"
+        Write-Host "  powercfg /setactive SCHEME_CURRENT"
+    }
+} else {
+    Write-Host "  wake timers: UNKNOWN (powercfg returned nothing)"
 }
 
 Write-Host ""

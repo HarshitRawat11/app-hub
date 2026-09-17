@@ -44,6 +44,38 @@ netlify deploy --prod --dir=site
 
 ---
 
+## `_headers` — and why it has no comments in it
+
+HTTP headers (CSP, `X-Frame-Options`, cache control) live in **`site/_headers`**,
+not in `netlify.toml`. **Netlify and Cloudflare Pages both read that format**, so
+the hosting choice is a dashboard change rather than a code change — and you can
+run both at once if you want.
+
+**It must sit in the published directory**, which is `site/`. At the repo root
+both providers ignore it, with no warning from either. That failure is worth
+naming: *headers silently absent looks exactly like headers applied.*
+
+**There are deliberately no comments inside it.** Cloudflare documents `#`
+comments for `_redirects` but says nothing about `_headers`, and an indented
+`# …` inside a rule block would plausibly parse as a header *name*. The downside
+of guessing wrong is losing the security headers without any error, so the
+explanation lives here instead of in the file.
+
+**Verify after deploying rather than assuming:**
+
+```bash
+curl -sI https://YOUR-SITE | grep -iE "content-security-policy|x-frame-options|referrer-policy"
+```
+
+If those three come back, the file is in the right place and being parsed. If
+they do not, it is almost always the location — check it is inside `site/`.
+
+**Do not re-add a `[[headers]]` block to `netlify.toml`.** Netlify merges the
+two, so a stale rule there would quietly override the file everyone reads — two
+sources of truth for one thing, which is the drift this project keeps paying for.
+
+---
+
 ## Working on it locally
 
 ```bash
