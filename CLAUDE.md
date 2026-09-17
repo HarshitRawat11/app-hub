@@ -242,6 +242,8 @@ Each file follows this structure:
 
 **Every new service directory must be added to the root `.gitignore` in the same change that creates it.** Forgetting does not fail loudly -- the umbrella just starts tracking a second copy of a repo that already has its own remote, and the two drift apart silently. Also add it to `REPOS` in `scripts/timeline.sh`, or its history vanishes from `TIMELINE.md`.
 
+**That rule is about directories that are their own REPO, and `site/` is not one.** It is tracked by the umbrella deliberately, because Netlify deploys from this repository -- **gitignoring it would publish an empty site.** Added 2026-09-17, because the rule above reads as "every new top-level directory" and following it literally here breaks the deploy. If a future directory is not a separate repo with its own remote, it does not belong in the root `.gitignore`.
+
 | Directory        | Repo                                    | Tracks | Branch   |
 |------------------|-----------------------------------------|--------|----------|
 | `.` (root)       | `HarshitRawat11/app-hub`                 | `CLAUDE.md`, `README.md`, `PROGRESS.md`, `TIMELINE.md`, `CONTEXT-BRIEF.md`, `learn/`, `scripts/` | `master` |
@@ -530,3 +532,13 @@ Each of these cost real time to find. They are here so no future session pays fo
 - **n8n HTTP Request node: set "On Error" to "Stop Workflow", not "Continue (using error output)".** With "Continue", the downstream Gmail node fired on every execution regardless of cluster state, so the cost-watchdog emailed whether or not anything was running — a monitor that always alerts is a monitor you stop reading.
 
 - **`0.0.0.0` is a bind address, not a browsable destination.** `--host 0.0.0.0` means "listen on all interfaces". Test the container at `localhost:8000`.
+
+- **Measure durations with a monotonic clock; report instants with the wall clock.** `time.monotonic()` counts from an arbitrary epoch, so it is right for a cache TTL (it cannot jump when NTP corrects the system time) and wrong in a response body. `aggregator` published it as `checked_at` for weeks: meaningless to a client, **not comparable between replicas**, and it runs **backwards** after a restart. Fifty tests asserted `age_seconds >= 0` and none had ever looked at `checked_at`. See `learn/17`.
+
+- **A value the nightly teardown changes cannot live in a committed file.** The IRSA role ARN is hardcoded safely because the role NAME is fixed; the VPC id is not, because `make down` destroys the VPC and `make up` makes a new one. Committing today's id gives something correct this evening and silently wrong tomorrow. If it survives teardown, hardcode it. If it does not, derive it -- `terraform output` at the point of use.
+
+- **A FALSE POSITIVE in a validator is worse than a missing check**, because the fix people reach for is to stop running it. When `manifests/ingress/` was added, the manifest checker failed `IngressClass` for having no namespace -- it is cluster-scoped, and the check had only ever special-cased `Namespace`. Fixed with an explicit allowlist rather than by loosening the rule, so an *unrecognised* kind is still flagged: a namespaced object landing silently in `default` is a real bug, while a new cluster-scoped kind costs one line.
+
+- **A flaky test is worse than no test.** `test_ids_do_not_become_labels` passed alone and failed in the suite for two days, because `importlib.reload` re-registers Prometheus collectors into a process-wide registry, the duplicate is swallowed, and **the reloaded app then records nothing while `/metrics` keeps serving frozen values**. It went red for a reason unrelated to what it guards, which makes ignoring it the *rational* response -- and that is how a real failure gets ignored too. Root-causing it took four wrong hypotheses; only measuring settled it.
+
+- **Two process traps met repeatedly on 2026-09-16/17, both the same family as the measurement artifacts above.** A `curl` fired immediately after starting a server reports a connection failure that is only a **race with startup** -- wait, then re-check, before believing it. And a `uvicorn` started on a port something else already holds **dies silently**, so a test can appear to pass while running against a completely different process. Check what is actually listening (`ss -ltnp`) rather than trusting that your own process is the one answering.

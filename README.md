@@ -24,20 +24,38 @@ That combination sets the bar: working-on-my-machine isn't the finish line. Repr
 
 ## Directory layout
 
-`app-hub/` is an **umbrella git repository** tracking only the cross-cutting docs. The five component directories are independent repos with their own remotes, and are gitignored here so they stay that way.
+`app-hub/` is an **umbrella git repository**. The **six** component directories (`infra/`, `links-service/`, `gateway/`, `aggregator/`, `manifests/`, `n8n/`) are independent repos with their own remotes, and are gitignored here so they stay that way — **seven repositories in total**, counting this one.
+
+> **`site/` is the exception and it matters.** It is tracked by THIS repo, not a > component repo, because Netlify deploys from here. `CLAUDE.md § 3` says to add > every new top-level directory to the root `.gitignore`; **doing that to `site/` would > publish an empty site**. The rule is about directories that are their own repo, and > `site/` is not one.
+
+*(This paragraph said "five component directories" until 2026-09-17, and had done since `aggregator/` became the sixth.)*
 
 ```
 app-hub/
 ├── CLAUDE.md          # Operating manual for Claude Code sessions — objective, constraints, read order
 ├── README.md          # This file
 ├── PROGRESS.md        # Live status board, blockers, known defects, progress log
-├── TIMELINE.md        # GENERATED from git across all 6 repos -- never edit by hand
+├── TIMELINE.md        # GENERATED from git across all 7 repos -- never edit by hand
 ├── Makefile           # session automation: make status / up / deploy / down / test / validate
+├── netlify.toml        # deploys site/ ; no build command, nothing to break later
 ├── scripts/
 │   ├── timeline.sh        # regenerates TIMELINE.md
-│   ├── validate-manifests.py  # offline manifest checks
-│   ├── check-doc-drift.py     # verifies CONTEXT-BRIEF's embedded source still matches
+│   ├── validate-manifests.py  # offline manifest checks; walks every manifests/*/ dir
+│   ├── check-doc-drift.py     # CONTEXT-BRIEF's embedded source, AND site/'s vendored copies
+│   ├── seed-projects.py       # puts site/projects.json into the real links catalogue
+│   ├── register-scheduled-destroy.ps1  # registers the nightly teardown task (Windows)
 │   └── scheduled-destroy.sh   # unattended teardown, POSTs the result to n8n
+│
+├── site/               # PUBLIC PROJECT PAGE, deployed by Netlify. Tracked by THIS repo.
+│   ├── index.html          # landing page: architecture, cost policy, repos, write-ups
+│   ├── demo.html           # the REAL dashboard, running against a stubbed API
+│   ├── projects.json       # one source of truth for the owner's other projects
+│   ├── README.md           # how to deploy it, and what not to edit here
+│   └── static/
+│       ├── style.css       # VENDORED from gateway -- drift-checked, do not edit
+│       ├── app.js          # VENDORED from gateway -- drift-checked, do not edit
+│       ├── demo-api.js     # replaces window.fetch so app.js runs with no backend
+│       └── projects.js     # renders the projects section from projects.json
 │
 ├── learn/             # Learning record — one file per step performed, with the reasoning behind it
 │   ├── README.md          # Index of learning files, in the order the steps were done
@@ -51,12 +69,14 @@ app-hub/
 │   ├── vpc.tf             # VPC 10.0.0.0/16, 2 AZs, public + private subnets, single NAT gateway
 │   ├── eks.tf             # EKS cluster "app-hub-eks" (k8s 1.36), 2x t3.medium managed node group
 │   ├── irsa.tf            # IAM role for the links-service pod via OIDC (C-05)
+│   ├── alb-controller-irsa.tf  # IAM role for the AWS Load Balancer Controller (E-06)
 │   ├── ecr.tf             # ECR repos for links-service and gateway, IMMUTABLE, force_delete
 │   ├── outputs.tf         # cluster name/endpoint, VPC id, private subnet ids
 │   ├── variables.tf       # aws_region (default ap-south-1)
 │   ├── persistent/        # SECOND STACK, never destroyed -- own state key.
-│   │                      # The DynamoDB table (C-04). terraform does not
-│   │                      # recurse, so `make down` cannot reach it.
+│   │                      # The DynamoDB table (C-04) and the daily spend
+│   │                      # guardrail (budget.tf, D-24). terraform does not
+│   │                      # recurse, so `make down` cannot reach either.
 │   └── .terraform/        # ~800 MB vendored providers + upstream modules. Gitignored. Never read this.
 │
 ├── links-service/     # repo: HarshitRawat11/app-hub-links-service — the FastAPI service
