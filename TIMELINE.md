@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 148 across 7 repositories |
-| Active days | 22 |
+| Commits | 154 across 7 repositories |
+| Active days | 23 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-17 12:35 IST |
+| Latest commit | 2026-09-18 01:11 IST |
 
 ---
 
@@ -272,3 +272,14 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 |---|---|---|---|
 | 11:23 | `app-hub` | `afd34dd` | Projects section: one source of truth, three readers |
 | 12:35 | `app-hub` | `16d1ffd` | Projects: split by who the link actually works for |
+| 12:39 | `app-hub` | `0479fcf` | Record the projects section; the log entry was late |
+| 15:00 | `app-hub` | `3a3c15a` | Real blurbs, from each README rather than invented |
+| 15:26 | `app-hub` | `58ebb37` | Stale-doc sweep: site/ existed nowhere in the entry-point docs |
+
+## 2026-09-18
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 00:03 | `app-hub` | `1eadc94` | Correct D-25: the teardown does run at 23:30 when the laptop is awake |
+| 00:14 | `app-hub` | `59dab1c` | Headers move to site/_headers; -WakeToRun added to the teardown task |
+| 01:11 | `app-hub` | `5201600` | Add a 404 page; Procedo has a live URL |
