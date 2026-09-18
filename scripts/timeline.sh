@@ -21,7 +21,7 @@ cd "$(dirname "$0")/.."
 # Add every new component repo here, or its history is silently omitted from
 # the timeline -- the script cannot tell the difference between "no commits"
 # and "not in this list".
-REPOS=(. infra links-service gateway aggregator manifests n8n)
+REPOS=(. infra links-service gateway aggregator manifests n8n compose)
 OUT="TIMELINE.md"
 [[ "${1:-}" == "--stdout" ]] && OUT=/dev/stdout
 

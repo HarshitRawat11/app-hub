@@ -8,6 +8,7 @@
 #   aggregator/    -> HarshitRawat11/app-hub-aggregator
 #   manifests/     -> HarshitRawat11/app-hub-manifests
 #   n8n/           -> HarshitRawat11/app-hub-n8n
+#   compose/       -> HarshitRawat11/app-hub-compose
 #
 # ADD EVERY NEW SERVICE DIRECTORY HERE, in the same change that creates it.
 # Forgetting does not fail loudly: the umbrella simply starts tracking a
@@ -20,6 +21,7 @@ gateway/
 aggregator/
 manifests/
 n8n/
+compose/
 
 # OS/editor cruft
 .DS_Store

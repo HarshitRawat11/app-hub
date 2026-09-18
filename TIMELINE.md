@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 164 across 7 repositories |
+| Commits | 166 across 8 repositories |
 | Active days | 23 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-18 15:19 IST |
+| Latest commit | 2026-09-18 22:31 IST |
 
 ---
 
@@ -293,3 +293,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 15:19 | `manifests` | `43132d3` | R-06: Jenkins configured entirely as code |
 | 15:19 | `links-service` | `1eabb8d` | R-06: the pipeline, which stops before deploying |
 | 15:19 | `app-hub` | `b5c2abc` | R-06 written: make jenkins, and the record |
+| 22:09 | `app-hub` | `25c7e69` | D-24 root cause fixed: restart n8n on every wake, not once |
+| 22:31 | `compose` | `d50e33e` | The always-on deployment target |
