@@ -114,6 +114,10 @@ is orphaned — billing, with no cluster left to manage it. Step 0 now deletes
 the root Application first (cascading, while the controller is still alive), and
 **asserts zero Applications remain** before continuing.
 
+**Deleting the `IngressClass` with the `Ingress` deadlocks the teardown — `D-29`, hit on the first real run.** The Ingress's finalizer `ingress.k8s.aws/resources` can only be cleared by the ALB controller, which clears it by *updating* the Ingress — and that update is checked by the controller's own webhook, which rejects an Ingress whose class does not exist. Remove both at once and the controller cannot finalize its own object: the Ingress stays, the namespace stays `Terminating`, the Applications never finish, and `make down` aborts with the cluster billing.
+
+**It never happened before ArgoCD, and the reason is worth keeping.** `kubectl delete -f manifests/ingress/` deletes in *filename* order, so `00-ingressclass.yaml` went first and the Ingress was already gone — nothing left to validate. The `00-` prefix that makes creation safe was making deletion safe **by accident**. ArgoCD does not read filenames, so the accident stopped. Fixed with explicit sync waves: ArgoCD applies ascending and deletes descending, so IngressClass `0` / Ingress `1` gives the right order in both directions. *When you change who does the deleting, you change which order is safe.*
+
 **An uncommitted image pin silently rolls back.** `make deploy` pins the tag
 locally and applies it. The pods come up on the new image, ArgoCD notices the
 cluster disagrees with git, and reverts — almost immediately. It looks like a
