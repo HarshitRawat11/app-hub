@@ -55,6 +55,10 @@ DOCKER    := docker.exe
 # to sit inside manifests/links-service/, which made applying gateway alone
 # into a fresh cluster fail with `namespaces "app-hub" not found`.
 MANIFEST_ROOT := manifests
+# Pinned to what R-05 was built and verified against on 2026-09-14. An
+# unpinned `helm upgrade --install` takes whatever is newest, which is how a
+# setup that worked yesterday breaks on a day you changed nothing.
+MONITORING_CHART_VERSION := 91.2.3
 
 # Tag every image with the links-service commit it was built from, because the
 # ECR repo is IMMUTABLE (R-03) and a tag must never be reused. A dirty working
@@ -70,7 +74,7 @@ dirty_of = $(shell git -C $(1) status --porcelain 2>/dev/null | head -c1)
 tag_of   = $(if $(call dirty_of,$(1)),$(call sha_of,$(1))-dirty-$(shell date +%s),$(call sha_of,$(1)))
 
 .DEFAULT_GOAL := help
-.PHONY: help guard status up deploy verify down destroy-only validate test verify-dynamo
+.PHONY: help guard status up deploy verify down destroy-only validate test verify-dynamo monitoring
 
 help:
 	@echo "app-hub — run from WSL"
@@ -81,6 +85,7 @@ help:
 	@echo "  make down     full teardown in the correct order, then audit"
 	@echo "  make test     run every service test suite (no cluster needed)"
 	@echo "  make validate offline manifest + terraform checks (no cluster needed)"
+	@echo "  make monitoring  install Prometheus + Grafana (R-05) on a live cluster"
 	@echo ""
 	@echo "  make verify-dynamo   exercise the repository against the REAL table"
 	@echo "                       WRITES to $(LINKS_TABLE) — needs approval, not part of 'test'"
@@ -350,6 +355,68 @@ verify-dynamo:
 	  exit $$rc
 
 ## validate — offline checks, useful when everything is torn down
+## monitoring -- put R-05 back on the cluster
+#
+# WHY THIS TARGET EXISTS. R-05 was finished on 2026-09-14 and verified with 22
+# scrape targets all UP. On 2026-09-18 the cluster came back and the monitoring
+# namespace did not exist at all: a Helm release lives IN the cluster, so
+# `terraform destroy` takes it with everything else.
+#
+# Nothing re-installed it. `make deploy` covers the three services and stops
+# there, so the one piece of R-05 that is not a committed manifest -- the Helm
+# release itself -- had to be retyped from learn/30 every session. A step that
+# only exists in a walkthrough is a step that gets skipped, and the project's
+# own standard is 'reproducibly, from code committed to git'.
+#
+# NOT folded into `make deploy` on purpose. Prometheus and Grafana are a real
+# chunk of a two-node cluster, and most sessions do not need them. Making it
+# opt-in keeps a plain deploy fast and keeps the memory for the services.
+#
+# THE CHART VERSION IS PINNED. 91.2.3 is what R-05 was actually built and
+# verified against; `helm upgrade --install` with no --version silently takes
+# whatever is newest, which is how a working setup breaks on a day you changed
+# nothing.
+#
+# TEARDOWN: this installs with emptyDir storage (see values.yaml), so there are
+# no PVCs and therefore no EBS volumes for `terraform destroy` to leave behind.
+# THAT CHANGES the day persistence is added -- `make down` already deletes PVCs,
+# but the CLAUDE.md section 9 orphan audit becomes mandatory rather than
+# precautionary.
+monitoring: guard
+	@command -v helm >/dev/null || { echo "ERROR: helm not found. Run this from WSL -- the Windows helm is v4 and points at minikube."; exit 1; }
+	@echo "== namespace first (deliberately NOT labelled with a Pod Security Standard) =="
+	@# node-exporter needs hostNetwork, hostPID and hostPath. Under the
+	@# `restricted` PSS that app-hub enforces it would be refused at admission and
+	@# the DaemonSet would sit at zero pods. PSS is per-namespace, so an
+	@# unlabelled monitoring namespace leaves app-hub strict. See learn/30.
+	kubectl apply -f $(MANIFEST_ROOT)/monitoring/namespace.yaml
+	@echo ""
+	@echo "== chart repo =="
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null
+	helm repo update prometheus-community >/dev/null
+	@echo ""
+	@echo "== installing kube-prometheus-stack $(MONITORING_CHART_VERSION) =="
+	helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+	  --version $(MONITORING_CHART_VERSION) \
+	  -n monitoring \
+	  -f $(MANIFEST_ROOT)/monitoring/values.yaml \
+	  --wait --timeout 10m
+	@echo ""
+	@echo "== ServiceMonitor -- this is the whole point of the operator pattern =="
+	@# Applied AFTER the chart, because it is a CRD instance and the CRD does not
+	@# exist until the operator installs it. Applied first, kubectl fails with
+	@# 'no matches for kind ServiceMonitor'.
+	kubectl apply -f $(MANIFEST_ROOT)/monitoring/servicemonitor-app-hub.yaml
+	@echo ""
+	kubectl -n monitoring get pods
+	@echo ""
+	@echo "   Prometheus:  kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090"
+	@echo "   Grafana:     kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80   (admin / prom-operator)"
+	@echo ""
+	@echo "   TARGETS TAKE A MINUTE. There are TWO reload delays, not one:"
+	@echo "   operator -> config secret, then config-reloader -> Prometheus."
+	@echo "   Checking 46 seconds in once produced a confident wrong answer (learn/30)."
+
 validate:
 	@echo "== documentation drift =="
 	@# CONTEXT-BRIEF.md reproduces source files verbatim so a Claude chat with

@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 154 across 7 repositories |
+| Commits | 157 across 7 repositories |
 | Active days | 23 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-18 01:11 IST |
+| Latest commit | 2026-09-18 13:12 IST |
 
 ---
 
@@ -283,3 +283,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 00:03 | `app-hub` | `1eadc94` | Correct D-25: the teardown does run at 23:30 when the laptop is awake |
 | 00:14 | `app-hub` | `59dab1c` | Headers move to site/_headers; -WakeToRun added to the teardown task |
 | 01:11 | `app-hub` | `5201600` | Add a 404 page; Procedo has a live URL |
+| 01:17 | `app-hub` | `19b1904` | P-10 is live; D-25 fix applied, verification pending |
+| 01:19 | `app-hub` | `215f04d` | P-10: the site is live but two commits stale |
+| 13:12 | `manifests` | `919d3f7` | Runbook: the helm command was written for bash, pasted into PowerShell |

@@ -28,3 +28,7 @@ n8n/
 # Per-run teardown logs from scripts/scheduled-destroy.sh. Timestamped, local,
 # and never useful to anyone else.
 logs/
+
+# Wrangler CLI cache, created by `npx wrangler pages deploy`. Local build
+# state, not source -- and it can hold account identifiers.
+.wrangler/
