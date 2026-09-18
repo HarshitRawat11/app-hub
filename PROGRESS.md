@@ -373,6 +373,29 @@ as asked, with the trade-off stated.
 
 `learn/34` written; the always-on work had no `learn/` file at all until now.
 
+**`infra/persistent/` APPLIED 2026-09-18 ~23:57 IST — 3 added, 0 changed, 0
+destroyed.** Owner approved in session. Planned first, and **the plan showing
+`0 to destroy` is what made it safe to run**: the DynamoDB table and the budget
+were never in scope, so `prevent_destroy` was not even exercised.
+
+**Verified against AWS rather than against the apply output.**
+`describe-repositories` shows all three with `IMMUTABLE` and scan-on-push, and
+the table is still `ACTIVE` with its 5 items — the apply saying "0 destroyed"
+and the table actually being intact are different claims.
+
+**The cross-stack fix then proved itself.** `terraform plan` in the ephemeral
+stack now reads all three `data.aws_ecr_repository` lookups (`Read complete
+after 3s`) and reports `61 to add, 0 to change, 0 to destroy`. `make up` is
+unblocked.
+
+**Stated precisely, because the distinction matters here:** the POSITIVE case is
+observed. The predicted plan-time failure *before* the repositories existed was
+never actually run, so that half rests on documented Terraform behaviour rather
+than on having watched it fail. Recorded as a prediction, not as a result.
+
+**Nothing is billing.** Empty ECR repositories are free; storage begins only
+once images are pushed, at ~$0.10/GB/month. No cluster, no NAT gateway.
+
 
 ### 2026-09-18 — `E-06` done, `R-05` made reproducible, and a teardown that orphaned an ALB
 
