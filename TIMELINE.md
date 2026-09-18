@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 172 across 8 repositories |
+| Commits | 175 across 8 repositories |
 | Active days | 23 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-18 23:41 IST |
+| Latest commit | 2026-09-18 23:52 IST |
 
 ---
 
@@ -301,3 +301,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 23:11 | `app-hub` | `3bcdd07` | D-24: record why today is not evidence, before the gap is misread |
 | 23:41 | `infra` | `b4d5b79` | ECR moves to the persistent stack; the always-on host depends on it |
 | 23:41 | `compose` | `625379a` | Record that the registry is durable now |
+| 23:42 | `app-hub` | `faf8c07` | make down no longer empties ECR, because destroy cannot reach it |
+| 23:52 | `compose` | `cc1db59` | Tailscale Funnel replaces cloudflared; the deciding factor was the hostname |
+| 23:52 | `app-hub` | `694669e` | learn/34, and the Tailscale decision recorded |
