@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 159 across 7 repositories |
+| Commits | 163 across 7 repositories |
 | Active days | 23 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-18 13:24 IST |
+| Latest commit | 2026-09-18 15:19 IST |
 
 ---
 
@@ -288,3 +288,7 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 13:12 | `manifests` | `919d3f7` | Runbook: the helm command was written for bash, pasted into PowerShell |
 | 13:24 | `manifests` | `c96c95a` | E-06 verified end to end on a real cluster |
 | 13:24 | `app-hub` | `2744da6` | E-06 done; make monitoring so R-05 is reproducible; learn/33 |
+| 13:55 | `app-hub` | `95ee31f` | make down orphaned an ALB, because step 1 had never worked |
+| 15:18 | `infra` | `6aad013` | R-06: a third IRSA role, for pushing images and nothing else |
+| 15:19 | `manifests` | `43132d3` | R-06: Jenkins configured entirely as code |
+| 15:19 | `links-service` | `1eabb8d` | R-06: the pipeline, which stops before deploying |

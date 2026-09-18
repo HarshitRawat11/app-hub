@@ -59,6 +59,9 @@ MANIFEST_ROOT := manifests
 # unpinned `helm upgrade --install` takes whatever is newest, which is how a
 # setup that worked yesterday breaks on a day you changed nothing.
 MONITORING_CHART_VERSION := 91.2.3
+# Same reasoning as the chart version above: pinned so a working setup does
+# not break on a day you changed nothing.
+JENKINS_CHART_VERSION := 5.8.18
 
 # Tag every image with the links-service commit it was built from, because the
 # ECR repo is IMMUTABLE (R-03) and a tag must never be reused. A dirty working
@@ -74,7 +77,7 @@ dirty_of = $(shell git -C $(1) status --porcelain 2>/dev/null | head -c1)
 tag_of   = $(if $(call dirty_of,$(1)),$(call sha_of,$(1))-dirty-$(shell date +%s),$(call sha_of,$(1)))
 
 .DEFAULT_GOAL := help
-.PHONY: help guard status up deploy verify down destroy-only validate test verify-dynamo monitoring
+.PHONY: help guard status up deploy verify down destroy-only validate test verify-dynamo monitoring jenkins
 
 help:
 	@echo "app-hub — run from WSL"
@@ -86,6 +89,7 @@ help:
 	@echo "  make test     run every service test suite (no cluster needed)"
 	@echo "  make validate offline manifest + terraform checks (no cluster needed)"
 	@echo "  make monitoring  install Prometheus + Grafana (R-05) on a live cluster"
+	@echo "  make jenkins     install Jenkins, configured entirely as code (R-06)"
 	@echo ""
 	@echo "  make verify-dynamo   exercise the repository against the REAL table"
 	@echo "                       WRITES to $(LINKS_TABLE) — needs approval, not part of 'test'"
@@ -393,6 +397,59 @@ verify-dynamo:
 	  exit $$rc
 
 ## validate — offline checks, useful when everything is torn down
+## jenkins -- R-06, and it refuses to run without its two Secrets
+#
+# Jenkins here is CONFIGURED ENTIRELY AS CODE. Persistence is off, because
+# the cluster is destroyed nightly and a PVC would create an EBS volume that
+# `terraform destroy` takes anyway. Everything -- the job, the agent pod
+# template, the credential bindings, the plugin list -- rebuilds from
+# manifests/jenkins/values.yaml on every install.
+#
+# THE TWO SECRETS ARE YOURS TO CREATE, and this target checks for them
+# rather than installing a Jenkins that comes up broken. See
+# manifests/jenkins/README.md. They are not in git and never will be.
+#
+# NOT part of `make deploy`: Jenkins wants ~1Gi on a two-node cluster that
+# already runs Prometheus and three services, so it is opt-in.
+jenkins: guard
+	@command -v helm >/dev/null || { echo "ERROR: helm not found. Run this from WSL."; exit 1; }
+	kubectl apply -f $(MANIFEST_ROOT)/jenkins/namespace.yaml
+	@echo ""
+	@# CHECK BEFORE INSTALLING, not after. Without these the chart installs
+	@# happily and Jenkins starts with no admin password and a JCasC block
+	@# that cannot resolve ${manifests-deploy-key} -- so the UI is reachable,
+	@# the job exists, and every build fails at the git push. Failing here is
+	@# a worse-looking but far cheaper outcome.
+	@for sec in jenkins-admin jenkins-deploy-key; do \
+	  kubectl -n jenkins get secret $$sec >/dev/null 2>&1 || { \
+	    echo ""; \
+	    echo "MISSING SECRET: $$sec"; \
+	    echo "Jenkins would install and then fail at runtime. Create both first:"; \
+	    echo "  see manifests/jenkins/README.md"; \
+	    exit 1; }; \
+	done
+	@echo "   both secrets present"
+	@echo ""
+	helm repo add jenkins https://charts.jenkins.io >/dev/null
+	helm repo update jenkins >/dev/null
+	@echo ""
+	@echo "== installing jenkins $(JENKINS_CHART_VERSION) =="
+	@# --wait with a long timeout: the controller downloads and installs the
+	@# plugin list on first boot, which is slow and is the usual reason a
+	@# first install looks hung when it is only working.
+	helm upgrade --install jenkins jenkins/jenkins \
+	  --version $(JENKINS_CHART_VERSION) \
+	  -n jenkins \
+	  -f $(MANIFEST_ROOT)/jenkins/values.yaml \
+	  --wait --timeout 15m
+	@echo ""
+	kubectl -n jenkins get pods
+	@echo ""
+	@echo "   UI:  kubectl -n jenkins port-forward svc/jenkins 8080:8080  ->  http://localhost:8080"
+	@echo ""
+	@echo "   The job 'links-service' should already exist. If it does not, JCasC"
+	@echo "   did not apply -- check:  kubectl -n jenkins logs sts/jenkins -c jenkins | grep -i casc"
+
 ## monitoring -- put R-05 back on the cluster
 #
 # WHY THIS TARGET EXISTS. R-05 was finished on 2026-09-14 and verified with 22
