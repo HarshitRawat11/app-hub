@@ -206,6 +206,7 @@ Self-hosted n8n. Workflow definitions are version-controlled in `n8n/`; credenti
 
 | ID | Severity | Where | What is wrong |
 |----|----------|-------|---------------|
+| ~~`D-28`~~ | **RESOLVED same day** 2026-09-18 — was **High, and it orphaned a real billing resource** | [Makefile](Makefile) `down` step 1 | **`make down` step 1 had never worked.** `kubectl delete ingress --all-namespaces --ignore-not-found` returns *"error: resource(s) were provided, but no name was specified"* — `--all-namespaces` chooses which NAMESPACES to search, `--all` chooses which OBJECTS. The `-` prefix made `make` swallow it. <br><br>So on the first teardown with an ALB present, the step whose entire purpose is preventing an orphaned load balancer deleted nothing, and the teardown carried on to **uninstall the controller while the Ingress still existed**. A watcher caught the forbidden state directly: `08:07:33 lb=1 helm=1 ingress=1`. <br><br>**A deadlock as well as an orphan.** The Ingress carries finalizer `ingress.k8s.aws/resources`, removed only by that controller — so the ALB kept billing AND the Ingress could never finish deleting. Recovery: reinstall the controller, delete the Ingress (ALB gone in 10s), then tear down. <br><br>**Why it hid:** the next line, `kubectl delete svc --all-namespaces --field-selector ...`, IS valid — the field selector supplies the object selection. Two adjacent lines that look like one idiom, one of which is wrong. <br><br>**Fixed twice over:** correct flags (`--all -A`), and an **abort guard** that refuses to uninstall the controller while any ingress survives. The ordering was documented correctly in three places and enforced in none — **sequencing two steps is not the same as enforcing that the first one worked.** `learn/33`. |
 | ~~`D-26`~~ | **RESOLVED same day** 2026-09-16 | [aggregator/app/main.py](aggregator/app/main.py) | `/status` published `checked_at` as a **`time.monotonic()` reading** — responses carried `"checked_at": 120573.88`. Monotonic counts from an arbitrary epoch (boot), so the value is meaningless outside the producing process. **Three real failures, not cosmetics:** a field named `checked_at` reads as a timestamp so clients render 1970; it is **not comparable across pods**, so two replicas disagree about the same instant; and it **runs backwards after a restart**. <br><br>Monotonic was, and remains, correct for the cache TTL — a wall clock there could make an entry look an hour old, or an hour in the future, after an NTP correction. `age_seconds` also stays monotonic-derived, since subtracting wall-clock readings could report a negative age. **The bug was publishing it, never using it.** Cache now carries `monotonic` and `wall` under honest names. <br><br>**Found by running the app and reading the output, not by a test.** 50 aggregator tests asserted `age_seconds >= 0` and **nothing had ever asserted anything about `checked_at`**, which had been visible in every response since the service existed. `learn/17` postscript. |
 | ~~`D-27`~~ | **RESOLVED same day** 2026-09-16 | [gateway/tests/test_gateway.py](gateway/tests/test_gateway.py) | **`importlib.reload(app.main)` left `/metrics` inert, silently.** `main.py` instruments at import time and `prometheus_client` keeps collectors in a process-wide `REGISTRY`; reloading re-registers the same names, the duplicate is swallowed rather than raised, and the reloaded app then **records nothing**. The old collectors survive holding their old values, so `/metrics` keeps serving a plausible body frozen at the moment of the reload. <br><br>This is what made `test_ids_do_not_become_labels` pass alone and fail in the suite for two days. **The application was never affected** — production imports the module once, and the live behaviour was confirmed correct against a running server (`handler="/links/{link_id}"` recorded, raw UUID absent). A test-harness artifact — and a good argument that **a flaky test is worse than no test**, since it went red for a reason unrelated to what it guards. <br><br>Fixed by unregistering the `http_` collectors before reload, so the fresh import registers cleanly. |
 | `D-24` | **High — the cost safety net's primary control is intermittently dead** | n8n `eks-cost-watchdog` (Schedule Trigger), n8n in Docker Desktop on the laptop | **The schedule trigger stops firing after the host sleeps, and still reports `active: true`.** <br><br>Evidence, all read 2026-09-16 with no cluster and no cost: execution **44** fired at `2026-09-14 21:00:05 IST`, `mode=trigger` — correct hour, correct timezone, the `D-22` fix working. Windows then slept `2026-09-14 22:45 UTC → 2026-09-15 05:46 UTC`. **Since that resume there has been no trigger execution at all**, although on 2026-09-15 the machine was awake `11:16–21:41 IST` — covering *both* the 17:00 and the 21:00 trigger — the container was up continuously (`StartedAt 2026-09-14 11:34 UTC`, never restarted), and the workflow is still `active: true` with empty `pinData`. <br><br>**Why this is worse than `D-22`, not a repeat of it.** `D-22` was reliably dead: wrong timezone, never fired, no email ever. This one fires *sometimes* — and an alert that arrives sometimes is what earns the trust that makes you stop running `make status`. <br><br>**The deeper problem is architectural and is the owner's call.** A watchdog for cloud spend runs on a laptop that sleeps. The window it must cover — cluster left up overnight — is *precisely* the window in which the laptop is off. Restarting the container re-registers the crons and is a workaround, not a fix. The durable answer is something that runs in AWS: an **AWS Budgets alert** (free, email, zero infrastructure) or an **EventBridge schedule**. Both are new services, so `CLAUDE.md § 4` says ask first. <br><br>**MITIGATION WRITTEN 2026-09-16, not yet applied.** `infra/persistent/budget.tf` — a **daily** $3 AWS Budget with `ACTUAL` alerts at 100% and 200%, in the persistent stack so `make down` cannot destroy it. `terraform plan` clean: **1 to add, 0 to change, 0 to destroy**. It is a **backstop, not a replacement** — billing data updates roughly daily, so it catches "yesterday cost too much", never "the cluster came up 20 minutes ago". `learn/31`. <br><br>**Until it is applied, and afterwards: verify teardown with `make status`, never by the absence of an email.** |
@@ -285,6 +286,94 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-18 — `E-06` done, `R-05` made reproducible, and a teardown that orphaned an ALB
+
+**Cluster up 12:47–14:00 IST. `Destroy complete! Resources: 62 destroyed`,
+independent audit clean on all nine ephemeral categories, both persistent things
+intact.** Roughly **$0.35**.
+
+**`E-06` is done and verified.** One internet-facing ALB in front of `gateway`,
+all three Services `ClusterIP` with `external=<none>`, exactly one load balancer
+in the account, dashboard and API both served, catalogue coming back from
+DynamoDB. The controller registered **pod IPs** — `10.0.1.112:8001`,
+`10.0.2.188:8001` — confirming `target-type: ip` and why the Services could
+stay `ClusterIP`. `learn/33`.
+
+**Both IRSA role ARNs matched their manifests across a full rebuild**, which is
+the hardcoded-ARN decision proven rather than assumed. The VPC id did not, and
+was derived — exactly the split the comments predicted.
+
+**`R-05` was marked done and was not reproducible.** The cluster came back with
+no `monitoring` namespace at all: a Helm release lives IN the cluster, so
+`terraform destroy` takes it, and `make deploy` stops at the three services. The
+one part of `R-05` that is not a committed manifest had to be retyped from
+`learn/30` every session. **A step that only exists in a walkthrough is a step
+that gets skipped.** `make monitoring` now does it, chart pinned to `91.2.3`;
+ran it and got **22 targets, all 22 UP**, with gateway 542 / links-service 455 /
+aggregator 215 requests.
+
+**The catalogue is seeded and persisted** — five projects written through
+gateway into DynamoDB, confirmed by `scan`, and still there after the teardown.
+
+---
+
+**AND THEN `make down` ORPHANED THE ALB — see `D-28`.**
+
+The failure is worth reading in full because the shape is familiar and the
+trigger was not. `make down` step 1 had **never worked**:
+
+```
+kubectl delete ingress --all-namespaces --ignore-not-found
+  -> error: resource(s) were provided, but no name was specified
+```
+
+`--all-namespaces` chooses which *namespaces*; `--all` chooses which *objects*.
+The `-` prefix made `make` swallow the error. So the step whose entire purpose is
+preventing an orphaned load balancer deleted nothing, and the teardown went on to
+uninstall the controller anyway.
+
+A watcher polling AWS caught the forbidden state directly (UTC):
+
+```
+08:02:43  lb=1 helm=2 ingress=1     healthy
+08:07:33  lb=1 helm=1 ingress=1     <- controller GONE, ALB and Ingress still there
+08:10:31  lb=0 helm=2 ingress=1     recovery: controller reinstalled, ALB deleted
+08:11:24  lb=0 helm=1 ingress=0     controller uninstalled, correctly this time
+```
+
+**It was a deadlock as well as an orphan**, which made it worse than the warning
+predicted: the Ingress finalizer `ingress.k8s.aws/resources` is removed only by
+that controller, so the ALB kept billing *and* the Ingress could never finish
+deleting. Recovery meant reinstalling the controller, deleting the Ingress
+properly — the ALB went in **ten seconds** — and only then destroying.
+
+**Why it hid for as long as the line has existed:** the very next command,
+`kubectl delete svc --all-namespaces --field-selector spec.type=LoadBalancer`,
+**is** valid, because the field selector supplies the object selection. Two
+adjacent lines that look like the same idiom, one of which is wrong.
+
+**Fixed twice over.** The flags are corrected, and `make down` now **asserts**
+no ingresses remain before uninstalling the controller, aborting if any do.
+That second part is the point:
+
+> **Sequencing two steps is not the same as enforcing that the first one worked.**
+
+The ordering was documented correctly in `learn/33`, in the runbook, and in the
+Makefile's own comments. All three described a *sequence*; none verified it. It
+is `§ 9`'s *"I cannot see it" vs "it is not there"* wearing a shell prompt:
+**"I ran it" and "it worked" are different facts, and `make`'s `-` prefix is a
+machine for conflating them.**
+
+**Two process notes.** The first teardown attempt also failed with `error asking
+for approval: EOF` — `make down` prompts unless `AUTO=1`, and a backgrounded
+run has no stdin. And the cost figures quoted in chat mid-session (1h25m, 1h50m,
+2h20m) were **wrong**, counted from the wrong origin; real spend was ~70 minutes.
+
+**`D-24` stays open.** Closing it needed the cluster alive at 17:00 and the
+teardown happened at 14:00, so the watchdog's live-cluster path is still
+unproven. The budget guardrail — applied and verified this session — is
+the durable half regardless.
 
 ### 2026-09-17 — A projects section, and a flag for who a link actually works for
 

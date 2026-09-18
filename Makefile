@@ -244,7 +244,22 @@ down: guard
 	@# first and the Ingress disappears from Kubernetes while the ALB survives in
 	@# AWS -- an orphan no kubectl command can reach, billing quietly, findable
 	@# only in the console. Hence: Ingress, wait, THEN uninstall.
-	-kubectl delete ingress --all-namespaces --ignore-not-found
+	@# `--all -A`, NOT `--all-namespaces` on its own. THIS LINE WAS WRONG FROM
+	@# the day it was written and it orphaned an ALB on 2026-09-18.
+	@#
+	@#   kubectl delete ingress --all-namespaces
+	@#     -> error: resource(s) were provided, but no name was specified
+	@#
+	@# `--all-namespaces` chooses which NAMESPACES to look in; `--all` chooses
+	@# which OBJECTS. Without the latter kubectl has a kind and no names, so it
+	@# refuses. The `-` prefix then made make swallow the error, so the step
+	@# whose entire purpose is preventing an orphaned load balancer failed
+	@# silently and the teardown carried on to uninstall the controller.
+	@#
+	@# The svc line below was always fine: --field-selector selects the objects,
+	@# so --all-namespaces alone is enough there. That asymmetry is why this went
+	@# unnoticed -- the two lines look like the same idiom and are not.
+	-kubectl delete ingress --all -A --ignore-not-found
 	-kubectl delete svc --all-namespaces --field-selector spec.type=LoadBalancer --ignore-not-found
 	@echo "   waiting for AWS to actually remove them..."
 	@for i in $$(seq 1 30); do \
@@ -257,6 +272,29 @@ down: guard
 	@# destroy` failure several minutes later instead of a reason here.
 	@n=$$(aws elbv2 describe-load-balancers --region $(REGION) --query 'length(LoadBalancers)' --output text 2>/dev/null || echo 0); \
 	  [ "$$n" = "0" ] || echo "   WARNING: $$n load balancer(s) still present after 5 min — destroy will likely fail on the VPC"
+	@# ASSERT BEFORE UNINSTALLING, rather than trusting the delete above.
+	@#
+	@# This is the check that would have caught 2026-09-18. The ordering was
+	@# correct on paper -- delete the Ingress, then remove the controller -- but
+	@# the first half silently did nothing, and nothing verified it before the
+	@# second half ran. Sequencing two steps is not the same as enforcing that
+	@# the first one worked.
+	@#
+	@# An Ingress carries the finalizer `ingress.k8s.aws/resources`, which ONLY
+	@# this controller removes. Uninstall it while an Ingress survives and you
+	@# get a deadlock on top of an orphan: the ALB stays in AWS billing, and the
+	@# Ingress can never finish deleting because the thing that owns its
+	@# finalizer is gone. Recovery means reinstalling the controller.
+	@ING=$$(kubectl get ingress -A --no-headers 2>/dev/null | wc -l | tr -d ' '); \
+	  if [ "$$ING" != "0" ]; then \
+	    echo ""; \
+	    echo "ABORTING: $$ING ingress(es) still exist."; \
+	    echo "Uninstalling the controller now would strand its ALB in AWS, billing,"; \
+	    echo "with no kubectl route to it and the Ingress deadlocked on a finalizer"; \
+	    echo "only this controller can clear. Delete them first:"; \
+	    echo "  kubectl delete ingress --all -A"; \
+	    exit 1; \
+	  fi
 	@# Only now is it safe to remove the controller: the ALB it manages is gone.
 	-helm uninstall aws-load-balancer-controller -n kube-system --ignore-not-found
 	@echo "== 2/5 deleting PVCs (their EBS volumes are invisible to Terraform) =="

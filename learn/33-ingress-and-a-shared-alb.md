@@ -179,6 +179,66 @@ no `kubectl` command can reach, billing quietly, findable only in the console.
 `make down` encodes exactly this, and warns rather than failing silently if load
 balancers are still present after five minutes.
 
+### And on the first real teardown, `make down` did exactly the wrong thing
+
+**2026-09-18. This section was written as a warning and then immediately earned
+it.** Step 1 of `make down` had never worked:
+
+```
+kubectl delete ingress --all-namespaces --ignore-not-found
+  -> error: resource(s) were provided, but no name was specified
+```
+
+`--all-namespaces` chooses which **namespaces** to look in. `--all` chooses which
+**objects**. Without the second, kubectl has a kind and no names and refuses —
+and the `-` prefix in the Makefile made `make` swallow it. So the step whose
+entire purpose is preventing an orphaned load balancer failed silently, and the
+teardown carried on to uninstall the controller.
+
+A watcher polling AWS caught the forbidden state directly (times UTC):
+
+```
+08:02:43  lb=1 helm=2 ingress=1     healthy
+08:07:33  lb=1 helm=1 ingress=1     <- controller GONE, ALB and Ingress still there
+08:10:31  lb=0 helm=2 ingress=1     recovery: controller reinstalled, ALB deleted
+08:10:48  lb=0 helm=2 ingress=0     Ingress deleted
+08:11:24  lb=0 helm=1 ingress=0     controller uninstalled, correctly this time
+```
+
+**It was a deadlock as well as an orphan.** The Ingress carries the finalizer
+`ingress.k8s.aws/resources`, which only that controller removes — so the ALB
+stayed in AWS billing *and* the Ingress could never finish deleting. Recovery
+meant reinstalling the controller, deleting the Ingress properly (the ALB went
+in ten seconds), and only then tearing down.
+
+**Why it hid for so long:** the very next line,
+`kubectl delete svc --all-namespaces --field-selector spec.type=LoadBalancer`,
+**is** valid — the field selector supplies the object selection. Two adjacent
+lines that look like the same idiom, one of which is wrong.
+
+### The fix, and the part worth carrying
+
+The flags were corrected, but that alone would not have caught this class of
+thing. `make down` now **asserts** before uninstalling:
+
+```make
+@ING=$(kubectl get ingress -A --no-headers | wc -l);   if [ "$ING" != "0" ]; then echo "ABORTING: ..."; exit 1; fi
+-helm uninstall aws-load-balancer-controller ...
+```
+
+> **Sequencing two steps is not the same as enforcing that the first one
+> worked.**
+
+The ordering was documented correctly in three places — this file, the runbook,
+and the Makefile's own comments — and every one of them described a *sequence*.
+None of them verified it. That is the same disease as every stale claim in this
+project, wearing a shell prompt: **"I ran it" and "it worked" are different
+facts, and `make`'s `-` prefix is a machine for conflating them.**
+
+Final state that session: `Destroy complete! Resources: 62 destroyed`, an
+independent audit clean on all nine ephemeral categories, and both persistent
+things intact — 5 DynamoDB items and the daily budget.
+
 ### What was deliberately not done
 
 **HTTP only, no TLS.** HTTPS needs an ACM certificate, which needs a domain this

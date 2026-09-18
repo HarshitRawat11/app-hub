@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 157 across 7 repositories |
+| Commits | 159 across 7 repositories |
 | Active days | 23 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-18 13:12 IST |
+| Latest commit | 2026-09-18 13:24 IST |
 
 ---
 
@@ -286,3 +286,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 01:17 | `app-hub` | `19b1904` | P-10 is live; D-25 fix applied, verification pending |
 | 01:19 | `app-hub` | `215f04d` | P-10: the site is live but two commits stale |
 | 13:12 | `manifests` | `919d3f7` | Runbook: the helm command was written for bash, pasted into PowerShell |
+| 13:24 | `manifests` | `c96c95a` | E-06 verified end to end on a real cluster |
+| 13:24 | `app-hub` | `2744da6` | E-06 done; make monitoring so R-05 is reproducible; learn/33 |
