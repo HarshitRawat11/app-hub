@@ -93,7 +93,9 @@ Write the file, then **flag the new part in two or three lines.** No walkthrough
 
 ### The Makefile is where infra knowledge goes to hide
 
-`make down` encodes the teardown *ordering* — LoadBalancer Services first so their ENIs release, then empty ECR with `--filter tagStatus=ANY`, then `terraform destroy`, then the orphan audit. That is `learn/15`, one of the most expensive lessons in the project.
+`make down` encodes the teardown *ordering* — Ingresses first (only the ALB controller can clear their finalizer), then LoadBalancer Services so their ENIs release, then `terraform destroy`, then the orphan audit. That is `learn/15` and `D-28`, two of the most expensive lessons in the project.
+
+**It used to empty ECR in the middle of that, and no longer does.** ECR moved to `infra/persistent/` on 2026-09-18 because the always-on host (`P-11`) pulls from it, so `destroy` cannot reach it and emptying it is no longer protective — only destructive. That is `make ecr-prune` now, opt-in. **A teardown step can outlive its reason**, which is exactly why this section says to state a constraint before encoding it.
 
 The targets are yours to maintain. But **when a new ordering or teardown constraint appears, state the constraint before encoding it.** Otherwise the next hard-won rule disappears into a target nobody reads.
 
