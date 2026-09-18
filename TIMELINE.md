@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 176 across 8 repositories |
-| Active days | 23 |
+| Commits | 179 across 8 repositories |
+| Active days | 24 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-18 23:53 IST |
+| Latest commit | 2026-09-19 00:06 IST |
 
 ---
 
@@ -305,3 +305,11 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 23:52 | `compose` | `cc1db59` | Tailscale Funnel replaces cloudflared; the deciding factor was the hostname |
 | 23:52 | `app-hub` | `694669e` | learn/34, and the Tailscale decision recorded |
 | 23:53 | `app-hub` | `1b2661b` | Regenerate TIMELINE.md |
+
+## 2026-09-19
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 00:01 | `app-hub` | `a836331` | infra/persistent applied: ECR is durable now |
+| 00:06 | `app-hub` | `653e6ab` | Correct two teardown docs my own ECR move made dangerous |
+| 00:06 | `app-hub` | `01a9cb7` | CLAUDE.md section 2 said to empty ECR during teardown; it no longer should |
