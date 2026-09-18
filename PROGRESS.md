@@ -130,7 +130,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 
 | ID | Task | Status | Blocker | Next step |
 |----|------|--------|---------|-----------|
-| P-11 | **Always-on deployment target** — the dashboard that has to stay up | **WRITTEN 2026-09-18, NEVER DEPLOYED.** New repo `compose/` (`app-hub-compose`), Docker Compose running the same three images on one host behind a **Cloudflare Tunnel**. `docker compose config` validates; **zero published ports** verified in the resolved config, so nothing listens on the host. Guided build — Compose is a new tool. <br><br>**Pushed 2026-09-18** to `github.com/HarshitRawat11/app-hub-compose` at `d50e33e`. Verified against the remote rather than by the push reporting success: remote `refs/heads/master` matches local `HEAD`, ahead/behind is `0 0`, and the remote tree is exactly five files with **no `.env`** among them. | **Owner's**: the scoped IAM user + access key (by hand, NOT Terraform — `aws_iam_access_key` puts the secret in state), the Cloudflare Tunnel, then `.env` on the host. The GitHub repo is **done** (2026-09-18). | **Laptop first, Oracle later.** Oracle's documented idle policy reclaims Always Free instances under 20% CPU/network/memory over 7 days, which is exactly a bookmark dashboard — and the common claim that Pay-As-You-Go exempts you is **not in the docs**. The laptop is also x86, so no `arm64` rebuild. Every file is identical for both, so Oracle becomes a redeploy rather than a rethink. <br><br>**Shares the `C-04` DynamoDB table** rather than a local store: a local one gives two divergent catalogues of the thing used daily, and shared is the cheaper direction to reverse. Costs a long-lived AWS key on disk — there is no IRSA outside EKS. |
+| P-11 | **Always-on deployment target** — the dashboard that has to stay up | **WRITTEN 2026-09-18, NEVER DEPLOYED.** New repo `compose/` (`app-hub-compose`), Docker Compose running the same three images on one host behind a **Cloudflare Tunnel**. `docker compose config` validates; **zero published ports** verified in the resolved config, so nothing listens on the host. Guided build — Compose is a new tool. <br><br>**Pushed 2026-09-18** to `github.com/HarshitRawat11/app-hub-compose` at `d50e33e`. Verified against the remote rather than by the push reporting success: remote `refs/heads/master` matches local `HEAD`, ahead/behind is `0 0`, and the remote tree is exactly five files with **no `.env`** among them. | **Owner's**: the scoped IAM user + access key (by hand, NOT Terraform — `aws_iam_access_key` puts the secret in state), a **decision on the hostname**, then `.env` on the host. The GitHub repo is **done** (2026-09-18). <br><br>**HOSTNAME IS A REAL DECISION, NOT A STEP.** A named Cloudflare Tunnel's public hostname must sit on a zone in the account, and `manifests/ingress/README.md:199` already records this project as owning no domain. There is **no free stable hostname for Tunnels** — `*.pages.dev` is Pages-only; Quick Tunnels change URL on every restart, which defeats a bookmark. Options: register a domain (~$10/yr, and it also unblocks the ACM certificate `manifests/ingress/README.md:200` is waiting on), or **Tailscale Funnel** (free, permanent, stable `*.ts.net`, but a new service). <br><br>**REGISTRY BLOCKER FOUND AND FIXED 2026-09-18.** `ecr.tf` was in the ephemeral stack, so the nightly destroy **deleted** the repositories — this host would have worked until the first teardown, then failed on `docker compose pull` with an error indistinguishable from the 12-hour login expiry. Moved to `infra/persistent/` with `prevent_destroy`, and `make down` no longer empties ECR (`make ecr-prune` does, opt-in). **`infra/persistent/` must now be applied before the next `make up`.** | **Laptop first, Oracle later.** Oracle's documented idle policy reclaims Always Free instances under 20% CPU/network/memory over 7 days, which is exactly a bookmark dashboard — and the common claim that Pay-As-You-Go exempts you is **not in the docs**. The laptop is also x86, so no `arm64` rebuild. Every file is identical for both, so Oracle becomes a redeploy rather than a rethink. <br><br>**Shares the `C-04` DynamoDB table** rather than a local store: a local one gives two divergent catalogues of the thing used daily, and shared is the cheaper direction to reverse. Costs a long-lived AWS key on disk — there is no IRSA outside EKS. |
 | P-10 | Public project page — **LIVE on Cloudflare Pages** | **DONE 2026-09-18 — <https://app-hub-hr.pages.dev>.** Deployed from `master` with no build command, output directory `site`. **All four security headers verified live** by `curl -sI`, and `Cache-Control: public, max-age=300` on `/static/*` — so `_headers` works identically on Cloudflare and Netlify, which is why it was moved out of `netlify.toml`. `learn/32`. <br><br>Deploying found one real defect: **every nonexistent path returned `200` with the homepage** — Pages falls back to `index.html` when the output directory has no `404.html`. Fixed by adding one — **but that fix is NOT LIVE YET.** <br><br>**The Pages project is DISCONNECTED from the Git account**, so it is stuck on  and two commits behind. The dashboard shows *"Automatic deployments enabled"* and *"This project is disconnected from your Git account"* **at the same time** — a status claiming health while broken, which is why the live check was a  against the real URL rather than a glance at the console. Reconnect under Settings → Builds & deployments, or GitHub → Installed GitHub Apps → Cloudflare Pages → grant . <br><br>*(Was: BUILT 2026-09-16, NOT YET DEPLOYED — `site/` plus `netlify.toml` at the repo root. Landing page (architecture, cost policy, seven repos, write-ups) and **the real dashboard running with no backend** at `/demo.html`. Verified locally: every asset 200s, the stub matches the real API's status codes (201/204/404), and `check-doc-drift.py` gained a vendored-copy check. `learn/32` | **Needs the owner** — connecting the repo means logging into Netlify and authorising it against GitHub, which is not something to hand to an agent | Follow `site/README.md`: Netlify → Add new site → import `HarshitRawat11/app-hub`, **leave every build setting blank** (`netlify.toml` sets `publish = "site"` and an empty command). Every push to `master` redeploys after that. <br><br>**Projects section added 2026-09-17.** `site/projects.json` is the single source of truth, read by three things: the landing-page section, the demo catalogue, and `scripts/seed-projects.py`. A **`public` flag** decides where each entry may appear — three of the owner's four URLs are reachable only from their own machine (`localhost:4322`, `localhost:8001`, and a personal Xiaomi notes account), which is correct for a private start page and wrong on a public portfolio page. <br><br>**Still open:** `Procedo` has no URL (it was swapped for `app-hub` in the list that came back), and every `blurb` is empty — `log-book` is the only publicly-visible card, so it is the one that matters. |
 | P-01 | Version-control the root docs (`CLAUDE.md`, `README.md`, `PROGRESS.md`, `CONTEXT-BRIEF.md`, `learn/`) | **Done** | None | Done 2026-08-30 (`2dfcc93`). Chose an **umbrella repo at the root** that tracks only the cross-cutting docs and gitignores `infra/`, `links-service/`, `manifests/`, `n8n/` so they stay fully independent. Remote not created yet — see `P-08`. |
 | P-02 | Commit the untracked `links-service/Dockerfile` | **Done** | None | Committed 2026-08-30 as `5e312ef`, after fixing `P-03` and `D-11` in the same file |
@@ -287,6 +287,62 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-18 — The always-on host had no registry, and nobody would have found out until it broke
+
+**Asked to create the Cloudflare Tunnel. Did not, because two things sit in front of it and one was invisible.**
+
+**1. `compose/` pulled from a registry that gets deleted every night.** `ecr.tf`
+lived in `infra/` — the ephemeral stack — so `terraform destroy` did not merely
+empty the three repositories, it **deleted them**. Harmless for two months,
+because EKS was the only consumer and `make deploy` rebuilt on the way back up.
+The moment `P-11` added a host meant to stay up 24/7 pulling those same images,
+it became the defect that would have ended the whole exercise: the host works
+until the first teardown, then fails on `docker compose pull` with an error that
+**reads exactly like the 12-hour ECR login expiry documented two paragraphs
+above it in its own README**. A wrong answer that is already written down next
+to the symptom is the expensive kind.
+
+Found by checking rather than by reasoning — `aws ecr describe-repositories`
+returned three unrelated repositories from other projects and none of app-hub's.
+
+**Moved to `infra/persistent/`, at the cheapest moment it will ever be.** The
+repositories did not exist and `terraform state list` in `infra/` returned
+**zero** resources, so there was nothing to migrate. Any other day this needs
+`terraform state mv` across two state files. `prevent_destroy` added on all
+three, matching the DynamoDB table.
+
+**The move reversed a Makefile rule, and the constraint was stated before it was
+encoded** (§ 2). `make down` step 3 emptied ECR on every teardown, for exactly
+one reason: `destroy` fails on a non-empty repository. Destroy can no longer
+reach ECR, so that reason is gone — and running it nightly would now delete the
+always-on host's images. It is `make ecr-prune` now, opt-in, with a typed
+confirmation. The multi-pass buildkit loop (`learn/15`) was kept intact rather
+than deleted, because the lesson in it outlives the target it lived in.
+
+**`terraform validate` caught the cross-stack reference I had not thought about.**
+`jenkins-irsa.tf` scoped its push permissions to `aws_ecr_repository.*.arn`, and
+those resources were no longer in the stack. Fixed with `data
+"aws_ecr_repository"` — **not** by constructing the ARN from account and region,
+which was my first instinct and which `irsa.tf`'s existing comment on the same
+problem already rejects in writing: *"silently wrong the day anything moves"*.
+The project had solved this once; the job was to notice, not to invent.
+
+**Consequence worth stating loudly: `infra/persistent/` must be applied before
+the next `make up`.** The ephemeral stack now fails at plan time, by name, if the
+repositories are absent. That is the right failure, and it is new.
+
+**2. A named Cloudflare Tunnel needs a domain, which `manifests/ingress/README.md`
+already records this project as not having.** There is no free stable hostname
+for Tunnels — `*.pages.dev` is a Pages feature and has no Tunnel equivalent.
+Quick Tunnels are free but their URL changes on every restart, which is useless
+for the one thing this host exists to be: a bookmark. Left with the owner:
+register a domain (~$10/yr, and it also unblocks the ACM certificate that
+`manifests/ingress/README.md:200` has been waiting on), or Tailscale Funnel,
+which is free and permanent but a new service in the stack.
+
+**Nothing was applied and nothing is billing.** Both stacks validate; `make -n
+down` was checked to prove it now executes no ECR command at all.
 
 ### 2026-09-18 — `E-06` done, `R-05` made reproducible, and a teardown that orphaned an ALB
 

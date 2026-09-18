@@ -270,14 +270,17 @@ Consequences that bite:
 
 | Directory | Lifecycle | Holds |
 |---|---|---|
-| `infra/` | **ephemeral** — destroyed every session | VPC, EKS, ECR, and the IRSA role (`C-05`) |
-| `infra/persistent/` | **never destroyed** | the DynamoDB table (`C-04`) |
+| `infra/` | **ephemeral** — destroyed every session | VPC, EKS, and the three IRSA roles (`C-05`, `E-06`, `R-06`) |
+| `infra/persistent/` | **never destroyed** | the DynamoDB table (`C-04`), the budget guardrail, and **ECR** |
+
+**ECR moved from the ephemeral stack to the persistent one on 2026-09-18**, and the reason generalises. The nightly destroy was deleting the repositories outright — fine while EKS was the only consumer, fatal once `compose/` (`P-11`) started pulling the same images to a host meant to stay up 24/7. **Ask what else reads a resource before putting it in the stack that dies every night.** The move also reversed a Makefile rule: `make down` no longer empties ECR, because destroy no longer needs it to and doing so would delete the always-on host's images. That is `make ecr-prune` now, opt-in.
 
 A Terraform "stack" is not a language feature — it is just a directory with its own backend configuration and therefore **its own state file**. `infra/` uses state key `infra/terraform.tfstate`; the persistent stack uses a *different* key in the same bucket. **Sharing a key would make each stack plan to destroy the other's resources, silently.**
 
 Consequences:
 
-- `cd infra && terraform destroy` **does not recurse into subdirectories**, so `make down` cannot touch the persistent stack by construction rather than by care. `prevent_destroy` on the table is the second line of defence.
+- `cd infra && terraform destroy` **does not recurse into subdirectories**, so `make down` cannot touch the persistent stack by construction rather than by care. `prevent_destroy` on the table — and now on all three ECR repositories — is the second line of defence.
+- **The ephemeral stack now depends on the persistent one, and `plan` fails without it.** `infra/jenkins-irsa.tf` scopes its push permissions to the three repository ARNs, read with `data "aws_ecr_repository"` — the same cross-stack pattern `irsa.tf` already uses for the DynamoDB table, and for the same stated reason: constructing an ARN from account and region would be *"silently wrong the day anything moves"*. **Apply `infra/persistent/` before the next `make up`**, or it fails by name at plan time.
 - The layout is deliberately asymmetric — the ephemeral stack sits at the repo root rather than in an `infra/ephemeral/` sibling. Moving it would touch the `Makefile`, `scripts/scheduled-destroy.sh`, the READMEs and several `learn/` files, to break a teardown path that is already proven. Not worth it for symmetry.
 - One repo, so a change spanning both stacks is **one commit**, unlike the service/manifests split.
 
@@ -407,7 +410,7 @@ Work through these in order. Stop as soon as you have what the task needs — do
 5. Then, task-dependent only:
    - `links-service` work → `links-service/app/main.py`, `links-service/app/models.py`, `links-service/pyproject.toml`, `links-service/Dockerfile`
    - `gateway` work → `gateway/app/main.py`, `gateway/pyproject.toml`, and `learn/21` for the design rationale
-   - Infra work → `infra/providers.tf`, `infra/vpc.tf`, `infra/eks.tf`, `infra/ecr.tf`, `infra/outputs.tf`, `infra/variables.tf`. **Persistent-data work → `infra/persistent/` instead** — a separate stack with its own state file (§ 3).
+   - Infra work → `infra/providers.tf`, `infra/vpc.tf`, `infra/eks.tf`, `infra/outputs.tf`, `infra/variables.tf` (**ECR is now `infra/persistent/ecr.tf`**). **Persistent-data work → `infra/persistent/` instead** — a separate stack with its own state file (§ 3).
    - Deploy work → `manifests/links-service/deployment.yaml`, `manifests/links-service/service.yaml`
    - n8n work → `n8n/README.md` first (it carries the security rules), then `n8n/workflows/*.json`
 6. **Never read `infra/.terraform/`.** It is ~800 MB of vendored provider binaries and upstream module source. It is gitignored, it is not our code, and reading it wastes the entire context window.
@@ -458,7 +461,7 @@ Each of these cost real time to find. They are here so no future session pays fo
 
 - **Re-run `aws eks update-kubeconfig --region ap-south-1 --name app-hub-eks` after every `destroy` + `apply` cycle.** EKS generates a *new endpoint hostname* each time, even with an identical cluster name. A stale kubeconfig is the single biggest source of confusing `kubectl` failures in this project — the errors look like network or auth problems, not staleness. Given the destroy-every-session policy (§ 4), this applies almost every time the cluster comes back.
 
-- **ECR needs `force_delete = true` — and it is not always sufficient.** Keep it in `ecr.tf`; without it `terraform destroy` definitely fails once the repository holds images. But it has been **observed not to take effect**, and destroy still failed. Working fallback: delete the images first, then destroy.
+- **ECR needs `force_delete = true` — and it is not always sufficient.** **MOVED 2026-09-18 — the repositories now live in `infra/persistent/ecr.tf`, so `terraform destroy` never reaches them and this lesson is now about `make ecr-prune`, not teardown.** Keep `force_delete` anyway; without it a *deliberate* destroy fails once the repository holds images. But it has been **observed not to take effect**, and destroy still failed. Working fallback: delete the images first, then destroy.
 
   ```bash
   aws ecr batch-delete-image --repository-name app-hub/links-service --region ap-south-1 --image-ids "$(aws ecr list-images --repository-name app-hub/links-service --region ap-south-1 --filter tagStatus=ANY --query 'imageIds[*]' --output json)"
@@ -470,9 +473,9 @@ Each of these cost real time to find. They are here so no future session pays fo
 
   **One pass is not enough, and this bit on 2026-09-10.** buildkit pushes a manifest **index** plus the child manifests it points at (the image, and an attestation). `list-images` shows the index; **deleting it makes the children visible as newly-untagged digests that were not in the first listing.** Observed live: `app-hub/gateway` needed two passes — pass 1 deleted 1, pass 2 deleted 2. A single `batch-delete-image` leaves the repository non-empty and `destroy` then fails.
 
-  So **loop until `describe-images` actually returns `0`**, rather than deleting once and assuming. `make down` does this now, and aborts rather than proceeding if the repository is still non-empty after five passes. The command above is the single-pass version — run it repeatedly, or use `make down`.
+  So **loop until `describe-images` actually returns `0`**, rather than deleting once and assuming. `make ecr-prune` does this, and aborts rather than proceeding if the repository is still non-empty after five passes. The command above is the single-pass version — run it repeatedly, or use `make ecr-prune`. **It is no longer part of `make down`.**
 
-  **This applies to every repository, and `make down` now walks `ECR_REPOS` in the Makefile rather than a single hardcoded name.** Add each new repository to that variable when you create it — a missing entry does not fail loudly, it just breaks a later `destroy` with an error about the repository not being empty. The Makefile also reports *"does not exist yet"* separately from *"already empty"*, because swallowing `RepositoryNotFoundException` would make a typo'd repository name look like a clean one.
+  **This applies to every repository, and `make ecr-prune` walks `ECR_REPOS` in the Makefile rather than a single hardcoded name.** Add each new repository to that variable when you create it — a missing entry still does not fail loudly, but the symptom changed with the move: it used to break a later `destroy`, and now it simply means that repository is never pruned and its storage grows unwatched. The Makefile also reports *"does not exist yet"* separately from *"already empty"*, because swallowing `RepositoryNotFoundException` would make a typo'd repository name look like a clean one.
 
 - **Kubernetes creates AWS resources Terraform does not know about, and they block or silently outlive `destroy`.** This is the most expensive trap in the project because it fails *quietly*.
   - **EBS volumes** behind PVCs are created by the EBS CSI driver, not Terraform. `terraform destroy` leaves them, and they keep billing.

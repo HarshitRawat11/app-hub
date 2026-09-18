@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 168 across 8 repositories |
+| Commits | 172 across 8 repositories |
 | Active days | 23 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-18 23:05 IST |
+| Latest commit | 2026-09-18 23:41 IST |
 
 ---
 
@@ -297,3 +297,7 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 22:31 | `compose` | `d50e33e` | The always-on deployment target |
 | 22:31 | `app-hub` | `c1112ea` | Register compose/ as the seventh component; P-11 |
 | 23:05 | `compose` | `02ef4ec` | Runbook: say how the files reach the host |
+| 23:06 | `app-hub` | `86a7776` | compose has a remote, and the runbook gap it exposed |
+| 23:11 | `app-hub` | `3bcdd07` | D-24: record why today is not evidence, before the gap is misread |
+| 23:41 | `infra` | `b4d5b79` | ECR moves to the persistent stack; the always-on host depends on it |
+| 23:41 | `compose` | `625379a` | Record that the registry is durable now |

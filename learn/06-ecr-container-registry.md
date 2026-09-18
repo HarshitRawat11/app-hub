@@ -192,3 +192,61 @@ aws ecr describe-image-scan-findings --repository-name app-hub/links-service --i
 ---
 
 **Next:** `learn/07` — the Kubernetes manifests that turn this image into running pods.
+
+
+---
+
+## Postscript, 2026-09-18 — ECR moved to the persistent stack
+
+**Everything above is still accurate about what ECR is and why the tags are
+immutable. What changed is which stack owns it, and that changes the teardown
+story this file tells.**
+
+`ecr.tf` lived in `infra/`, the ephemeral stack, so every `terraform destroy`
+**deleted the three repositories**, not merely their contents. That was a
+deliberate and correct choice while EKS was the only thing pulling from them:
+the cluster died with the images, and `make deploy` rebuilt and re-pushed.
+
+It stopped being correct when `compose/` arrived (`P-11`) — a second deployment
+target, on one host, meant to stay up 24 hours a day, pulling these exact
+images. A registry that is deleted nightly gives you a host that works until the
+first teardown and then fails on `docker compose pull`, with an error that looks
+like the twelve-hour ECR login expiry and is really a missing repository.
+
+**The repositories now live in `infra/persistent/ecr.tf`**, alongside the
+DynamoDB table, with `prevent_destroy = true` on each.
+
+### Three things worth carrying away
+
+**Ask who else reads a resource before you put it in the stack that dies every
+night.** Nothing about `ecr.tf` was wrong when it was written. It became wrong
+because a second consumer appeared, and no check anywhere would have noticed.
+
+**Moving a resource between stacks is usually painful and was free here.**
+Normally it is `terraform state mv` between two separate state files. This move
+happened when the repositories did not exist and `terraform state list` in
+`infra/` returned zero resources — so it was a file move and an apply. If you
+ever need to do this, do it while the resource is destroyed.
+
+**A teardown step can outlive its reason.** `make down` emptied ECR for one
+reason only: `destroy` fails on a non-empty repository. Once destroy could not
+reach ECR, that step was no longer protective — it was just deleting the
+always-on host's images every night. It is `make ecr-prune` now, opt-in. The
+five-pass buildkit loop from `learn/15` was kept, because the lesson outlives
+the target it happened to live in.
+
+### The one that bit during the move
+
+`terraform validate` failed in the ephemeral stack, because `jenkins-irsa.tf`
+scoped Kaniko's push permissions to `aws_ecr_repository.<name>.arn` and those
+resources had left the stack. The fix is `data "aws_ecr_repository"`, matching
+what `irsa.tf` already does for the DynamoDB table — and notably **not**
+building the ARN out of account id and region, which is the obvious shortcut and
+which `irsa.tf`'s own comment rejects as *"silently wrong the day anything
+moves"*.
+
+**Consequence: `infra/persistent/` must be applied before `infra/`.** The
+ephemeral stack now fails at plan time if the repositories are missing, by name.
+That is the right failure — a CI role granting push access to a repository that
+does not exist is not something to apply quietly — but it is new, and `make up`
+is where you will meet it.

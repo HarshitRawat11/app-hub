@@ -6,12 +6,15 @@
 #   make status   what is running / what is billing me
 #   make up       terraform apply + refresh kubeconfig + verify nodes
 #   make deploy   build + push (git-SHA tag) + apply manifests + verify
-#   make down     drain Kubernetes, empty ECR, terraform destroy, audit orphans
+#   make down     drain Kubernetes, terraform destroy, audit orphans
+#   make ecr-prune  delete every image (opt-in; `down` no longer does this)
 #   make test     run every service test suite (no cluster needed)
 #
 # TWO TERRAFORM STACKS, both in the app-hub-infra repo:
 #   infra/             ephemeral -- destroyed every session. This is what up/down drive.
-#   infra/persistent/  never destroyed -- the DynamoDB table (C-04).
+#   infra/persistent/  never destroyed -- the DynamoDB table (C-04), the budget
+#                      guardrail, and ECR (moved 2026-09-18, because the
+#                      always-on compose host pulls from it -- P-11).
 #
 # `cd infra && terraform destroy` does NOT recurse into subdirectories, so the
 # persistent stack is safe from `make down` by construction, not by care. Its
@@ -30,8 +33,12 @@ NAMESPACE := app-hub
 # repo root (the source) and under manifests/ (the Kubernetes objects).
 # ADD A NEW SERVICE HERE and to ECR_REPOS below; nothing else changes.
 SERVICES  := links-service gateway aggregator
-# Every ECR repository the teardown must empty. ECR_REPO above is only the one
-# `deploy` builds today; this list is what `down` walks.
+# Every ECR repository. This list is what `ecr-prune` walks.
+#
+# IT IS NO LONGER WHAT `down` WALKS. ECR moved to infra/persistent/ on
+# 2026-09-18, so destroy never touches it and there is nothing to empty on
+# teardown -- emptying it nightly would delete the images the always-on host
+# depends on (P-11).
 #
 # app-hub/gateway is listed BEFORE it exists (S-01 step 6 creates it). That is
 # deliberate: `terraform destroy` fails once a repository holds images, and
@@ -77,7 +84,7 @@ dirty_of = $(shell git -C $(1) status --porcelain 2>/dev/null | head -c1)
 tag_of   = $(if $(call dirty_of,$(1)),$(call sha_of,$(1))-dirty-$(shell date +%s),$(call sha_of,$(1)))
 
 .DEFAULT_GOAL := help
-.PHONY: help guard status up deploy verify down destroy-only validate test verify-dynamo monitoring jenkins
+.PHONY: help guard status up deploy verify down destroy-only ecr-prune validate test verify-dynamo monitoring jenkins
 
 help:
 	@echo "app-hub — run from WSL"
@@ -90,6 +97,9 @@ help:
 	@echo "  make validate offline manifest + terraform checks (no cluster needed)"
 	@echo "  make monitoring  install Prometheus + Grafana (R-05) on a live cluster"
 	@echo "  make jenkins     install Jenkins, configured entirely as code (R-06)"
+	@echo ""
+	@echo "  make ecr-prune       delete every image from ECR — opt-in, NOT part of down"
+	@echo "                       the always-on compose host pulls these images (P-11)"
 	@echo ""
 	@echo "  make verify-dynamo   exercise the repository against the REAL table"
 	@echo "                       WRITES to $(LINKS_TABLE) — needs approval, not part of 'test'"
@@ -235,7 +245,7 @@ verify:
 ## Destroy the cluster first and those controllers die, orphaning the AWS
 ## resources permanently. See learn/15.
 down: guard
-	@echo "== 1/5 deleting Ingresses, then LoadBalancer Services (releases the ALB/NLB and their ENIs) =="
+	@echo "== 1/4 deleting Ingresses, then LoadBalancer Services (releases the ALB/NLB and their ENIs) =="
 	@# THE INGRESS COMES FIRST, AND THE ORDER IS LOAD-BEARING (added with E-06).
 	@#
 	@# An ALB created from an Ingress is not tracked by Terraform AND is not a
@@ -301,13 +311,34 @@ down: guard
 	  fi
 	@# Only now is it safe to remove the controller: the ALB it manages is gone.
 	-helm uninstall aws-load-balancer-controller -n kube-system --ignore-not-found
-	@echo "== 2/5 deleting PVCs (their EBS volumes are invisible to Terraform) =="
+	@echo "== 2/4 deleting PVCs (their EBS volumes are invisible to Terraform) =="
 	-kubectl delete pvc --all --all-namespaces --ignore-not-found
-	@echo "== 3/5 emptying ECR — tagStatus=ANY, because the default hides untagged digests =="
-	@# Walk ECR_REPOS, not just the one `deploy` builds. A repository holding
-	@# images blocks `terraform destroy`, and force_delete has been observed not
-	@# to help (CLAUDE.md 9).
+	@echo "== 3/4 terraform destroy =="
+	@# AUTO=1 skips the confirmation prompt. Only for the scheduled unattended
+	@# destroy (scripts/scheduled-destroy.sh) -- interactively you want the prompt.
+	cd infra && terraform destroy $(if $(AUTO),-auto-approve -input=false,)
+	@echo "== 4/4 orphan audit =="
+	@$(MAKE) --no-print-directory status
+
+## ecr-prune — delete every image from every repository. NOT part of `down`.
+ecr-prune:
+	@# THE CONSTRAINT, STATED BEFORE IT IS ENCODED (CLAUDE.md section 2):
 	@#
+	@# This was step 3 of `down` and ran on EVERY teardown. It existed for
+	@# exactly one reason: `terraform destroy` fails on a non-empty repository.
+	@# ECR now lives in infra/persistent/, which destroy never reaches -- so that
+	@# reason is gone, and running it nightly would delete the very images the
+	@# always-on compose host pulls (P-11). A 24/7 host whose registry is emptied
+	@# every night is not a 24/7 host.
+	@#
+	@# So it is opt-in. Run it to reclaim storage; never as part of a teardown.
+	@# It deletes images that cannot be rebuilt if their source commit is gone.
+	@if [ -z "$(AUTO)" ]; then \
+	  echo "This deletes EVERY image in: $(ECR_REPOS)"; \
+	  echo "The always-on compose host (P-11) pulls from these."; \
+	  printf "Type 'yes' to continue: "; read ans; \
+	  [ "$$ans" = "yes" ] || { echo "aborted"; exit 1; }; \
+	fi
 	@# ONE PASS IS NOT ENOUGH. buildkit pushes a manifest INDEX plus the child
 	@# manifests it points at (the image itself, and an attestation). Deleting
 	@# the index makes its children visible to list-images as newly-untagged
@@ -320,7 +351,7 @@ down: guard
 	@# look like a clean one -- a check that passes because it never checked.
 	@for repo in $(ECR_REPOS); do \
 	  if ! aws ecr describe-repositories --repository-names $$repo --region $(REGION) >/dev/null 2>&1; then \
-	    echo "   $$repo: does not exist yet — nothing to empty"; continue; \
+	    echo "   $$repo: does not exist — nothing to empty"; continue; \
 	  fi; \
 	  total=0; \
 	  for pass in 1 2 3 4 5; do \
@@ -333,19 +364,13 @@ down: guard
 	  if [ "$$total" = "0" ]; then echo "   $$repo: already empty"; fi; \
 	  left=$$(aws ecr describe-images --repository-name $$repo --region $(REGION) --query 'length(imageDetails)' --output text 2>/dev/null || echo 0); \
 	  if [ "$$left" != "0" ]; then \
-	    echo "   ERROR: $$repo still holds $$left image(s) after 5 passes — destroy would fail."; \
-	    echo "   Stopping rather than proceeding blindly. Inspect with:"; \
+	    echo "   ERROR: $$repo still holds $$left image(s) after 5 passes."; \
+	    echo "   Inspect with:"; \
 	    echo "     aws ecr describe-images --repository-name $$repo --region $(REGION)"; \
 	    exit 1; \
 	  fi; \
 	  echo "   $$repo: empty (confirmed, $$total deleted)"; \
 	done
-	@echo "== 4/5 terraform destroy =="
-	@# AUTO=1 skips the confirmation prompt. Only for the scheduled unattended
-	@# destroy (scripts/scheduled-destroy.sh) -- interactively you want the prompt.
-	cd infra && terraform destroy $(if $(AUTO),-auto-approve -input=false,)
-	@echo "== 5/5 orphan audit =="
-	@$(MAKE) --no-print-directory status
 
 ## destroy-only — skip the Kubernetes drain. Only safe when no cluster exists.
 destroy-only: guard
