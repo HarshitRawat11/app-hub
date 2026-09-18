@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 182 across 8 repositories |
+| Commits | 186 across 8 repositories |
 | Active days | 24 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-19 00:26 IST |
+| Latest commit | 2026-09-19 01:10 IST |
 
 ---
 
@@ -316,3 +316,7 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 00:07 | `app-hub` | `6da01a9` | Regenerate TIMELINE.md |
 | 00:26 | `manifests` | `c47478d` | R-07: ArgoCD, app-of-apps, written and never applied |
 | 00:26 | `app-hub` | `74a5ac0` | make argocd, a teardown step 0, and a validator that would have skipped it |
+| 00:26 | `app-hub` | `809b784` | Regenerate TIMELINE.md |
+| 00:56 | `manifests` | `61b90cb` | Pin links-service to 1eabb8d, the image that actually exists |
+| 01:10 | `manifests` | `28231a2` | applicationSet.enabled does nothing; the lever is replicas: 0 |
+| 01:10 | `app-hub` | `c131ac3` | R-07 applied and verified on real EKS; three claims tested, one was false |
