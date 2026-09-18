@@ -39,7 +39,7 @@ that catches people. `make deploy` pins an image tag into
 laptop. An uncommitted pin is invisible to it.
 
 **`selfHeal` makes git the only write path.** With it on, `kubectl edit` is
-undone within about three minutes. That feels hostile for a day and is the
+undone in **seconds**. That feels hostile for a day and is the
 entire value proposition: it is what makes the repository trustworthy.
 
 **App-of-apps.** One Application whose job is to deploy other Applications.
@@ -75,10 +75,13 @@ would still deploy and nothing would error. The cluster would simply be quietly
 less safe than the repository claims. So the namespace is synced from its real
 manifest, with its real labels, in wave -1.
 
-**Three chart components are disabled**: `dex` (SSO brokering, for an identity
-provider that does not exist here), `notifications` (n8n already owns that), and
-`applicationSet` (generates Applications across many clusters; there is one).
-Each is a pod holding memory on a node that is already tight.
+**Three chart components are turned off — but not by the same key, and assuming they were cost a wrong claim.** `dex` (SSO brokering for an identity provider that does not exist here) and `notifications` (n8n already owns that) both have an `enabled` key. **`applicationSet` does not** — in chart 10.9.2 the only `enabled` beneath it belongs to `applicationSet.pdb`.
+
+So `applicationSet.enabled: false` was written, **Helm accepted it silently** — unknown values are not an error — and the controller ran anyway. The values file asserted one thing and the cluster did another, with nothing reporting the difference. It was caught by reading `kubectl get pods` after the install, not by reviewing the file.
+
+Settled with `helm template` rather than another guess: `--set applicationSet.enabled=false` renders `replicas: 1`; `--set applicationSet.replicas=0` renders `replicas: 0`. The working lever is `replicas: 0`, and note what it does not do — the Deployment object still exists, it just runs no pods.
+
+**The transferable part: a Helm value you invented is indistinguishable from one you got right, because the failure is silence.** Check the rendered output, or check the cluster.
 
 **`server.insecure: true`, and why that is not careless.** ArgoCD is reached by
 `kubectl port-forward`, not through the shared ALB. The ALB is HTTP-only,
@@ -113,8 +116,8 @@ the root Application first (cascading, while the controller is still alive), and
 
 **An uncommitted image pin silently rolls back.** `make deploy` pins the tag
 locally and applies it. The pods come up on the new image, ArgoCD notices the
-cluster disagrees with git, and reverts — about three minutes later. It looks
-like a flaky deployment. It is the system working.
+cluster disagrees with git, and reverts — almost immediately. It looks like a
+flaky deployment. It is the system working.
 
 **The validator would not have seen these files.** `make validate` globbed one
 directory level, and `manifests/argocd/apps/` is two deep. That is exactly how
@@ -150,8 +153,11 @@ ArgoCD having created the namespace itself.
 kubectl -n app-hub scale deployment/gateway --replicas=0
 ```
 
-Then watch it come back within ~3 minutes. **If it does not, `selfHeal` is not
-doing what this file claims.**
+Then watch it come back. **Measured 2026-09-19: it was already back to 2 by the
+time the next command ran** — ArgoCD watches resources rather than only
+polling, so the documented 3-minute reconciliation interval is the worst case
+when an event is missed, not the expected latency. **If it does not revert,
+`selfHeal` is not doing what this file claims.**
 
 ## Going deeper
 

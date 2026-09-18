@@ -177,7 +177,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 | R-04 | Deploy into a dedicated namespace | **Done and VERIFIED on a live cluster** 2026-09-10 — **admission control demonstrably rejected a non-compliant pod** | None | `e073761`. New `00-namespace.yaml` (the `00-` prefix is load-bearing — `kubectl apply -f dir/` goes in filename order and everything else references the namespace). Enforces the **restricted** Pod Security Standard, so non-compliant manifests are rejected at admission rather than quietly running as root. 
 | R-05 | Observability: **Prometheus / Grafana via `kube-prometheus-stack`** | **DONE and VERIFIED ON REAL EKS** 2026-09-14 — 22 targets all UP, five of them app-hub pods, scraped because of one `ServiceMonitor` with no config file edited and nothing restarted. Built as a **guided build** (`CLAUDE.md § 2`), a tier added this day at the owner's request: Claude wrote `values.yaml` and the `ServiceMonitor`, the owner ran every command and hit every failure. `learn/30` | Depends on `E-04`. **Phase 2 in the owner roadmap — comes before CI/CD.** | Helm chart. Note this is *why* the node group is EC2 and not Fargate: `node-exporter` is a DaemonSet, which Fargate does not support. First stateful workload — the PVC/EBS teardown checklist in `CLAUDE.md § 9` becomes mandatory from here on. |
 | R-06 | CI: **Jenkins in-cluster via Helm** | **WRITTEN 2026-09-18, NEVER APPLIED.** Guided build — Jenkins is a genuinely new tool, so Claude wrote the artifacts and the owner runs every command. `infra/jenkins-irsa.tf` (third IRSA role, ECR push only, no delete), `manifests/jenkins/` (namespace at `baseline` PSS, values.yaml carrying the **entire** Jenkins config as JCasC), `links-service/Jenkinsfile`, and `make jenkins`. Passes offline checks; **no API server and no running Jenkins have seen it.** <br><br>**Owner's decisions, taken 2026-09-18:** JCasC over persistence (the cluster dies nightly, so a PVC buys nothing and adds an EBS orphan risk); **Kaniko** over Docker-in-Docker (DinD needs privileged, which `baseline` forbids and which is a real escape risk); a **deploy key** over a PAT (scoped to one repo). <br><br>**Known incomplete and stated in the file:** the Test stage is a placeholder — the Kaniko container has no Python, so the pipeline is **not yet a CI gate**. Adding a second container to the agent pod template is the first task after it runs. | Depends on `R-05` landing first (owner roadmap phase 3) | Build, test, push image, then **commit a bumped image tag into the `manifests` repo**. Jenkins must never run `kubectl apply` — that is ArgoCD deliberately (see Decisions). |
-| R-07 | CD: **ArgoCD, GitOps from `app-hub-manifests`** | **WRITTEN 2026-09-19, NEVER APPLIED.** Guided build — ArgoCD is a genuinely new tool, so Claude wrote it heavily commented and the owner runs every command. Chart `argo/argo-cd` **10.9.2** (ArgoCD v3.5.3), read from `helm search repo` rather than guessed. **App-of-apps**: one root Application applied by `make argocd`, five children in `manifests/argocd/apps/` ordered by sync wave (namespace -1, services 0, Ingress 1). `automated` + `prune` + `selfHeal`. `dex`, `notifications` and `applicationSet` disabled — nothing here uses them and the node group is tight. | **Owner's**: generate a **read-only** deploy key on `app-hub-manifests` (Jenkins's existing key is write; ArgoCD only reads) and create the labelled `app-hub-manifests-repo` Secret. `make argocd` refuses to install without it. Then a cluster. | ArgoCD watches the manifests repo and reconciles. **`make down` gained a step 0** because of it: with `selfHeal`, deleting the Ingress makes ArgoCD recreate it, the controller provisions a **second ALB**, and teardown orphans it — `D-28` again, with something actively undoing the fix. Step 0 deletes the root Application first (cascading, while the ALB controller is still alive) and **asserts zero Applications remain**. <br><br>**`make validate` now globs two directory levels**, because `manifests/argocd/apps/` sits deeper than anything before it and a one-level glob would have skipped it silently — the same failure that hid `manifests/monitoring/` until 2026-09-16. **Proven by deleting a namespace from a child Application and watching validate fail**, then restoring it. <br><br>**Not under ArgoCD, deliberately**: ArgoCD itself (bootstrap paradox), the ALB controller (must exist before the Ingress), Prometheus and Jenkins (Helm releases — the natural second step). `learn/35`. |
+| R-07 | CD: **ArgoCD, GitOps from `app-hub-manifests`** | **DONE and VERIFIED ON REAL EKS 2026-09-19** — all six Applications `Synced`/`Healthy`, exactly one ALB, the app served through it (`HTTP 200`, catalogue from DynamoDB). Guided build — ArgoCD is a genuinely new tool, so Claude wrote it heavily commented and the owner runs every command. Chart `argo/argo-cd` **10.9.2** (ArgoCD v3.5.3), read from `helm search repo` rather than guessed. **App-of-apps**: one root Application applied by `make argocd`, five children in `manifests/argocd/apps/` ordered by sync wave (namespace -1, services 0, Ingress 1). `automated` + `prune` + `selfHeal`. `dex` and `notifications` disabled. <br><br>**THREE CLAIMS WERE TESTED RATHER THAN ASSERTED, AND ONE WAS FALSE.** (1) **`applicationSet.enabled: false` DID NOTHING** — that key does not exist in chart 10.9.2 (the only `enabled` beneath it is `applicationSet.pdb`), **Helm accepts unknown values silently**, and the controller ran anyway. Caught by reading `kubectl get pods`, not the file. Settled with `helm template`: `enabled=false` renders `replicas: 1`, `replicas=0` renders `replicas: 0`. Fixed to `replicas: 0`; note the Deployment object still exists with no pods. (2) **`enforce: restricted` survived** — proven by admission control actually rejecting a busybox pod, not by reading the label. (3) **`selfHeal` reverts in SECONDS, not ~3 minutes** — a `scale --replicas=0` was already back to 2 before the next command ran, because ArgoCD watches resources rather than only polling. The 3-minute figure was wrong in six places and is corrected. | **Owner's**: generate a **read-only** deploy key on `app-hub-manifests` (Jenkins's existing key is write; ArgoCD only reads) and create the labelled `app-hub-manifests-repo` Secret. `make argocd` refuses to install without it. Then a cluster. | ArgoCD watches the manifests repo and reconciles. **`make down` gained a step 0** because of it: with `selfHeal`, deleting the Ingress makes ArgoCD recreate it, the controller provisions a **second ALB**, and teardown orphans it — `D-28` again, with something actively undoing the fix. Step 0 deletes the root Application first (cascading, while the ALB controller is still alive) and **asserts zero Applications remain**. <br><br>**`make validate` now globs two directory levels**, because `manifests/argocd/apps/` sits deeper than anything before it and a one-level glob would have skipped it silently — the same failure that hid `manifests/monitoring/` until 2026-09-16. **Proven by deleting a namespace from a child Application and watching validate fail**, then restoring it. <br><br>**Not under ArgoCD, deliberately**: ArgoCD itself (bootstrap paradox), the ALB controller (must exist before the Ingress), Prometheus and Jenkins (Helm releases — the natural second step). `learn/35`. |
 
 ### Phase 4 — n8n workflows
 
@@ -289,6 +289,53 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-19 — `R-07` applied: ArgoCD live on EKS, and three claims put to the test
+
+**Cluster up, ArgoCD installed, all six Applications `Synced`/`Healthy`.**
+`61 added, 0 changed, 0 destroyed`; both nodes Ready on 1.36, which confirms the
+`D-23` version fix survives a rebuild (standard support, $0.10/hr not $0.50).
+
+**Order mattered and was followed deliberately.** ALB controller (vpcId read
+fresh from `terraform output`, never committed) → `make deploy` → **commit and
+push `manifests/`** → Secret → `make argocd`. The push step was the one worth
+not skipping: `links-service`'s manifest pinned `ed8915a` while HEAD was
+`1eabb8d`, and ECR had been emptied by the stack move, so **neither tag
+existed**. Every manifest tag was checked against `describe-images` before
+committing — all three MATCH.
+
+**The application layer was proven healthy BEFORE ArgoCD was installed**, so a
+red Application afterwards could only be ArgoCD's doing. DNS discovery returned
+`{"status":"ok"}`, gateway served all five catalogue items from DynamoDB.
+
+**A real defect in the values file, found by looking at the cluster rather than
+the file.** `applicationSet.enabled: false` **does nothing** — that key does not
+exist in chart 10.9.2, and **Helm accepts unknown values without complaint**, so
+the controller ran while the file said it was off. `dex` and `notifications` do
+have `enabled`, which is exactly why they worked and hid the problem. Settled
+with `helm template` instead of a second guess: `enabled=false` renders
+`replicas: 1`, `replicas=0` renders `replicas: 0`. **A Helm value you invented
+looks identical to one you got right, because the failure mode is silence.**
+
+**`enforce: restricted` survived ArgoCD taking over the namespace** — and that
+was proven properly, by watching admission control reject a busybox pod with a
+four-clause violation, not by reading the label back. This is the failure
+`CreateNamespace=true` would have caused silently.
+
+**`selfHeal` works, and my documentation of it was wrong.** A
+`kubectl scale --replicas=0` on gateway was **already back to 2 before the next
+command ran**. ArgoCD watches resources rather than only polling, so the
+3-minute reconciliation interval is the worst case when an event is missed, not
+the expected latency. "About three minutes" appeared in six places and is
+corrected to seconds.
+
+**Exactly one ALB**, and the app answers through it: `GET /` → 200, `/links` →
+the catalogue.
+
+**Still billing at the time of writing** — cluster ~$0.28/hr plus the ALB. The
+teardown is owed, and `make down` step 0 (delete Applications first) gets its
+first real exercise: with `selfHeal` this fast, deleting the Ingress directly
+would see it recreated almost instantly and a second ALB orphaned.
 
 ### 2026-09-19 — `R-07` written: ArgoCD, and a teardown step that stops it undoing the fix
 
