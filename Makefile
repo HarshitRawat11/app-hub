@@ -69,6 +69,10 @@ MONITORING_CHART_VERSION := 91.2.3
 # Same reasoning as the chart version above: pinned so a working setup does
 # not break on a day you changed nothing.
 JENKINS_CHART_VERSION := 5.8.18
+# R-07. Chart 10.9.2 ships ArgoCD v3.5.3 -- read from `helm search repo
+# argo/argo-cd --versions` on 2026-09-19 rather than guessed, because a
+# chart version that does not exist fails at install time, not at review.
+ARGOCD_CHART_VERSION := 10.9.2
 
 # Tag every image with the links-service commit it was built from, because the
 # ECR repo is IMMUTABLE (R-03) and a tag must never be reused. A dirty working
@@ -84,7 +88,7 @@ dirty_of = $(shell git -C $(1) status --porcelain 2>/dev/null | head -c1)
 tag_of   = $(if $(call dirty_of,$(1)),$(call sha_of,$(1))-dirty-$(shell date +%s),$(call sha_of,$(1)))
 
 .DEFAULT_GOAL := help
-.PHONY: help guard status up deploy verify down destroy-only ecr-prune validate test verify-dynamo monitoring jenkins
+.PHONY: help guard status up deploy verify down destroy-only ecr-prune validate test verify-dynamo monitoring jenkins argocd
 
 help:
 	@echo "app-hub — run from WSL"
@@ -97,6 +101,7 @@ help:
 	@echo "  make validate offline manifest + terraform checks (no cluster needed)"
 	@echo "  make monitoring  install Prometheus + Grafana (R-05) on a live cluster"
 	@echo "  make jenkins     install Jenkins, configured entirely as code (R-06)"
+	@echo "  make argocd      install ArgoCD + the root Application (R-07)"
 	@echo ""
 	@echo "  make ecr-prune       delete every image from ECR — opt-in, NOT part of down"
 	@echo "                       the always-on compose host pulls these images (P-11)"
@@ -245,6 +250,38 @@ verify:
 ## Destroy the cluster first and those controllers die, orphaning the AWS
 ## resources permanently. See learn/15.
 down: guard
+	@# ================= STEP 0, AND IT IS NEW AS OF R-07 =================
+	@#
+	@# THE CONSTRAINT, STATED BEFORE IT IS ENCODED (CLAUDE.md section 2):
+	@#
+	@# ArgoCD runs with selfHeal. If it is alive when step 1 deletes the
+	@# Ingress, it notices the drift and RECREATES it -- the ALB controller
+	@# then provisions a SECOND load balancer, and teardown proceeds around
+	@# it. That is D-28 again (an orphaned, billing ALB), except this time
+	@# something is actively undoing the fix.
+	@#
+	@# Deleting the ROOT Application cascades through the resources-finalizer
+	@# to the child Applications and their objects, Ingress included -- and
+	@# the ALB controller is still installed at this moment, so the load
+	@# balancer is deprovisioned properly rather than stranded.
+	@#
+	@# --ignore-not-found so this is a clean no-op on a cluster that never
+	@# had ArgoCD. --wait so the cascade finishes before step 1 starts.
+	@echo "== 0/4 removing ArgoCD Applications (selfHeal would recreate the Ingress) =="
+	-kubectl delete application app-hub-root -n argocd --ignore-not-found --wait --timeout=5m
+	-kubectl delete applications --all -n argocd --ignore-not-found --wait --timeout=5m
+	@# Assert rather than assume. An Application stuck on its finalizer here
+	@# means something still reconciles, and step 1 would be a fight.
+	@APPS=$$(kubectl get applications -A --no-headers 2>/dev/null | wc -l | tr -d ' '); \
+	  if [ "$$APPS" != "0" ]; then \
+	    echo "ABORTING: $$APPS ArgoCD Application(s) still exist."; \
+	    echo "Deleting the Ingress now would be undone by selfHeal, and the"; \
+	    echo "ALB it creates would be orphaned. Investigate:"; \
+	    echo "  kubectl get applications -A"; \
+	    exit 1; \
+	  fi
+	-helm uninstall argocd -n argocd --ignore-not-found
+	@echo ""
 	@echo "== 1/4 deleting Ingresses, then LoadBalancer Services (releases the ALB/NLB and their ENIs) =="
 	@# THE INGRESS COMES FIRST, AND THE ORDER IS LOAD-BEARING (added with E-06).
 	@#
@@ -475,6 +512,62 @@ jenkins: guard
 	@echo "   The job 'links-service' should already exist. If it does not, JCasC"
 	@echo "   did not apply -- check:  kubectl -n jenkins logs sts/jenkins -c jenkins | grep -i casc"
 
+## argocd — R-07, GitOps. Refuses to run without its repository Secret.
+argocd: guard
+	@command -v helm >/dev/null || { echo "ERROR: helm not found. Run this from WSL."; exit 1; }
+	kubectl apply -f $(MANIFEST_ROOT)/argocd/namespace.yaml
+	@echo ""
+	@# CHECK BEFORE INSTALLING, same as `jenkins` above and for the same reason.
+	@# app-hub-manifests is a PRIVATE repository. Without this Secret the chart
+	@# installs cleanly, the UI comes up, and every Application sits in Unknown
+	@# with an authentication error -- which reads as a broken install rather
+	@# than a missing credential.
+	@#
+	@# ArgoCD finds repository credentials BY LABEL, not by name, so a Secret
+	@# that exists without argocd.argoproj.io/secret-type=repository is inert.
+	@# Both are checked.
+	@kubectl -n argocd get secret app-hub-manifests-repo >/dev/null 2>&1 || { \
+	  echo ""; \
+	  echo "MISSING SECRET: app-hub-manifests-repo"; \
+	  echo "ArgoCD would install and then fail to clone a private repo."; \
+	  echo "Create it first: see manifests/argocd/README.md"; \
+	  exit 1; }
+	@lbl=$$(kubectl -n argocd get secret app-hub-manifests-repo \
+	         -o jsonpath='{.metadata.labels.argocd\.argoproj\.io/secret-type}' 2>/dev/null); \
+	  if [ "$$lbl" != "repository" ]; then \
+	    echo ""; \
+	    echo "SECRET EXISTS BUT IS NOT LABELLED: app-hub-manifests-repo"; \
+	    echo "ArgoCD discovers repo credentials by label. Without it the Secret"; \
+	    echo "is ignored and the failure looks identical to having no Secret."; \
+	    echo "  kubectl -n argocd label secret app-hub-manifests-repo argocd.argoproj.io/secret-type=repository"; \
+	    exit 1; \
+	  fi
+	@echo "   repository Secret present and labelled"
+	@echo ""
+	helm repo add argo https://argoproj.github.io/argo-helm >/dev/null
+	helm repo update argo >/dev/null
+	@echo ""
+	@echo "== installing argo-cd $(ARGOCD_CHART_VERSION) =="
+	helm upgrade --install argocd argo/argo-cd \
+	  --version $(ARGOCD_CHART_VERSION) \
+	  -n argocd \
+	  -f $(MANIFEST_ROOT)/argocd/values.yaml \
+	  --wait --timeout 10m
+	@echo ""
+	@# THE ONE IMPERATIVE STEP GITOPS ALWAYS NEEDS. Nothing can apply the first
+	@# Application except a human, because ArgoCD is what applies Applications.
+	@echo "== applying the root Application (app-of-apps) =="
+	kubectl apply -f $(MANIFEST_ROOT)/argocd/root-app.yaml
+	@echo ""
+	kubectl -n argocd get applications
+	@echo ""
+	@echo "   Children appear within a minute or so; the root syncs them."
+	@echo ""
+	@echo "   UI:  kubectl -n argocd port-forward svc/argocd-server 8080:80  ->  http://localhost:8080"
+	@echo "   Password:  kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
+	@echo ""
+	@echo "   selfHeal is ON. kubectl changes are reverted in ~3 min -- commit instead."
+
 ## monitoring -- put R-05 back on the cluster
 #
 # WHY THIS TARGET EXISTS. R-05 was finished on 2026-09-14 and verified with 22
@@ -562,7 +655,11 @@ validate:
 	@# SERVICES cannot simply be extended -- it also drives build/push/deploy,
 	@# which would then try to `docker build` a monitoring/ directory that has
 	@# no source tree at all.
-	@for d in $(MANIFEST_ROOT) $(MANIFEST_ROOT)/*/; do \
+	@# TWO levels of glob, not one. manifests/argocd/apps/ holds the child
+	@# Applications and sits a level deeper than anything before it -- with
+	@# a single-level glob it would be skipped SILENTLY, which is precisely
+	@# how manifests/monitoring/ went unchecked until 2026-09-16.
+	@for d in $(MANIFEST_ROOT) $(MANIFEST_ROOT)/*/ $(MANIFEST_ROOT)/*/*/; do \
 	  [ -d "$$d" ] || continue; \
 	  echo "-- $${d%/}"; \
 	  python3 scripts/validate-manifests.py "$${d%/}" || exit 1; \
