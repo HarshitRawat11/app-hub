@@ -253,3 +253,50 @@ could not send either** (`connect ECONNREFUSED ...:465`). Recorded as `D-25`.
 **A safety net with two layers is not twice as safe when both layers sit on the
 same sleeping laptop.**
 
+---
+
+## The fix, 2026-09-18 — and what it deliberately does not fix
+
+**The mechanism, finally pinned down.** n8n registers a Schedule Trigger as an
+**in-process timer**. Docker Desktop's VM is suspended with the host, and those
+timers do not survive it. On resume n8n is running, healthy, reporting
+`active: true` for every workflow — and firing nothing, ever again, until the
+container is restarted.
+
+So the fix is a restart **on every wake**, not a restart. That distinction was
+earned: a manual restart at 01:12 on 2026-09-18 did re-register the crons, and
+the 02:29 sleep killed them again seventy-seven minutes later.
+
+`scripts/register-n8n-wake-task.ps1` registers a Scheduled Task with two
+triggers:
+
+1. **On resume** — `Microsoft-Windows-Power-Troubleshooter` event 1. There is
+   no `-OnResume` switch, so it is built from the event subscription directly.
+   Checked before relying on it: **11 such events in 7 days** on this machine.
+2. **Daily at 16:45** — forty-five minutes before the 17:00 trigger. Modern
+   standby does not always raise the resume event, and *a monitor whose repair
+   depends on an event that usually fires is a monitor that usually works.*
+
+### The incident that proved it, the same day
+
+A teardown was interrupted and left the cluster running from 15:42. The machine
+was **awake from 11:18 to 21:27** — covering both trigger times — and the
+watchdog's most recent execution was still four days old. Awake, cluster up,
+silent. About $0.80.
+
+### The limit, which matters as much as the fix
+
+> **If the machine is asleep at the trigger time, nothing running on it can
+> fire.** Restarting on wake cannot help, because the wake happens afterwards.
+
+That case has never been fixable locally, and pretending otherwise would be the
+same error as trusting `active: true`. It belongs to the **AWS budget
+guardrail** — which runs in AWS, survives the lid being shut, and lags by
+about a day — or to an EventBridge schedule if minutes ever matter.
+
+**And it is not proven yet.** The task ran clean (`LastTaskResult: 0`, n8n
+answered on :5678), but that proves a restart, not a firing. `active: true` was
+true throughout the four dead days. **The evidence is an execution row after a
+sleep**, and until one appears this is a fix in the same sense that the two
+before it were.
+
