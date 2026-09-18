@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 186 across 8 repositories |
+| Commits | 189 across 8 repositories |
 | Active days | 24 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-19 01:10 IST |
+| Latest commit | 2026-09-19 01:44 IST |
 
 ---
 
@@ -320,3 +320,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 00:56 | `manifests` | `61b90cb` | Pin links-service to 1eabb8d, the image that actually exists |
 | 01:10 | `manifests` | `28231a2` | applicationSet.enabled does nothing; the lever is replicas: 0 |
 | 01:10 | `app-hub` | `c131ac3` | R-07 applied and verified on real EKS; three claims tested, one was false |
+| 01:11 | `app-hub` | `2060e44` | Regenerate TIMELINE.md |
+| 01:43 | `manifests` | `527384f` | D-29: sync waves, because deleting the IngressClass strands the Ingress |
+| 01:44 | `app-hub` | `1f4f4bf` | D-29 recorded, and the teardown confirmed against AWS rather than the script |
