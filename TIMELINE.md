@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 179 across 8 repositories |
+| Commits | 182 across 8 repositories |
 | Active days | 24 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-19 00:06 IST |
+| Latest commit | 2026-09-19 00:26 IST |
 
 ---
 
@@ -313,3 +313,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 00:01 | `app-hub` | `a836331` | infra/persistent applied: ECR is durable now |
 | 00:06 | `app-hub` | `653e6ab` | Correct two teardown docs my own ECR move made dangerous |
 | 00:06 | `app-hub` | `01a9cb7` | CLAUDE.md section 2 said to empty ECR during teardown; it no longer should |
+| 00:07 | `app-hub` | `6da01a9` | Regenerate TIMELINE.md |
+| 00:26 | `manifests` | `c47478d` | R-07: ArgoCD, app-of-apps, written and never applied |
+| 00:26 | `app-hub` | `74a5ac0` | make argocd, a teardown step 0, and a validator that would have skipped it |
