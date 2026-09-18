@@ -161,7 +161,8 @@ wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub && mak
 | `make status` | What is running right now, and what it costs |
 | `make up` | `terraform apply`, then **refresh the kubeconfig**, then verify nodes |
 | `make deploy` | For **every** service in `SERVICES`: build, push a git-SHA-tagged image, pin the manifest, apply, verify |
-| `make down` | Drain Kubernetes, empty ECR, `terraform destroy`, audit for orphans |
+| `make down` | Drain Kubernetes, `terraform destroy`, audit for orphans. **Does not touch ECR** — see below |
+| `make ecr-prune` | Delete every image from every ECR repository. **Opt-in, never part of `down`** — the always-on host (`P-11`) pulls these |
 | `make test` | Every service test suite — 29 tests, no cluster, no AWS |
 | `make validate` | Offline checks: doc drift, manifests, both Terraform stacks |
 
