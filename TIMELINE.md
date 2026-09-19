@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 209 across 8 repositories |
+| Commits | 212 across 8 repositories |
 | Active days | 25 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-20 01:52 IST |
+| Latest commit | 2026-09-20 02:20 IST |
 
 ---
 
@@ -348,3 +348,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 01:51 | `manifests` | `336dabd` | G4: a uv container so the pipeline can actually run tests |
 | 01:51 | `links-service` | `e053a28` | G4: the Test stage runs the suite, so the pipeline is a real gate |
 | 01:52 | `compose` | `1b81e4f` | G5: n8n moves here, not to EKS |
+| 01:52 | `app-hub` | `adcfeea` | G4 done, G5 re-targeted and written, G3 blocked on a key |
+| 02:20 | `manifests` | `3bfbfdf` | Document that app-hub-manifests needs TWO deploy keys |
+| 02:20 | `app-hub` | `6dae5dc` | Both manifests deploy keys verified; G3 no longer blocked on a key |
