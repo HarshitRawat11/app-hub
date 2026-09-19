@@ -289,20 +289,25 @@ item is a legitimate idea; none is part of v1.
 | **G3** | `R-06` — apply Jenkins to a live cluster | A build runs green and pushes an image to ECR |
 | **G4** | `R-06` — a **real** test stage (owner's ruling) | The pipeline executes the service's pytest suite and fails the build when a test fails |
 | **G5** | `N-06` — n8n on EKS | Workflows run from in-cluster n8n, with the encryption key supplied as a Secret |
-| **G6** | `D-24` — cost watchdog proven alive | A `mode=trigger` execution row appears **after a host sleep** |
+| ~~**G6**~~ | ~~`D-24` — cost watchdog proven alive~~ | **DONE 2026-09-19** — `mode=trigger` at 21:00:05 IST after a 06:48→12:19 sleep. Closing condition met. **Residual, recorded not hidden**: the 17:00 trigger was still missed because the restart landed at 17:50/18:32, so firings between a sleep and the next restart are still lost |
 | **G7** | `D-25` — teardown notification proven | A ~23:30 teardown log from a night the laptop slept |
 | ~~**G8**~~ | ~~`README.md:7` three phases stale~~ | **DONE 2026-09-19** — now reads *Phases 1, 2 and 5 complete; 40 of 43 tasks done*, and names the three open tasks |
 | ~~**G9**~~ | ~~Remove `netlify.toml` and its `README.md` reference~~ | **DONE 2026-09-19** — file deleted; `README.md`, `CLAUDE.md § 3` and `site/README.md` all corrected to Cloudflare Pages. **Scope was larger than this row claimed**: `site/README.md` was mostly a Netlify runbook and needed rewriting, not a reference swap |
 | ~~**G10**~~ | ~~`O8` — console errors unmeasured~~ | **DONE 2026-09-19** — both pages load with **zero console messages of any level** |
 | ~~**G11**~~ | ~~`D4` — responsive floor unmeasured~~ | **DONE 2026-09-19** — no page-level horizontal scroll at 360 / 768 / 1280 on either page. The 480px table is contained by `div.table-wrap` (`overflow-x: auto`) |
 
-**Gap size: 7 items** — down from 11. `G8`–`G11` were closed on 2026-09-19,
-immediately after the unfreeze.
+**Gap size: 6 items** — down from 11. `G8`–`G11` closed on 2026-09-19 after the
+unfreeze; **`G6` closed the same evening** when `D-24`'s evidence finally
+appeared.
 
 What remains: `G1` and `G3`–`G5` are real work needing a cluster; `G2` is
-owner-only credential work; `G6` and `G7` **close by observation rather than
-action** — both need a host sleep to prove themselves, so neither can be
-"worked on", only waited for and then checked.
+owner-only credential work; **`G7` closes by observation** — it needs a ~23:30
+teardown log from a night the laptop slept, so it cannot be "worked on", only
+waited for and checked.
+
+**`D-30` is new and not yet a gap item**: commit `ba0f0df` has not reached the
+live Cloudflare Pages site, which puts `DEP1` at risk. It is owner-only — it
+needs the Pages dashboard.
 
 ---
 
