@@ -40,23 +40,23 @@
     },
     {
       "name": "Procedo Infosystems",
-      "url": "https://procedoinfo-preview.netlify.app/",
+      "url": "https://procedoinfo-preview.pages.dev",
       "repo": "https://github.com/HarshitRawat11/Procedo",
       "public": true,
       "blurb": "Marketing site for an infrastructure-first IT firm — IT infrastructure, security, audio-visual, telecom and power systems.",
       "stack": "Astro",
       "icon": "🏢",
-      "note": "Live at a netlify.app preview subdomain. If it moves to the client own domain, change it here -- this file is the only place it is written."
+      "note": "Moved from netlify.app to Cloudflare Pages 2026-09-20; the old procedoinfo-preview.netlify.app now returns 404, so the previous value was a dead link on the public page. Still a preview subdomain -- if it moves to the client own domain, change it here, this file is the only place it is written."
     },
     {
       "name": "Acharya Amit Puri",
-      "url": "http://localhost:4322/",
+      "url": "https://acharya-amit-puri.pages.dev/",
       "repo": "https://github.com/HarshitRawat11/acharya-amit-puri",
-      "public": false,
+      "public": true,
       "blurb": "Practice site for a Vastu, Vedic astrology and numerology consultant. Near-zero JavaScript, edited from a single config file.",
       "stack": "Astro · Tailwind",
       "icon": "🪔",
-      "note": "Repo is acharya-amit-puri, not -pur; the shorter name only works because GitHub redirects. Local dev server on 4322 rather than Astro's default 4321, so it can run beside Procedo. Also deploy-ready: netlify.toml committed, default branch main. Flip public to true once it has a real URL."
+      "note": "Repo is acharya-amit-puri, not -pur; the shorter name only works because GitHub redirects. Deployed to Cloudflare Pages 2026-09-20, which is when public flipped to true -- it had been false only because the URL was a localhost dev server on 4322 (not Astro's default 4321, so it can run beside Procedo). That dev server still works locally; this file now points at the deployed site, because this URL is served to visitors."
     },
     {
       "name": "Notes",
