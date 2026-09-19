@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 192 across 8 repositories |
+| Commits | 194 across 8 repositories |
 | Active days | 24 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-19 18:38 IST |
+| Latest commit | 2026-09-19 21:34 IST |
 
 ---
 
@@ -326,3 +326,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 01:44 | `app-hub` | `bc47a43` | Regenerate TIMELINE.md |
 | 18:37 | `app-hub` | `e38931c` | Lock v1 finish line |
 | 18:38 | `app-hub` | `dd46c70` | Record the v1 lock in PROGRESS |
+| 18:51 | `app-hub` | `d033c9a` | UNFREEZE, then close G8-G11 |
+| 21:34 | `app-hub` | `ba0f0df` | Add the main landmark; tokenise the type scale and radius |
