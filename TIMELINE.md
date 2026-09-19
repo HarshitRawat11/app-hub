@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 205 across 8 repositories |
+| Commits | 209 across 8 repositories |
 | Active days | 25 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-20 00:46 IST |
+| Latest commit | 2026-09-20 01:52 IST |
 
 ---
 
@@ -344,3 +344,7 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 00:33 | `app-hub` | `5c40fa2` | Repair the D-30 row a heredoc mangled |
 | 00:36 | `app-hub` | `74e44a5` | Record the confirmed Pages root cause, and test the reconnect |
 | 00:46 | `app-hub` | `f65f530` | D-30 root cause: app-hub is missing from the Pages GitHub App |
+| 01:20 | `app-hub` | `59d5c80` | D-30 resolved: one repository, missing from one app's access list |
+| 01:51 | `manifests` | `336dabd` | G4: a uv container so the pipeline can actually run tests |
+| 01:51 | `links-service` | `e053a28` | G4: the Test stage runs the suite, so the pipeline is a real gate |
+| 01:52 | `compose` | `1b81e4f` | G5: n8n moves here, not to EKS |

@@ -288,7 +288,7 @@ item is a legitimate idea; none is part of v1.
 | **G2** | `P-11` owner prerequisites — scoped IAM user + access key, Tailscale account/ACL/key/expiry, `.env` | The above, working |
 | **G3** | `R-06` — apply Jenkins to a live cluster | A build runs green and pushes an image to ECR |
 | **G4** | `R-06` — a **real** test stage (owner's ruling) | The pipeline executes the service's pytest suite and fails the build when a test fails |
-| **G5** | `N-06` — n8n on EKS | Workflows run from in-cluster n8n, with the encryption key supplied as a Secret |
+| **G5** | `N-06` — n8n on the **always-on host**, re-targeted from EKS 2026-09-20 | The existing instance runs under Compose with its `n8n_data` volume attached, workflows intact and **credentials still decrypting**, reachable tailnet-only on `:8443`. *Written; not yet migrated.* |
 | ~~**G6**~~ | ~~`D-24` — cost watchdog proven alive~~ | **DONE 2026-09-19** — `mode=trigger` at 21:00:05 IST after a 06:48→12:19 sleep. Closing condition met. **Residual, recorded not hidden**: the 17:00 trigger was still missed because the restart landed at 17:50/18:32, so firings between a sleep and the next restart are still lost |
 | **G7** | `D-25` — teardown notification proven | A ~23:30 teardown log from a night the laptop slept |
 | ~~**G8**~~ | ~~`README.md:7` three phases stale~~ | **DONE 2026-09-19** — now reads *Phases 1, 2 and 5 complete; 40 of 43 tasks done*, and names the three open tasks |
