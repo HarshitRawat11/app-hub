@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 212 across 8 repositories |
+| Commits | 215 across 8 repositories |
 | Active days | 25 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-20 02:20 IST |
+| Latest commit | 2026-09-20 02:36 IST |
 
 ---
 
@@ -351,3 +351,6 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 01:52 | `app-hub` | `adcfeea` | G4 done, G5 re-targeted and written, G3 blocked on a key |
 | 02:20 | `manifests` | `3bfbfdf` | Document that app-hub-manifests needs TWO deploy keys |
 | 02:20 | `app-hub` | `6dae5dc` | Both manifests deploy keys verified; G3 no longer blocked on a key |
+| 02:22 | `app-hub` | `8e35016` | Regenerate TIMELINE.md |
+| 02:36 | `manifests` | `a9246e1` | Jenkins runbook: replace the hand-typed secrets with make targets |
+| 02:36 | `app-hub` | `b955054` | Jenkins secrets: split on whether the step needs a cluster |
