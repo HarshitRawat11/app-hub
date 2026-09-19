@@ -291,6 +291,65 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
+### 2026-09-19 — The project got an end: `FINISH-LINE.md` v1.0 locked
+
+**The problem, named plainly:** this project had no defined end. Phases
+completed, tasks were added, and nothing distinguished in-scope from extra.
+`README.md § Definition of done` looked like it filled that gap and did not —
+it is a **per-task** checklist (code run, committed, `learn/` written,
+`PROGRESS.md` updated), never a statement about when the *project* is finished.
+
+**Two owner rulings did the load-bearing work.**
+
+> *v1 is the platform complete. New apps are new projects.*
+
+That reconciles a finish line with `CLAUDE.md § 1`'s instruction to *"design for
+a hub that grows, not for one service that ships"* — which otherwise contradicts
+having an end at all. The **platform** is the finishable thing; growth happens
+**on top of** a finished v1 rather than inside it as permanently unfinished
+scope.
+
+> *all of the phases should complete and fixed which is stated in status file.*
+
+That makes v1 **mechanical rather than a judgement call**: all 43 rows of the
+status board read DONE, and `D-24` and `D-25` are closed. No argument possible
+about whether it is met.
+
+**What was written.** `FINISH-LINE.md` v1.0 — 8 content criteria, 4 design
+criteria describing the visual system **as observed** (7 palette tokens, one
+monospace family, `prefers-color-scheme` theming) rather than as wished for, 11
+optimization thresholds, 3 deployment criteria, a deliberately long out-of-scope
+list, and an **11-item gap** that is now the only remaining in-scope work.
+`BACKLOG.md` seeded with 8 extras already suggested, most of them Claude's.
+`CLAUDE.md § 0` carries the post-freeze rule verbatim, ahead of everything else,
+so a fresh session inherits the freeze without being told.
+
+**Two criteria were written that had never been measured** — console errors
+(`O8`) and the responsive floor (`D4`). So **the gap grew by two because the
+document exists**, not because anything regressed. That is the right direction:
+a criterion nobody has checked is worth more written down than assumed.
+
+**Lighthouse was deliberately excluded**, with the reason recorded: the site is
+62 KB of static HTML with no images, fonts or third-party scripts, so a score
+would measure Cloudflare's CDN rather than any work in this repo. `O4`–`O8` cover
+the same ground with checks that can fail for reasons we control.
+
+**The tag is `v1-scope-locked`, not `v1.0`, and that distinction is deliberate.**
+The lock freezes the **scope**, not the **completion** — eleven gap items remain.
+A tag reading `v1.0` on that commit would tell a portfolio reader the project had
+shipped v1, which is false. A release tag belongs on the commit that closes
+`G11`.
+
+**The polyrepo caveat is recorded rather than glossed:** a tag in the umbrella
+captures only the umbrella, so `FINISH-LINE.md § 0` records the HEAD of all eight
+repositories at lock time. That table, not the tag, is what makes the freeze
+reconstructable.
+
+**From here, every request is DEFECT or EXTRA.** There is no third bucket, and
+Claude's own suggestions are EXTRA too — the rule names Claude explicitly,
+because noticing adjacent improvements mid-task is exactly this project's habit.
+Scope reopens only on the explicit word **UNFREEZE**.
+
 ### 2026-09-19 — `R-07` applied: ArgoCD live on EKS, and three claims put to the test
 
 **Cluster up, ArgoCD installed, all six Applications `Synced`/`Healthy`.**
