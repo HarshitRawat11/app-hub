@@ -4,7 +4,7 @@ A self-hosted hub of small, independently deployed services running on AWS EKS �
 
 The first service, **links-service**, is a FastAPI CRUD API over link records (`name`, `url`, `category`, `icon`) — the data behind an internal "which app lives where" dashboard. **gateway** is service #2: one front door, so internal services stop being publicly reachable — and since 2026-09-13 it also **serves that dashboard** at `/`, so the hub has a page you actually open rather than only an API. **aggregator** is service #3: never publicly reachable, it probes every catalogued link so the dashboard shows what is actually up. More services will join them under the same infra.
 
-> **Status:** Phase 2 complete. The full loop is proven on real EKS — provision, build, push, deploy, reach `/health` by Kubernetes DNS name, expose publicly, tear down cleanly. Nothing is deployed right now by design; the cluster is destroyed between sessions. See [PROGRESS.md](PROGRESS.md).
+> **Status:** **Phases 1, 2 and 5 complete; 40 of 43 tasks done.** The full loop is proven on real EKS — provision, build, push, deploy, reach `/health` by Kubernetes DNS name, expose through a shared ALB, observe with Prometheus and Grafana, reconcile with **ArgoCD**, tear down cleanly. Still open: `P-11` (always-on host), `R-06` (Jenkins) and `N-06` (n8n on EKS). Nothing is deployed right now **by design** — the cluster is destroyed between sessions, and that is the normal resting state, not a fault. See [PROGRESS.md](PROGRESS.md) and [FINISH-LINE.md](FINISH-LINE.md).
 
 ---
 
@@ -26,7 +26,11 @@ That combination sets the bar: working-on-my-machine isn't the finish line. Repr
 
 `app-hub/` is an **umbrella git repository**. The **six** component directories (`infra/`, `links-service/`, `gateway/`, `aggregator/`, `manifests/`, `n8n/`) are independent repos with their own remotes, and are gitignored here so they stay that way — **seven repositories in total**, counting this one.
 
-> **`site/` is the exception and it matters.** It is tracked by THIS repo, not a > component repo, because Netlify deploys from here. `CLAUDE.md § 3` says to add > every new top-level directory to the root `.gitignore`; **doing that to `site/` would > publish an empty site**. The rule is about directories that are their own repo, and > `site/` is not one.
+> **`site/` is the exception and it matters.** It is tracked by THIS repo, not a
+> component repo, because **Cloudflare Pages deploys from here**. `CLAUDE.md § 3`
+> says to add every new top-level directory to the root `.gitignore`; **doing that
+> to `site/` would publish an empty site**. The rule is about directories that are
+> their own repo, and `site/` is not one.
 
 *(This paragraph said "five component directories" until 2026-09-17, and had done since `aggregator/` became the sixth.)*
 
@@ -37,7 +41,6 @@ app-hub/
 ├── PROGRESS.md        # Live status board, blockers, known defects, progress log
 ├── TIMELINE.md        # GENERATED from git across all 7 repos -- never edit by hand
 ├── Makefile           # session automation: make status / up / deploy / down / test / validate
-├── netlify.toml        # deploys site/ ; no build command, nothing to break later
 ├── scripts/
 │   ├── timeline.sh        # regenerates TIMELINE.md
 │   ├── validate-manifests.py  # offline manifest checks; walks every manifests/*/ dir
@@ -46,7 +49,7 @@ app-hub/
 │   ├── register-scheduled-destroy.ps1  # registers the nightly teardown task (Windows)
 │   └── scheduled-destroy.sh   # unattended teardown, POSTs the result to n8n
 │
-├── site/               # PUBLIC PROJECT PAGE, deployed by Netlify. Tracked by THIS repo.
+├── site/               # PUBLIC PROJECT PAGE, deployed by Cloudflare Pages. Tracked by THIS repo.
 │   ├── index.html          # landing page: architecture, cost policy, repos, write-ups
 │   ├── demo.html           # the REAL dashboard, running against a stubbed API
 │   ├── projects.json       # one source of truth for the owner's other projects

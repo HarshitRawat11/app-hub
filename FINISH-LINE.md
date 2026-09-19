@@ -2,18 +2,24 @@
 
 | | |
 |---|---|
-| **Status** | 🔒 **LOCKED** |
-| **Version** | 1.0 |
+| **Status** | 🔓 **UNFROZEN 2026-09-19** — the classification gate is lifted |
+| **Version** | 1.0 (criteria unchanged) |
 | **Locked** | 2026-09-19 18:34 IST |
+| **Unfrozen** | 2026-09-19, at the owner's word |
 | **Completion authority** | The owner, alone — personal work, no client |
 | **Acceptance** | **SIGNED OFF** by the owner |
 
-> **This document is the only source of truth for what is in scope.**
-> A criterion that is not written here does not exist. If it is not in this
-> document, it is EXTRA — including suggestions from the owner and from Claude.
+> **UNFROZEN 2026-09-19.** The owner lifted the freeze immediately after locking
+> it — the DEFECT/EXTRA classification ritual on every request was not what they
+> wanted, and they said so rather than living with it.
 >
-> Reopening scope requires the explicit word **UNFREEZE**. Until then, the line
-> holds. See `CLAUDE.md § 0`.
+> **The criteria below are unchanged and still accurate.** What was switched off
+> is the *gate*, not the *definition*. This document is now a **roadmap**: § 5 is
+> the remaining work, § 4 records what was deliberately excluded and why, and
+> § 0 still pins the eight repository HEADs from the moment of the lock.
+>
+> Nothing here needs permission to act on any more. To restore the gate, say
+> **FREEZE**.
 
 **The ruling this document is built on** (owner, 2026-09-19):
 
@@ -111,8 +117,10 @@ repo. Check: `python3 scripts/check-doc-drift.py` exits 0 **and**
 #### Explicit exclusions — Content
 
 - **A fourth service.** Per the ruling: a new app is a new project.
-- `netlify.toml` — **to be removed** (`G9`). No Netlify deploy exists; the site is
-  on Cloudflare Pages, and two deploy configs for one site reads as drift.
+- `netlify.toml` — **removed 2026-09-19** (`G9` closed). No Netlify deploy
+  existed; the site is on Cloudflare Pages, and two deploy configs for one site
+  read as drift. `site/README.md` was rewritten for Cloudflare Pages in the same
+  change — it had been substantially a Netlify runbook, which `G9` understated.
 - `CONTEXT-BRIEF.md` is a working aid for chat sessions without filesystem access.
   It is drift-checked so it cannot rot silently, but it is **not** held to v1
   content criteria beyond `C6`.
@@ -143,8 +151,16 @@ horizontal page scroll**.
 
 > **Stated honestly:** the stylesheet contains **no width-based media queries** —
 > the layout is fluid, not breakpoint-driven. So `D4` tests the *outcome*, not the
-> mechanism. This is the criterion most likely to fail; a table already overflowed
-> at 293px once (`learn/32`).
+> mechanism. This was called the criterion most likely to fail, because a table
+> already overflowed at 293px once (`learn/32`).
+>
+> **VERIFIED 2026-09-19 — it passes, and the mechanism is now known.** Both pages
+> report `documentElement.scrollWidth == window.innerWidth` at all three widths.
+> At 360px the landing page's table really is **480px wide and does overflow** —
+> but it sits inside `div.table-wrap` with `overflow-x: auto` (`clientWidth` 320,
+> `scrollWidth` 480). **The table scrolls; the page does not.** Containment, not
+> breakpoints, is what satisfies this criterion — which is exactly the fix
+> `learn/32` describes.
 
 #### Explicit exclusions — Design
 
@@ -168,7 +184,7 @@ small static shopfront, not a marketing site.
 | **O5** | Live response headers carry CSP, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` | **VERIFIED — all four** |
 | **O6** | Every page: `<html lang>`, a unique `<title>`, a unique `<meta name="description">` | **VERIFIED both pages** |
 | **O7** | A nonexistent path returns **404**, not 200 | **VERIFIED (2,194 B custom page)** |
-| **O8** | **Zero console errors** on load of `/` and `/demo` | **NOT VERIFIED — `G10`** |
+| **O8** | **Zero console errors** on load of `/` and `/demo` | **VERIFIED 2026-09-19** — zero console messages of any level on both |
 | **O9** | `make down` leaves **zero** orphaned AWS resources — no cluster, NAT gateway, load balancer, unattached EBS or unassociated EIP | **VERIFIED 2026-09-19** |
 | **O10** | Resting cost is **$0/hour** apart from the persistent stack (DynamoDB on-demand + ECR storage) | **VERIFIED** |
 | **O11** | No secret committed in any of the 8 repos — no AWS keys, kubeconfigs, `*.tfvars`, `.env` | **VERIFIED by gitignore + inspection** |
@@ -237,7 +253,7 @@ item is a legitimate idea; none is part of v1.
 - Any monitor that survives the laptop sleeping — that is the AWS budget
   guardrail's job, and its ~1-day lag is accepted
 - minikube as a supported deploy path — documented as a sandbox only
-- Netlify as a deploy target — `netlify.toml` is being removed
+- Netlify as a deploy target — `netlify.toml` was removed 2026-09-19
 
 **Tooling**
 - GitHub Actions or any CI outside the cluster — CI is Jenkins (`R-06`)
@@ -259,13 +275,18 @@ item is a legitimate idea; none is part of v1.
 | **G5** | `N-06` — n8n on EKS | Workflows run from in-cluster n8n, with the encryption key supplied as a Secret |
 | **G6** | `D-24` — cost watchdog proven alive | A `mode=trigger` execution row appears **after a host sleep** |
 | **G7** | `D-25` — teardown notification proven | A ~23:30 teardown log from a night the laptop slept |
-| **G8** | `README.md:7` says "Phase 2 complete" — three phases stale | The status line names the true phase |
-| **G9** | Remove `netlify.toml` and its `README.md` reference | Neither file mentions Netlify as a deploy target |
-| **G10** | `O8` — console errors unmeasured | `/` and `/demo` load with an empty console |
-| **G11** | `D4` — responsive floor unmeasured | No horizontal scroll at 360 / 768 / 1280 px |
+| ~~**G8**~~ | ~~`README.md:7` three phases stale~~ | **DONE 2026-09-19** — now reads *Phases 1, 2 and 5 complete; 40 of 43 tasks done*, and names the three open tasks |
+| ~~**G9**~~ | ~~Remove `netlify.toml` and its `README.md` reference~~ | **DONE 2026-09-19** — file deleted; `README.md`, `CLAUDE.md § 3` and `site/README.md` all corrected to Cloudflare Pages. **Scope was larger than this row claimed**: `site/README.md` was mostly a Netlify runbook and needed rewriting, not a reference swap |
+| ~~**G10**~~ | ~~`O8` — console errors unmeasured~~ | **DONE 2026-09-19** — both pages load with **zero console messages of any level** |
+| ~~**G11**~~ | ~~`D4` — responsive floor unmeasured~~ | **DONE 2026-09-19** — no page-level horizontal scroll at 360 / 768 / 1280 on either page. The 480px table is contained by `div.table-wrap` (`overflow-x: auto`) |
 
-**Gap size: 11 items.** Three are owner-only credential work (`G2`), two close by
-observation rather than action (`G6`, `G7`), and four are small (`G8`–`G11`).
+**Gap size: 7 items** — down from 11. `G8`–`G11` were closed on 2026-09-19,
+immediately after the unfreeze.
+
+What remains: `G1` and `G3`–`G5` are real work needing a cluster; `G2` is
+owner-only credential work; `G6` and `G7` **close by observation rather than
+action** — both need a host sleep to prove themselves, so neither can be
+"worked on", only waited for and then checked.
 
 ---
 

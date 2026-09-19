@@ -350,6 +350,49 @@ Claude's own suggestions are EXTRA too — the rule names Claude explicitly,
 because noticing adjacent improvements mid-task is exactly this project's habit.
 Scope reopens only on the explicit word **UNFREEZE**.
 
+**UNFROZEN the same day, minutes later.** The owner read what the freeze
+actually required and said so rather than living with it: *"unfreeze and continue
+working on the remaining tasks."* **The gate is off; the document stays.** The
+criteria were never the problem — the DEFECT/EXTRA classification ritual on every
+request was. `FINISH-LINE.md` is now a roadmap: § 5 is the remaining work, § 4
+records what was deliberately excluded so a future session does not re-propose
+it, and § 0 still pins the eight repository HEADs. `CLAUDE.md § 0` keeps the rule
+verbatim but **inactive**, restorable with the word `FREEZE`.
+
+**Then four gap items closed immediately.**
+
+**`G8`** — `README.md`'s status line had said *"Phase 2 complete"* for three
+phases. Now reads *Phases 1, 2 and 5 complete; 40 of 43 tasks done*, names the
+three open tasks, and states that nothing being deployed is **by design**.
+
+**`G9` — and the row understated the work.** It read *"remove `netlify.toml` and
+its `README.md` reference"*. In fact `site/README.md` was **substantially a
+Netlify runbook** — sign-in steps, `netlify-cli`, build-setting instructions — so
+it needed rewriting, not a reference swap. Found by doing the task, not by
+reading the criterion. `netlify.toml` deleted; `README.md`, `CLAUDE.md § 3` and
+`site/README.md` corrected to Cloudflare Pages. The rewrite folded in two things
+that had cost real time: the **Git-disconnect incident** (the dashboard reported
+*"Automatic deployments enabled"* and *"disconnected from your Git account"*
+simultaneously, with the site three commits stale, caught by `curl` and not by
+the console) and the `wrangler` path trap. Netlify references in `learn/32` and
+this log are **history and were left alone**.
+
+**`G10` — zero console errors, VERIFIED.** Both `/` and `/demo` load with no
+console messages of any level.
+
+**`G11` — responsive floor, VERIFIED, and the mechanism is now known.** No
+page-level horizontal scroll at 360 / 768 / 1280 on either page. The interesting
+part is at 360px: the landing page's table **is** 480px wide and **does**
+overflow — but it sits inside `div.table-wrap` with `overflow-x: auto`
+(`clientWidth` 320, `scrollWidth` 480). **The table scrolls; the page does not.**
+So the criterion passes through *containment*, not breakpoints — there are still
+no width media queries anywhere — which is exactly the fix `learn/32` describes.
+
+**Gap: 11 → 7.** What remains is `G1`/`G3`–`G5` (real work, needs a cluster),
+`G2` (owner-only credentials), and `G6`/`G7`, which **cannot be worked on at
+all** — both close by observation after a host sleep.
+
+
 ### 2026-09-19 — `R-07` applied: ArgoCD live on EKS, and three claims put to the test
 
 **Cluster up, ArgoCD installed, all six Applications `Synced`/`Healthy`.**

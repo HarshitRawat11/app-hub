@@ -1,55 +1,70 @@
 # site/ — the public project page
 
-A static site deployed to Netlify. Two pages:
+A static site deployed to **Cloudflare Pages**, live at
+<https://app-hub-hr.pages.dev>. Two pages:
 
 | Path | What it is |
 |---|---|
-| `/` | Project landing page — architecture, cost policy, the seven repos, the write-ups |
-| `/demo.html` | **The real dashboard**, running against a stubbed API |
+| `/` | Project landing page — architecture, cost policy, the repos, the write-ups |
+| `/demo` | **The real dashboard**, running against a stubbed API |
 
-**This is not a deployment of app-hub.** Netlify Functions are JavaScript,
-TypeScript and Go; all three services are Python/FastAPI, and two of them reach
-DynamoDB with an identity that only exists inside the cluster. This is the
+> **The demo is served at `/demo`, not `/demo.html`.** Cloudflare Pages strips
+> the extension and 308-redirects, so both work — but `/demo` is the canonical
+> URL and the one to link.
+
+**This is not a deployment of app-hub.** Cloudflare Pages Functions are
+JavaScript and TypeScript; all three services are Python/FastAPI, and two of them
+reach DynamoDB with an identity that only exists inside the cluster. This is the
 portfolio half of the project (`CLAUDE.md § 1`, purpose 3). See `learn/32`.
 
 ---
 
 ## Deploying it — the owner does this part
 
-Claude wrote the site and `netlify.toml`, but **connecting the repo means
-logging into Netlify and authorising it against a GitHub account.** That is not
-something to hand to an agent, so these steps are yours.
+Claude wrote the site, but **connecting the repo means logging into Cloudflare
+and authorising it against a GitHub account.** That is not something to hand to
+an agent, so these steps are yours.
 
-### The one-time setup (recommended — gives continuous deploys)
+### One-time setup (gives continuous deploys)
 
-1. Sign in at **[app.netlify.com](https://app.netlify.com)** with GitHub.
-2. **Add new site → Import an existing project → GitHub**.
+1. Sign in at **[dash.cloudflare.com](https://dash.cloudflare.com)**.
+2. **Workers & Pages → Create → Pages → Connect to Git**.
 3. Pick **`HarshitRawat11/app-hub`** — the umbrella repo, not a component one.
-4. **Leave every build setting blank.** `netlify.toml` at the repo root already
-   sets `publish = "site"` and an empty build command. If Netlify pre-fills
-   something, clear it; a build command here would fail, because there is
-   nothing to build.
+4. Build settings: **framework preset `None`, build command blank, output
+   directory `site`.** If Cloudflare pre-fills a build command, clear it — there
+   is nothing to build, and a command here would fail.
 5. Deploy. Every push to `master` redeploys from then on.
 
-Optionally rename the site under **Site configuration → Change site name** so
-the URL reads `app-hub-<something>.netlify.app` rather than the random one.
+> **Check the Git connection is actually live, not just that the UI says so.**
+> On 2026-09-18 the dashboard showed *"Automatic deployments enabled"* **and**
+> *"This project is disconnected from your Git account"* at the same time, and
+> the site sat three commits stale. It was caught with `curl`, not by reading the
+> console. Verify by comparing the deployed content against the repo:
+>
+> ```bash
+> diff <(curl -s https://app-hub-hr.pages.dev/projects.json) site/projects.json
+> ```
+>
+> No output means the deploy is current.
 
 ### Or, from the CLI
 
 ```bash
-npm install -g netlify-cli
-netlify login          # opens a browser — your login, not Claude's
-netlify deploy --prod --dir=site
+npx wrangler pages deploy site --project-name=app-hub-hr
 ```
+
+> Run it **from the repo root**, not from inside `site/`. Given `site` as a
+> relative path from anywhere else it fails with `ENOENT ... scandir`, naming a
+> directory that was never going to exist.
 
 ---
 
 ## `_headers` — and why it has no comments in it
 
-HTTP headers (CSP, `X-Frame-Options`, cache control) live in **`site/_headers`**,
-not in `netlify.toml`. **Netlify and Cloudflare Pages both read that format**, so
-the hosting choice is a dashboard change rather than a code change — and you can
-run both at once if you want.
+HTTP headers (CSP, `X-Frame-Options`, cache control) live in **`site/_headers`**.
+**Cloudflare Pages and Netlify both read that format**, so the hosting choice
+stays a dashboard change rather than a code change — which is why the rules were
+moved out of provider config in the first place.
 
 **It must sit in the published directory**, which is `site/`. At the repo root
 both providers ignore it, with no warning from either. That failure is worth
@@ -64,15 +79,31 @@ explanation lives here instead of in the file.
 **Verify after deploying rather than assuming:**
 
 ```bash
-curl -sI https://YOUR-SITE | grep -iE "content-security-policy|x-frame-options|referrer-policy"
+curl -sI https://app-hub-hr.pages.dev/ | grep -iE "content-security-policy|x-frame-options|referrer-policy"
 ```
 
 If those three come back, the file is in the right place and being parsed. If
 they do not, it is almost always the location — check it is inside `site/`.
 
-**Do not re-add a `[[headers]]` block to `netlify.toml`.** Netlify merges the
-two, so a stale rule there would quietly override the file everyone reads — two
-sources of truth for one thing, which is the drift this project keeps paying for.
+> **Do not move these rules into provider configuration.** `netlify.toml` used to
+> carry a `[[headers]]` block and was removed on 2026-09-19 along with the rest
+> of the Netlify config, because Netlify merged the two and a stale rule there
+> would quietly override the file everyone reads — two sources of truth for one
+> thing, which is the drift this project keeps paying for.
+
+---
+
+## A 404 must actually 404
+
+`site/404.html` exists because without it **Cloudflare Pages serves `index.html`
+with HTTP 200 for every nonexistent path** — SPA-fallback behaviour on a site
+that is not an SPA. Check it:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://app-hub-hr.pages.dev/not-a-page
+```
+
+`404`, not `200`.
 
 ---
 
@@ -85,15 +116,18 @@ wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub/site &
 Then open `http://localhost:8090`. No build step, so a refresh is the whole
 edit loop.
 
+> Locally `/demo.html` works and `/demo` does not — `http.server` does no
+> extension stripping. That difference is the host's, not the site's.
+
 ---
 
 ## The two files you must not edit here
 
 `static/style.css` and `static/app.js` are **vendored byte-for-byte from
 `gateway/app/static/`**. They live here only because `gateway/` is a separate
-git repository that the umbrella gitignores — a Netlify checkout of `app-hub`
-has no `gateway/` in it at all, so the site cannot reference them across the
-boundary.
+git repository that the umbrella gitignores — a Cloudflare Pages checkout of
+`app-hub` has no `gateway/` in it at all, so the site cannot reference them
+across the boundary.
 
 Edit the originals in `gateway/`, then:
 
@@ -112,5 +146,5 @@ runs with no backend.
 
 > **Script order in `demo.html` is load-bearing.** `app.js` captures whatever
 > `fetch` is when it runs, so `demo-api.js` must be parsed first. Swap the two
-> and every request 404s against Netlify's static host, with nothing in the UI
+> and every request 404s against the static host, with nothing in the UI
 > saying why.

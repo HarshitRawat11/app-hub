@@ -4,14 +4,36 @@ Operating manual for Claude Code sessions in this workspace. Read this first, ev
 
 ---
 
-## 0. THE FINISH LINE IS LOCKED — read this before anything else
+## 0. THE FINISH LINE — defined, then unfrozen
 
-**Locked 2026-09-19. `FINISH-LINE.md` v1.0. Signed off by the owner.**
+**Locked 2026-09-19 18:34 IST. `FINISH-LINE.md` v1.0. UNFROZEN the same day, at
+the owner's word.**
 
-This section outranks every other section in this file for the purpose of
-deciding *whether* to do a thing. The rest of the file governs *how*.
+### CURRENT STATE: THE GATE IS OFF
 
-### POST-FREEZE OPERATING RULE
+**Do not classify requests as DEFECT or EXTRA, and do not ask permission before
+acting on something that is not a written criterion.** The owner lifted that
+rule immediately after locking it, having seen what it actually required.
+
+**`FINISH-LINE.md` remains valid and useful as a roadmap**, not as a gate:
+
+- **§ 5 is the remaining work** — eleven gap items, `G1`–`G11`.
+- **§ 4 records what was deliberately excluded**, so a future session does not
+  re-propose it as though it were an oversight.
+- **§ 0 pins the eight repository HEADs** at lock time.
+- **v1 = the platform complete; new apps are new projects.** Concretely: all 43
+  rows of `PROGRESS.md § Status board` read DONE, and `D-24` and `D-25` closed.
+
+**`BACKLOG.md` is still the right place** for an idea that is real but not being
+done now — one line, no ceremony. Append to it freely; just do not gate work on
+it.
+
+If the owner says **FREEZE**, restore the rule preserved below verbatim.
+
+<details>
+<summary>The post-freeze rule, preserved verbatim and currently INACTIVE</summary>
+
+### POST-FREEZE OPERATING RULE — INACTIVE
 
 This project has a locked finish line in FINISH-LINE.md. On every new request, before doing anything, classify it into exactly one of two buckets:
 
@@ -26,7 +48,9 @@ There is no third bucket. If a request seems to fall between the two, it is EXTR
 
 Reopening scope is a deliberate act, not a drift. It requires the explicit word UNFREEZE from the user, after which a new version of FINISH-LINE.md (v1.1, v2.0) is negotiated through Phases C–E again. Until then, the line holds.
 
-### What this means in practice here
+</details>
+
+### What the document still tells you
 
 - **The remaining in-scope work is `FINISH-LINE.md § 5` and nothing else.** Eleven
   gap items: `G1`–`G11`.
@@ -283,7 +307,7 @@ Each file follows this structure:
 
 **Every new service directory must be added to the root `.gitignore` in the same change that creates it.** Forgetting does not fail loudly -- the umbrella just starts tracking a second copy of a repo that already has its own remote, and the two drift apart silently. Also add it to `REPOS` in `scripts/timeline.sh`, or its history vanishes from `TIMELINE.md`.
 
-**That rule is about directories that are their own REPO, and `site/` is not one.** It is tracked by the umbrella deliberately, because Netlify deploys from this repository -- **gitignoring it would publish an empty site.** Added 2026-09-17, because the rule above reads as "every new top-level directory" and following it literally here breaks the deploy. If a future directory is not a separate repo with its own remote, it does not belong in the root `.gitignore`.
+**That rule is about directories that are their own REPO, and `site/` is not one.** It is tracked by the umbrella deliberately, because **Cloudflare Pages deploys from this repository** -- **gitignoring it would publish an empty site.** Added 2026-09-17, because the rule above reads as "every new top-level directory" and following it literally here breaks the deploy. If a future directory is not a separate repo with its own remote, it does not belong in the root `.gitignore`.
 
 | Directory        | Repo                                    | Tracks | Branch   |
 |------------------|-----------------------------------------|--------|----------|
