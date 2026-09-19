@@ -593,6 +593,14 @@ Each of these cost real time to find. They are here so no future session pays fo
 
   **So: prefer a tool that distinguishes "denied" from "absent", and control your negatives before believing them.** This is the same disease as every stale claim in the docs here; it just wears a shell prompt instead of a Markdown file.
 
+- **A command written for bash and handed over on this machine will be run in PowerShell, and it will fail at the parser.** This has now cost the owner time **twice**, so it is a rule rather than an anecdote.
+
+  The first time was the ALB controller install: `\"` does not escape a quote in PowerShell, it *ends the string*, which exposed the inner `&&` — and **PowerShell 5.1 has no `&&`** — producing *"The token '&&' is not a valid statement separator in this version."* Two failed attempts.
+
+  The second was a verification command: **`diff <(curl -s ...) file`**. Process substitution `<(...)` is a bash and zsh feature; **PowerShell has no equivalent syntax at all**, so it does not run at all rather than running wrongly.
+
+  **So: when handing the owner a command, label the shell, and prefer one that works in PowerShell** — or wrap the bash in `wsl -e bash -lc "..."`, which is the only reliable way to get bash semantics from here. `npx`, `git`, `kubectl`, `curl.exe` and `docker.exe` are shell-agnostic and safe as written; anything using `&&`, `$(...)`, `<(...)`, `|` into a shell builtin, or backslash-escaped quotes is not.
+
 - **n8n nodes can replay pinned data instead of executing.** Right-click a node; if the menu offers "Unpin", its output is frozen and the node is not really running. Also: the green check on the canvas means "did not halt the workflow", **not** "received a 200".
 
 - **EKS needs `enable_cluster_creator_admin_permissions = true`.** Without it, the IAM user that *created* the cluster has no `kubectl` access to it. Already set in `eks.tf`.

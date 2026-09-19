@@ -41,11 +41,27 @@ an agent, so these steps are yours.
 > the site sat three commits stale. It was caught with `curl`, not by reading the
 > console. Verify by comparing the deployed content against the repo:
 >
-> ```bash
-> diff <(curl -s https://app-hub-hr.pages.dev/projects.json) site/projects.json
+> **This machine's default shell is PowerShell, and PowerShell has no `<(...)`
+> process substitution** — a `diff <(curl ...)` fails at the parser before it
+> runs. Both forms below are given deliberately; pick the one matching the
+> prompt you are at.
+>
+> **PowerShell** (hash comparison; `.gitattributes` is `eol=lf`, so the working
+> tree and the deployed bytes are directly comparable):
+>
+> ```powershell
+> curl.exe -s https://app-hub-hr.pages.dev/ -o "$env:TEMP\live.html"
+> if ((Get-FileHash "$env:TEMP\live.html").Hash -eq (Get-FileHash .\site\index.html).Hash) { "MATCH - deploy is current" } else { "DIFFER - deploy is stale" }
 > ```
 >
-> No output means the deploy is current.
+> **WSL / bash**, where process substitution does work:
+>
+> ```bash
+> wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub && diff <(curl -s https://app-hub-hr.pages.dev/) site/index.html && echo MATCH"
+> ```
+>
+> Both were tested, **and both were tested against a file known to differ** — a
+> check that has only ever printed MATCH has not been shown to detect anything.
 
 ### Or, from the CLI
 
