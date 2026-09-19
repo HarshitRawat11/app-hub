@@ -305,15 +305,17 @@ owner-only credential work; **`G7` closes by observation** — it needs a ~23:30
 teardown log from a night the laptop slept, so it cannot be "worked on", only
 waited for and checked.
 
-**`D-30` affects `DEP1` and is mitigated rather than fixed.** The Pages Git
-integration has triggered no deployment since 2026-09-18 01:19 IST, across
-twelve pushes, so `git push` does not publish the site. `DEP1` currently holds
-— the live page matches local, verified byte for byte — but it holds *because
-`make deploy-site` was run*, not because the repository publishes itself.
+**`D-30` is RESOLVED (2026-09-20) and `DEP1` now holds on its own.** The cause
+was one repository missing from the Cloudflare Pages GitHub App's access list —
+not the account OAuth, and not the build configuration, both of which were
+correct throughout. Granting access and reconnecting restored Git-triggered
+deployments.
 
-**`make deploy-site` is the mitigation**: it publishes and then asserts against
-the live bytes, the 404 behaviour and the four security headers. Reconnecting
-the integration is owner-only; it needs a Cloudflare-to-GitHub OAuth login.
+**`make deploy-site` is kept anyway**, and not as dead weight: it publishes on
+demand and then **asserts against the live bytes**, the 404 behaviour and the
+four security headers. Those three assertions are the only reason this was
+caught at all — the dashboard reported *"Automatic deployments enabled"* for two
+days while nothing deployed.
 
 ---
 

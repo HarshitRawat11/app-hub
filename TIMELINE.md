@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 200 across 8 repositories |
+| Commits | 205 across 8 repositories |
 | Active days | 25 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-20 00:16 IST |
+| Latest commit | 2026-09-20 00:46 IST |
 
 ---
 
@@ -339,3 +339,8 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 |---|---|---|---|
 | 00:10 | `app-hub` | `7351e82` | The verify command I gave was bash-only and this machine runs PowerShell |
 | 00:16 | `app-hub` | `e4aa7dd` | make run-local: the dashboard without a cluster |
+| 00:23 | `app-hub` | `fb3aa93` | make deploy-site, because git push does not publish this site |
+| 00:33 | `app-hub` | `a17a4ff` | D-30 root cause: every build setting is correct, the Git link is not |
+| 00:33 | `app-hub` | `5c40fa2` | Repair the D-30 row a heredoc mangled |
+| 00:36 | `app-hub` | `74e44a5` | Record the confirmed Pages root cause, and test the reconnect |
+| 00:46 | `app-hub` | `f65f530` | D-30 root cause: app-hub is missing from the Pages GitHub App |
