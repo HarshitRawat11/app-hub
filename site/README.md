@@ -39,7 +39,32 @@ an agent, so these steps are yours.
 > On 2026-09-18 the dashboard showed *"Automatic deployments enabled"* **and**
 > *"This project is disconnected from your Git account"* at the same time, and
 > the site sat three commits stale. It was caught with `curl`, not by reading the
-> console. Verify by comparing the deployed content against the repo:
+> console.
+>
+> **It happened again on 2026-09-19, and the second time it was diagnosed
+> properly.** Twelve commits were pushed over two days and **not one produced a
+> deployment record** — not a failed build, no build at all. Reading the project
+> settings directly showed **every build setting was correct**: build command
+> empty, output `site`, root directory empty, production branch `master`,
+> automatic deployments enabled, watch paths `*`. The sole fault was the Git
+> account link.
+>
+> **Three signals disagreed, and the two reassuring ones were wrong:**
+>
+> | signal | said | true? |
+> |---|---|---|
+> | `wrangler pages project list` | `Git Provider: Yes` | **no** |
+> | Dashboard panel | "Automatic deployments enabled" | **no** |
+> | Dashboard banner | "disconnected from your Git account" | **yes** |
+>
+> **The repair is on the GitHub side, not Cloudflare's.** Project settings →
+> *Manage* opens the Cloudflare Pages GitHub App installation on GitHub; check
+> that `HarshitRawat11/app-hub` is still in its repository access list. That page
+> requires a GitHub password, so it is the owner's step and cannot be delegated.
+>
+> **And do not trust the banner clearing as proof.** The only proof is a push
+> producing a new deployment whose `Source` is that commit. Verify by comparing
+> the deployed content against the repo:
 >
 > **This machine's default shell is PowerShell, and PowerShell has no `<(...)`
 > process substitution** — a `diff <(curl ...)` fails at the parser before it
