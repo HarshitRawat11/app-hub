@@ -1,0 +1,296 @@
+# FINISH-LINE.md — app-hub v1
+
+| | |
+|---|---|
+| **Status** | 🔒 **LOCKED** |
+| **Version** | 1.0 |
+| **Locked** | 2026-09-19 18:34 IST |
+| **Completion authority** | The owner, alone — personal work, no client |
+| **Acceptance** | **SIGNED OFF** by the owner |
+
+> **This document is the only source of truth for what is in scope.**
+> A criterion that is not written here does not exist. If it is not in this
+> document, it is EXTRA — including suggestions from the owner and from Claude.
+>
+> Reopening scope requires the explicit word **UNFREEZE**. Until then, the line
+> holds. See `CLAUDE.md § 0`.
+
+**The ruling this document is built on** (owner, 2026-09-19):
+
+> *v1 is the platform complete. New apps are new projects.*
+
+That resolves the tension in `CLAUDE.md § 1`, which says *"design for a hub that
+grows, not for one service that ships."* The **platform** is the finishable
+thing. Growth happens **on top of** a finished v1, as new projects — not inside
+it as permanently unfinished scope.
+
+**And the scope test the owner gave** (2026-09-19):
+
+> *all of the phases should complete and fixed which is stated in status file*
+
+So v1 is not a judgement call. It is: **every row on the `PROGRESS.md` status
+board reads DONE, and the open defects are closed.**
+
+---
+
+## 0. Frozen state at lock time
+
+`v1.0` was locked against these eight commits. A tag in the root repository
+captures only the root, so the other seven are recorded here — this table, not
+the tag, is what makes the freeze reconstructable.
+
+| Repository | HEAD at lock |
+|---|---|
+| `.` (root / umbrella) | `bc47a434cf626a61893e6a4e7c68163c98a24dc8` |
+| `infra/` | `b4d5b799b72615f5dd78ca216957053c1f68155b` |
+| `links-service/` | `1eabb8d6532d2db026841f49cc8acd795e5a63a9` |
+| `gateway/` | `32922261eee151bd567f61965514c8bb508e4f56` |
+| `aggregator/` | `d1551607277e3c1a70799ae8de868b17a2dc423f` |
+| `manifests/` | `527384f61ce5c88f2a6c8e6d40bcda4330afb6af` |
+| `n8n/` | `51a7aaba5abc611ce75152cb3027df2276feda80` |
+| `compose/` | `cc1db591abf56906100ecf88cf696cf1e6f83039` |
+
+> **The lock freezes the SCOPE, not the completion.** Eleven gap items remain
+> (§ 5). v1 is *defined*, not *reached*. The git tag is named accordingly.
+
+---
+
+## 1. Definition of Done
+
+Every criterion below is answerable **yes/no in under a minute by someone with no
+context**. Criteria are numbered so they can be named exactly.
+
+### Content
+
+This is a platform, not a website, so "pages" are **components**. A component not
+on this list is out of scope.
+
+**C1 — The status board is fully green.** All **43** rows in `PROGRESS.md §
+Status board` read DONE. Check: no row's status column begins with `Not started`,
+`WRITTEN`, `NEVER APPLIED`, or `Decided`.
+
+The 43 rows: `P-01`–`P-11`, `C-01`–`C-06`, `E-00`–`E-06`, `R-01`–`R-07`,
+`N-00`, `N-00b`, `N-01`, `N-01b`, `N-02`–`N-06`, `S-01`–`S-03`.
+
+**C2 — The open defects are closed.** `D-24` (High) and `D-25` (Medium) are
+struck through in `PROGRESS.md § Known Defects` with recorded evidence.
+
+`D-19` and `D-20` are **already closed for v1 purposes** — both are tagged
+Informational and deliberately retained (`mitigated by design`, `fixed same
+day`). They are not gap items.
+
+**C3 — Three services, each complete.** For `links-service`, `gateway` and
+`aggregator`: own git repo with a pushed remote, a `Dockerfile`, a passing test
+suite, Kubernetes manifests under `manifests/<service>/`, and an image in ECR.
+
+**C4 — Both Terraform stacks apply from clean.** `infra/` (VPC, EKS, three IRSA
+roles) and `infra/persistent/` (DynamoDB, budget guardrail, three ECR
+repositories). Check: `terraform validate` passes in both.
+
+**C5 — The platform layers exist as code.** Ingress + ALB (`E-06`), observability
+(`R-05`), CI (`R-06`), CD (`R-07`), always-on target (`P-11`), n8n (`N-06`).
+
+**C6 — Documentation reflects reality.** `README.md`, `CLAUDE.md`, `PROGRESS.md`,
+`TIMELINE.md` and `CONTEXT-BRIEF.md` contain no statement contradicted by the
+repo. Check: `python3 scripts/check-doc-drift.py` exits 0 **and**
+`README.md`'s status line names the true current phase.
+
+**C7 — The learning record is complete.** Every `learn/NN-*.md` appears in
+`learn/README.md`. Check: file count equals index row count. *(VERIFIED 36 = 36.)*
+
+**C8 — The public page exists and describes the platform.** `site/` publishes
+`index.html`, `demo.html`, `404.html`, `projects.json` and its four static assets.
+
+#### Owed content
+
+| Item | Owner | Status |
+|---|---|---|
+| `links-service/Jenkinsfile:72` — placeholder test stage | **Owner** | **IN SCOPE.** CI must genuinely run the test suite. Needs a container with Python in the agent pod template. Tracked as `G4`. |
+| `compose/.env.example` — 6 × `CHANGEME` | — | **DONE.** A `.example` file's job is to carry placeholders; the real `.env` is gitignored and absent. Not owed content. |
+
+#### Explicit exclusions — Content
+
+- **A fourth service.** Per the ruling: a new app is a new project.
+- `netlify.toml` — **to be removed** (`G9`). No Netlify deploy exists; the site is
+  on Cloudflare Pages, and two deploy configs for one site reads as drift.
+- `CONTEXT-BRIEF.md` is a working aid for chat sessions without filesystem access.
+  It is drift-checked so it cannot rot silently, but it is **not** held to v1
+  content criteria beyond `C6`.
+
+### Design / Creativity
+
+**The visual system as it exists now is the v1 visual system.** Observed, not
+invented:
+
+| | |
+|---|---|
+| **Palette** | 7 tokens — `--bg --surface --border --text --muted --accent --danger` |
+| Light | `#fbfbfa` `#ffffff` `#e3e1dd` `#1f1e1c` `#6f6c67` `#2f6f4f` `#a13b2d` |
+| Dark | `#17171a` `#1f1f23` `#33333a` `#eceaE6` `#9a968e` `#6fc79a` `#e0806f` |
+| **Typography** | one family: `ui-monospace, "Cascadia Code", Menlo, monospace` |
+| **Radius** | `--radius: 8px` |
+| **Theming** | `@media (prefers-color-scheme: dark)` |
+
+**D1 — No page introduces a colour outside the seven tokens.** Check: no literal
+hex in `site/*.html` or `site/static/*.css` other than the token definitions.
+
+**D2 — One type family.** No second `font-family` declaration anywhere in `site/`.
+
+**D3 — Both pages support light and dark** via `prefers-color-scheme`.
+
+**D4 — Responsive floor: `360px`, `768px`, `1280px`.** Each renders with **no
+horizontal page scroll**.
+
+> **Stated honestly:** the stylesheet contains **no width-based media queries** —
+> the layout is fluid, not breakpoint-driven. So `D4` tests the *outcome*, not the
+> mechanism. This is the criterion most likely to fail; a table already overflowed
+> at 293px once (`learn/32`).
+
+#### Explicit exclusions — Design
+
+- No redesign, no CSS framework, no component library, no build step for `site/`.
+- No additional pages beyond `index`, `demo`, `404`.
+- `site/static/style.css` and `app.js` are **vendored from `gateway`** and
+  drift-checked. Editing them in `site/` is a defect, not a design change.
+- No animation or motion system. There is none today; none is owed.
+
+### Optimization
+
+Thresholds tuned to what this project actually is: a learning platform with a
+small static shopfront, not a marketing site.
+
+| # | Criterion | State at lock |
+|---|---|---|
+| **O1** | `make test` — all pass, zero failures | **VERIFIED 152/152, exit 0** |
+| **O2** | `make validate` — exit 0 (manifests + both Terraform stacks) | **VERIFIED** |
+| **O3** | `scripts/check-doc-drift.py` — exit 0 | **VERIFIED** |
+| **O4** | Total `site/` weight ≤ **100 KB** | **VERIFIED 63,816 B** |
+| **O5** | Live response headers carry CSP, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` | **VERIFIED — all four** |
+| **O6** | Every page: `<html lang>`, a unique `<title>`, a unique `<meta name="description">` | **VERIFIED both pages** |
+| **O7** | A nonexistent path returns **404**, not 200 | **VERIFIED (2,194 B custom page)** |
+| **O8** | **Zero console errors** on load of `/` and `/demo` | **NOT VERIFIED — `G10`** |
+| **O9** | `make down` leaves **zero** orphaned AWS resources — no cluster, NAT gateway, load balancer, unattached EBS or unassociated EIP | **VERIFIED 2026-09-19** |
+| **O10** | Resting cost is **$0/hour** apart from the persistent stack (DynamoDB on-demand + ECR storage) | **VERIFIED** |
+| **O11** | No secret committed in any of the 8 repos — no AWS keys, kubeconfigs, `*.tfvars`, `.env` | **VERIFIED by gitignore + inspection** |
+
+**Deliberately NOT criteria, and why:**
+
+- **`strict-transport-security`** is absent from the live response. Cloudflare
+  Pages terminates TLS and serves HTTPS regardless. Not required for v1.
+- **Lighthouse.** The site is 62 KB of static HTML with no images, no fonts and
+  no third-party scripts; a Lighthouse number would measure Cloudflare's CDN, not
+  this project's work. `O4`–`O8` cover the same ground with checks that can
+  actually fail for a reason we control.
+
+---
+
+## 2. Deployment Criterion
+
+**DEP1 — The public page responds 200** at **`https://app-hub-hr.pages.dev/`**.
+*(VERIFIED. A custom domain is explicitly NOT required for v1 — owner's ruling,
+2026-09-19.)*
+
+**DEP2 — The platform is reproducible from a clean clone.** `make up` → `make
+deploy` → `make argocd` brings the full stack live on EKS, and `make down`
+returns to `DEP3`. *(VERIFIED end to end 2026-09-19.)*
+
+**DEP3 — Nothing is deployed at rest.** A destroyed cluster is the **normal**
+state of this project, not an incomplete one. v1 does **not** require a running
+cluster.
+
+> **DEP3 is the criterion most likely to be misread** by someone new to the repo,
+> so it is stated positively: "nothing running" is success, not an unfinished v1.
+
+---
+
+## 3. Completion Authority
+
+**Personal work. v1 is complete on the owner's sign-off alone.** No client, no
+acceptance checklist, no provisional freeze.
+
+---
+
+## 4. Explicitly Out of Scope
+
+Named, so that none of it can later be mistaken for unfinished v1 work. Every
+item is a legitimate idea; none is part of v1.
+
+**Platform capability**
+- A fourth service, or any new app — **new project**, per the ruling
+- Prometheus persistence (EBS CSI addon + a fourth IRSA role)
+- Grafana dashboards beyond the chart defaults
+- Prometheus alert rules / PromQL — including Nagios translations
+- `NetworkPolicy`, `HorizontalPodAutoscaler`, `PodDisruptionBudget`
+- Multi-architecture (`arm64`) images
+- Migration to Oracle Cloud Always Free
+
+**Hardening**
+- ACM certificate / HTTPS on the ALB — needs a domain that is out of scope
+- A custom domain
+- `aws_ecr_lifecycle_policy` to cap ECR storage growth
+- An ArgoCD `AppProject` restricting sources and destinations
+- Bringing the monitoring and Jenkins Helm releases under ArgoCD
+- `strict-transport-security` on the public page
+
+**Operational**
+- The 15-minute "cluster is up" reminder
+- Any monitor that survives the laptop sleeping — that is the AWS budget
+  guardrail's job, and its ~1-day lag is accepted
+- minikube as a supported deploy path — documented as a sandbox only
+- Netlify as a deploy target — `netlify.toml` is being removed
+
+**Tooling**
+- GitHub Actions or any CI outside the cluster — CI is Jenkins (`R-06`)
+- `gh` CLI installation
+- Consolidating the 8 repositories into a monorepo
+
+---
+
+## 5. Gap to Finish Line
+
+**This is the only remaining in-scope work.** Anything not on this list is EXTRA.
+
+| # | Gap | Makes it VERIFIED |
+|---|---|---|
+| **G1** | `P-11` — deploy the always-on host | `docker compose ps` shows 4 services up; the Tailscale hostname serves the dashboard from a non-home network |
+| **G2** | `P-11` owner prerequisites — scoped IAM user + access key, Tailscale account/ACL/key/expiry, `.env` | The above, working |
+| **G3** | `R-06` — apply Jenkins to a live cluster | A build runs green and pushes an image to ECR |
+| **G4** | `R-06` — a **real** test stage (owner's ruling) | The pipeline executes the service's pytest suite and fails the build when a test fails |
+| **G5** | `N-06` — n8n on EKS | Workflows run from in-cluster n8n, with the encryption key supplied as a Secret |
+| **G6** | `D-24` — cost watchdog proven alive | A `mode=trigger` execution row appears **after a host sleep** |
+| **G7** | `D-25` — teardown notification proven | A ~23:30 teardown log from a night the laptop slept |
+| **G8** | `README.md:7` says "Phase 2 complete" — three phases stale | The status line names the true phase |
+| **G9** | Remove `netlify.toml` and its `README.md` reference | Neither file mentions Netlify as a deploy target |
+| **G10** | `O8` — console errors unmeasured | `/` and `/demo` load with an empty console |
+| **G11** | `D4` — responsive floor unmeasured | No horizontal scroll at 360 / 768 / 1280 px |
+
+**Gap size: 11 items.** Three are owner-only credential work (`G2`), two close by
+observation rather than action (`G6`, `G7`), and four are small (`G8`–`G11`).
+
+---
+
+## 6. Recording Mechanism
+
+1. **`FINISH-LINE.md`** — this file, in the root repo. The single source of truth.
+2. **`BACKLOG.md`** — root repo. One line per EXTRA: date, description, source.
+3. **`CLAUDE.md § 0`** — the post-freeze operating rule, so every future session
+   inherits the freeze without being told.
+4. **Annotated git tag `v1-scope-locked`** on the freeze commit in the root repo.
+
+**Why this combination:** the root repo is the only place that sees the whole
+project, so the line and the backlog belong there; `CLAUDE.md` is the only
+artifact every session reads unprompted, which is what makes the rule survive a
+fresh session.
+
+**Why the tag is named `v1-scope-locked` and not `v1.0`:** v1 is *defined* here,
+not *reached* — eleven gap items remain. A tag reading `v1.0` on this commit
+would tell a portfolio reader the project had shipped v1, which is false. The
+release tag, if there is one, belongs on the commit that closes `G11`.
+
+**The polyrepo caveat:** a tag in the root captures only the root. § 0 records all
+eight HEADs, and that table — not the tag — is what makes the freeze
+reconstructable.
+
+---
+
+*Locked 2026-09-19 18:34 IST. v1.0. Signed off by the owner.*

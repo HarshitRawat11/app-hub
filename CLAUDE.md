@@ -4,6 +4,45 @@ Operating manual for Claude Code sessions in this workspace. Read this first, ev
 
 ---
 
+## 0. THE FINISH LINE IS LOCKED — read this before anything else
+
+**Locked 2026-09-19. `FINISH-LINE.md` v1.0. Signed off by the owner.**
+
+This section outranks every other section in this file for the purpose of
+deciding *whether* to do a thing. The rest of the file governs *how*.
+
+### POST-FREEZE OPERATING RULE
+
+This project has a locked finish line in FINISH-LINE.md. On every new request, before doing anything, classify it into exactly one of two buckets:
+
+  DEFECT — the request describes a failure of a criterion that is WRITTEN in FINISH-LINE.md. This is in scope. Fix it.
+
+  EXTRA — anything else. This includes every improvement, addition, redesign, optimization beyond the locked thresholds, new page, new feature, and any suggestion from the user, from Claude, or from the client. Route it as follows:
+    (a) Name it explicitly: "This is EXTRA — it is not a criterion in FINISH-LINE.md."
+    (b) Append one line to BACKLOG.md: date, one-sentence description, source (user / Claude / client). Nothing more — no estimates, no client formatting.
+    (c) Ask whether to proceed. Do not implement until told to.
+
+There is no third bucket. If a request seems to fall between the two, it is EXTRA — the document is the only source of truth for what is in scope.
+
+Reopening scope is a deliberate act, not a drift. It requires the explicit word UNFREEZE from the user, after which a new version of FINISH-LINE.md (v1.1, v2.0) is negotiated through Phases C–E again. Until then, the line holds.
+
+### What this means in practice here
+
+- **The remaining in-scope work is `FINISH-LINE.md § 5` and nothing else.** Eleven
+  gap items: `G1`–`G11`.
+- **"The platform is complete" is the v1 test**, and it is mechanical rather than
+  a judgement: all 43 rows of `PROGRESS.md § Status board` read DONE, and `D-24`
+  and `D-25` are closed.
+- **A new app is a new project**, not unfinished v1 scope. This is what reconciles
+  the freeze with § 1's instruction to *"design for a hub that grows"*.
+- **§ 2 still decides who writes what.** The freeze decides whether it gets
+  written at all; § 2 decides whether the owner or Claude writes it.
+- **Claude's own suggestions are EXTRA too.** The rule names Claude explicitly
+  because this project's habit is to notice adjacent improvements mid-task — that
+  habit is useful, and it is exactly what the backlog is for.
+
+---
+
 ## 1. Main objective
 
 **app-hub is the owner's permanent home for every app, tool, and project they build for their own daily use** — self-hosted, running on AWS EKS, provisioned by Terraform, deployed from Git-tracked Kubernetes manifests.
