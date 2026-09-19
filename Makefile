@@ -55,6 +55,9 @@ ECR_HOST  := $(ACCOUNT).dkr.ecr.$(REGION).amazonaws.com
 # terraform does not recurse into subdirectories. Named here only so
 # `verify-dynamo` does not hardcode it in two places.
 LINKS_TABLE := app-hub-links
+# The Cloudflare Pages project. Its .pages.dev hostname derives from this, so
+# the name is the single source of truth for both deploying and verifying.
+PAGES_PROJECT := app-hub-hr
 # Per-service image URL is derived in the recipes: $(ECR_HOST)/app-hub/<svc>
 DOCKER    := docker.exe
 # manifests/00-namespace.yaml is applied before any service directory.
@@ -88,7 +91,7 @@ dirty_of = $(shell git -C $(1) status --porcelain 2>/dev/null | head -c1)
 tag_of   = $(if $(call dirty_of,$(1)),$(call sha_of,$(1))-dirty-$(shell date +%s),$(call sha_of,$(1)))
 
 .DEFAULT_GOAL := help
-.PHONY: help guard status up deploy verify down destroy-only ecr-prune validate test verify-dynamo monitoring jenkins argocd run-local stop-local
+.PHONY: help guard status up deploy verify down destroy-only ecr-prune validate test verify-dynamo monitoring jenkins argocd run-local stop-local deploy-site
 
 help:
 	@echo "app-hub — run from WSL"
@@ -97,6 +100,7 @@ help:
 	@echo "  make up       provision infra, refresh kubeconfig, verify nodes"
 	@echo "  make deploy   build + push + apply manifests + verify (all services)"
 	@echo "  make down     full teardown in the correct order, then audit"
+	@echo "  make deploy-site publish site/ to Cloudflare Pages and verify it landed"
 	@echo "  make run-local   run all three services here, no cluster, no cost"
 	@echo "  make stop-local  stop them again"
 	@echo "  make test     run every service test suite (no cluster needed)"
@@ -410,6 +414,54 @@ ecr-prune:
 	  fi; \
 	  echo "   $$repo: empty (confirmed, $$total deleted)"; \
 	done
+
+## deploy-site — publish site/ to Cloudflare Pages, then PROVE it landed
+deploy-site:
+	@# WHY THIS EXISTS, AND IT IS NOT A CONVENIENCE.
+	@#
+	@# The Pages Git integration stopped triggering builds after 2026-09-18
+	@# 01:19 IST (D-30). Twelve commits were pushed afterwards and NONE produced
+	@# a deployment record -- not a failed one, not any. So `git push` does not
+	@# publish this site, and the failure is SILENT: the repo looks current, the
+	@# console has already been observed claiming the project is connected while
+	@# it is not, and only the served bytes disagree.
+	@#
+	@# Reconnecting the integration needs a Cloudflare-to-GitHub OAuth login,
+	@# which is the owner's and cannot be handed to an agent. This target makes
+	@# publishing not depend on it.
+	@command -v npx >/dev/null || { echo "ERROR: npx not found"; exit 1; }
+	@echo "== uploading site/ =="
+	@# --branch=master so this lands on PRODUCTION rather than a preview alias.
+	npx wrangler pages deploy site --project-name=$(PAGES_PROJECT) --branch=master --commit-dirty=true
+	@echo ""
+	@echo "== verifying the LIVE bytes, not the exit code =="
+	@# A deploy command that exits 0 and a site that actually serves the new
+	@# file are different claims. This project has paid for that distinction
+	@# repeatedly, so the target asserts rather than announces.
+	@#
+	@# A temp file rather than `diff <(curl ...)`: process substitution is a
+	@# bash feature and make runs recipes under /bin/sh.
+	@curl -s -m 30 https://$(PAGES_PROJECT).pages.dev/ -o /tmp/app-hub-live.html; \
+	if cmp -s /tmp/app-hub-live.html site/index.html; then \
+	  echo "   index.html: live matches local ($$(stat -c %s site/index.html) bytes)"; \
+	else \
+	  echo "   FAILED: live does not match local."; \
+	  echo "     live  $$(stat -c %s /tmp/app-hub-live.html 2>/dev/null) bytes"; \
+	  echo "     local $$(stat -c %s site/index.html) bytes"; \
+	  echo "   The upload reported success and the served bytes disagree."; \
+	  exit 1; \
+	fi
+	@# The two checks that have each caught a real defect on this site before:
+	@# a missing 404.html made every unknown path return 200, and _headers at
+	@# the repo root was ignored silently.
+	@code=$$(curl -s -o /dev/null -w '%{http_code}' -m 20 https://$(PAGES_PROJECT).pages.dev/definitely-not-a-page); \
+	  if [ "$$code" = "404" ]; then echo "   404 handling: a bad path returns 404"; \
+	  else echo "   FAILED: a bad path returned $$code, not 404 -- is site/404.html published?"; exit 1; fi
+	@n=$$(curl -sI -m 20 https://$(PAGES_PROJECT).pages.dev/ | grep -icE 'content-security-policy|x-frame-options|x-content-type-options|referrer-policy'); \
+	  if [ "$$n" = "4" ]; then echo "   security headers: all 4 present"; \
+	  else echo "   FAILED: only $$n/4 security headers -- is site/_headers inside site/?"; exit 1; fi
+	@echo ""
+	@echo "   https://$(PAGES_PROJECT).pages.dev/"
 
 ## run-local — all three services on this machine. No cluster, no cost.
 run-local:

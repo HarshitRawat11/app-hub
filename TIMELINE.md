@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 197 across 8 repositories |
-| Active days | 24 |
+| Commits | 200 across 8 repositories |
+| Active days | 25 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-19 23:52 IST |
+| Latest commit | 2026-09-20 00:16 IST |
 
 ---
 
@@ -331,3 +331,11 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 21:43 | `app-hub` | `d69cbe2` | Record D-30: pushed commit has not reached the live site |
 | 23:49 | `app-hub` | `5c9795c` | D-24 closed: the watchdog fired after a sleep, five days on |
 | 23:52 | `app-hub` | `eff0e7d` | Remove three junk screenshots with $name literal in the filename |
+| 23:57 | `app-hub` | `cb23941` | Deploy via CLI: production is current, continuous deployment is not |
+
+## 2026-09-20
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 00:10 | `app-hub` | `7351e82` | The verify command I gave was bash-only and this machine runs PowerShell |
+| 00:16 | `app-hub` | `e4aa7dd` | make run-local: the dashboard without a cluster |

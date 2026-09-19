@@ -305,9 +305,15 @@ owner-only credential work; **`G7` closes by observation** — it needs a ~23:30
 teardown log from a night the laptop slept, so it cannot be "worked on", only
 waited for and checked.
 
-**`D-30` is new and not yet a gap item**: commit `ba0f0df` has not reached the
-live Cloudflare Pages site, which puts `DEP1` at risk. It is owner-only — it
-needs the Pages dashboard.
+**`D-30` affects `DEP1` and is mitigated rather than fixed.** The Pages Git
+integration has triggered no deployment since 2026-09-18 01:19 IST, across
+twelve pushes, so `git push` does not publish the site. `DEP1` currently holds
+— the live page matches local, verified byte for byte — but it holds *because
+`make deploy-site` was run*, not because the repository publishes itself.
+
+**`make deploy-site` is the mitigation**: it publishes and then asserts against
+the live bytes, the 404 behaviour and the four security headers. Reconnecting
+the integration is owner-only; it needs a Cloudflare-to-GitHub OAuth login.
 
 ---
 
