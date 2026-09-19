@@ -88,7 +88,7 @@ dirty_of = $(shell git -C $(1) status --porcelain 2>/dev/null | head -c1)
 tag_of   = $(if $(call dirty_of,$(1)),$(call sha_of,$(1))-dirty-$(shell date +%s),$(call sha_of,$(1)))
 
 .DEFAULT_GOAL := help
-.PHONY: help guard status up deploy verify down destroy-only ecr-prune validate test verify-dynamo monitoring jenkins argocd
+.PHONY: help guard status up deploy verify down destroy-only ecr-prune validate test verify-dynamo monitoring jenkins argocd run-local stop-local
 
 help:
 	@echo "app-hub — run from WSL"
@@ -97,6 +97,8 @@ help:
 	@echo "  make up       provision infra, refresh kubeconfig, verify nodes"
 	@echo "  make deploy   build + push + apply manifests + verify (all services)"
 	@echo "  make down     full teardown in the correct order, then audit"
+	@echo "  make run-local   run all three services here, no cluster, no cost"
+	@echo "  make stop-local  stop them again"
 	@echo "  make test     run every service test suite (no cluster needed)"
 	@echo "  make validate offline manifest + terraform checks (no cluster needed)"
 	@echo "  make monitoring  install Prometheus + Grafana (R-05) on a live cluster"
@@ -408,6 +410,110 @@ ecr-prune:
 	  fi; \
 	  echo "   $$repo: empty (confirmed, $$total deleted)"; \
 	done
+
+## run-local — all three services on this machine. No cluster, no cost.
+run-local:
+	@# WHY THIS EXISTS. The cluster is destroyed between sessions by design, so
+	@# "nothing is deployed" is the resting state -- but the dashboard is meant
+	@# to be USED (CLAUDE.md section 1, purpose 2). This runs the whole thing
+	@# locally in about a second, against the REAL DynamoDB catalogue.
+	@#
+	@# CHECK THE PORTS FIRST, and this is not ceremony. A uvicorn started on a
+	@# port something else already holds DIES SILENTLY -- you get a shell prompt
+	@# back, no error, and every later request is answered by whatever was
+	@# already there. That cost real time on 2026-09-17 (CLAUDE.md section 9).
+	@busy=""; \
+	for p in 8000 8001 8002; do \
+	  if ss -ltn 2>/dev/null | grep -q ":$$p "; then busy="$$busy $$p"; fi; \
+	done; \
+	if [ -n "$$busy" ]; then \
+	  echo "ABORTING: something is already listening on:$$busy"; \
+	  echo "A uvicorn started on a held port dies silently and you would be"; \
+	  echo "talking to the old process. Find them, then decide:"; \
+	  echo "  ss -ltnp | grep -E ':800[0-2]'"; \
+	  echo "  make stop-local"; \
+	  exit 1; \
+	fi
+	@echo "== starting links-service :8000 (DynamoDB: $(LINKS_TABLE)) =="
+	@cd links-service && LINKS_TABLE_NAME=$(LINKS_TABLE) AWS_REGION=$(REGION) \
+	  nohup uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 >/tmp/app-hub-links.log 2>&1 & \
+	  echo "   log: /tmp/app-hub-links.log"
+	@echo "== starting aggregator :8002 =="
+	@cd aggregator && LINKS_SERVICE_URL=http://127.0.0.1:8000 \
+	  nohup uv run uvicorn app.main:app --host 127.0.0.1 --port 8002 >/tmp/app-hub-aggregator.log 2>&1 & \
+	  echo "   log: /tmp/app-hub-aggregator.log"
+	@echo "== starting gateway :8001 =="
+	@cd gateway && LINKS_SERVICE_URL=http://127.0.0.1:8000 AGGREGATOR_URL=http://127.0.0.1:8002 \
+	  nohup uv run uvicorn app.main:app --host 127.0.0.1 --port 8001 >/tmp/app-hub-gateway.log 2>&1 & \
+	  echo "   log: /tmp/app-hub-gateway.log"
+	@echo ""
+	@# WAIT FOR HEALTH, DO NOT SLEEP. A curl fired immediately after starting a
+	@# server reports a connection failure that is only a RACE WITH STARTUP --
+	@# also section 9. links-service is the slow one; it builds a boto3 client.
+	@for p in 8000 8002 8001; do \
+	  s=$$(date +%s); \
+	  until curl -s -m 2 -o /dev/null http://127.0.0.1:$$p/health; do \
+	    if [ $$(( $$(date +%s) - $$s )) -gt 90 ]; then \
+	      echo "   :$$p NEVER CAME UP -- read its log above"; break; \
+	    fi; \
+	    sleep 2; \
+	  done; \
+	  curl -s -m 3 -o /dev/null http://127.0.0.1:$$p/health && \
+	    echo "   :$$p healthy ($$(( $$(date +%s) - $$s ))s)"; \
+	done
+	@echo ""
+	@echo "   DASHBOARD:  http://localhost:8001/"
+	@echo ""
+	@echo "   The catalogue is the REAL one, from DynamoDB -- edits here are edits"
+	@echo "   to the same table the cluster uses. That is deliberate (C-04), but"
+	@echo "   it does mean a delete at :8001 is a real delete."
+	@echo ""
+	@echo "   Stop with:  make stop-local"
+
+## stop-local — stop the three local services
+stop-local:
+	@# Match on the PORT, not on the word "uvicorn". `pkill -f uvicorn` has
+	@# twice killed the shell that ran it in this project, because the pattern
+	@# matched the checking process's own command line (CLAUDE.md section 9).
+	@# WAIT FOR THE PORT TO BE RELEASED, not just for kill to return.
+	@#
+	@# The first version of this target did not, and its own assertion caught
+	@# it: it printed ":8000 stopped", ":8001 stopped", ":8002 stopped" and
+	@# then "WARNING: 3 port(s) still held" in the same breath. `kill` sends
+	@# SIGTERM and returns immediately; uvicorn takes a moment to close its
+	@# listening socket. So the target reported the KILL and called it the
+	@# RELEASE -- and the next `make run-local` refused to start.
+	@#
+	@# Escalates to SIGKILL only if SIGTERM has not worked within 10s, because
+	@# a clean shutdown is worth waiting a few seconds for.
+	@n=0; \
+	for p in 8000 8001 8002; do \
+	  pid=$$(ss -ltnp 2>/dev/null | grep ":$$p " | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2); \
+	  if [ -z "$$pid" ]; then continue; fi; \
+	  n=$$((n+1)); \
+	  kill "$$pid" 2>/dev/null; \
+	  s=$$(date +%s); killed=""; \
+	  while ss -ltn 2>/dev/null | grep -q ":$$p "; do \
+	    el=$$(( $$(date +%s) - $$s )); \
+	    if [ $$el -gt 10 ] && [ -z "$$killed" ]; then \
+	      kill -9 "$$pid" 2>/dev/null; killed="yes"; \
+	      echo "   :$$p did not stop on SIGTERM after $${el}s -- sent SIGKILL"; \
+	    fi; \
+	    if [ $$el -gt 20 ]; then echo "   :$$p STILL HELD after $${el}s (pid $$pid)"; break; fi; \
+	    sleep 1; \
+	  done; \
+	  ss -ltn 2>/dev/null | grep -q ":$$p " || echo "   :$$p released (pid $$pid, $$(( $$(date +%s) - $$s ))s)"; \
+	done; \
+	if [ "$$n" = "0" ]; then echo "   nothing was listening on 8000-8002"; fi
+	@# Assert rather than assume. This is what caught the bug above.
+	@left=$$(ss -ltn 2>/dev/null | grep -cE ':800[0-2] '); \
+	  if [ "$$left" != "0" ]; then \
+	    echo "   WARNING: $$left port(s) still held -- `make run-local` will refuse"; \
+	    ss -ltnp 2>/dev/null | grep -E ':800[0-2] '; \
+	    exit 1; \
+	  else \
+	    echo "   all three ports free"; \
+	  fi
 
 ## destroy-only — skip the Kubernetes drain. Only safe when no cluster exists.
 destroy-only: guard
