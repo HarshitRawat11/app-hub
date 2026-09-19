@@ -292,6 +292,59 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
+### 2026-09-20 · 02:18 IST — Both manifests deploy keys verified, and the ambiguity that deleted one is closed
+
+**The Jenkins write key was added, and adding it deleted the ArgoCD one.** Not a
+duplicate — two different credentials that GitHub's Deploy keys page renders as
+two near-identical truncated `ssh-ed25519` lines. The owner re-added it.
+
+**Both keys are now verified, and "verified" here means the access LEVEL, not
+just that they authenticate:**
+
+| key | `ls-remote` | `git-receive-pack` | correct? |
+|---|---|---|---|
+| `argocd_manifests_ro` | `336dabd` | `ERROR: ... marked as read only.` | yes |
+| `app-hub-manifests-deploy` | `336dabd` | ref advertisement | yes |
+
+**`ls-remote` alone could not have caught the failure that matters.** A key
+wrongly granted write access passes it identically to one correctly denied it.
+The `git-receive-pack` probe asks GitHub to start the receive process and closes
+stdin immediately, so the verdict is **GitHub's own statement** about the key's
+permission — and nothing is pushed.
+
+**Three controls, because a check narrower than the failure reports success:**
+`-o IdentitiesOnly=yes` (without it ssh offers every key in the agent and a
+*different* key authenticates); a key registered nowhere, which must fail with
+`Permission denied (publickey)`; and the documented command block **extracted
+from the README with `awk` and executed verbatim**, rather than a command
+resembling it.
+
+**One result needed explaining rather than accepting.** The ArgoCD key reads
+`app-hub` successfully. That is not over-privilege — `app-hub` is public, and
+GitHub lets any authenticated key read a public repository. Against the private
+repos it is refused, and the three failure modes are genuinely distinguishable:
+`Permission denied (publickey)` = never authenticated; `ERROR: Repository not
+found` = authenticated but not authorised, with GitHub declining to confirm a
+private repo exists; a SHA = allowed. Same discipline as `CLAUDE.md` § 9.
+
+**`manifests/argocd/README.md` gained the warning that was missing.** It already
+said *"do NOT tick Allow write access"* — the instruction for **adding** a key
+was fine. What did not exist was anything telling a reader **looking at the keys
+page** that two similar rows are both meant to be there. That is now a table
+keyed on the **key comments**, which differ (`app-hub jenkins` versus
+`argocd-app-hub-manifests-readonly`) even when the visible key material does not,
+plus the verification procedure above.
+
+**Why this failed quietly:** deleting the ArgoCD key breaks nothing immediately.
+The private half stays on disk, the in-cluster Secret still holds it, and with
+the cluster down — the normal resting state — nothing complains. It surfaces at
+the next `make argocd`, as Applications in `Unknown` with `repository not
+accessible`. The gap between cause and symptom is the reason the note exists.
+
+**`G3` is no longer blocked on a key.** Jenkins has its write key and ArgoCD has
+its read-only one. What `G3` still needs is the `jenkins-admin` Secret and a
+live cluster.
+
 ### 2026-09-19 — The project got an end: `FINISH-LINE.md` v1.0 locked
 
 **The problem, named plainly:** this project had no defined end. Phases
