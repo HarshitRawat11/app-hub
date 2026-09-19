@@ -10,6 +10,10 @@
 :root {
   --bg: #fbfbfa; --surface: #ffffff; --border: #e3e1dd;
   --text: #1f1e1c; --muted: #6f6c67; --accent: #2f6f4f; --radius: 8px;
+  /* Two steps of the type scale defined in index.html, which is where the
+     full six-step system lives. Only what this page uses is declared -- an
+     unused token later reads as a system nobody follows. */
+  --fs-xs: 0.78rem; --fs-md: 0.95rem;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -25,14 +29,14 @@ body {
   padding: 1.25rem;
 }
 main { max-width: 32rem; }
-p.code { font-size: 0.78rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); margin: 0 0 0.8rem; }
+p.code { font-size: var(--fs-xs); letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); margin: 0 0 0.8rem; }
 h1 { font-size: clamp(1.7rem, 5vw, 2.3rem); margin: 0 0 0.8rem; letter-spacing: -0.02em; }
 p.lede { color: var(--muted); margin: 0 0 1.6rem; }
 .actions { display: flex; flex-wrap: wrap; gap: 0.7rem; }
 a.btn {
   display: inline-block; padding: 0.6rem 1.1rem; border-radius: var(--radius);
   border: 1px solid var(--border); background: var(--surface);
-  color: var(--text); text-decoration: none; font-size: 0.93rem; font-weight: 500;
+  color: var(--text); text-decoration: none; font-size: var(--fs-md); font-weight: 500;
 }
 a.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
 a.btn:hover { border-color: var(--accent); }

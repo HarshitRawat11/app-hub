@@ -18,7 +18,33 @@
   --muted: #6f6c67;
   --accent: #2f6f4f;
   --danger: #a13b2d;
-  --radius: 8px;
+
+  /* RADIUS. Three values, each a distinct job, each named. `4px` and `999px`
+     were previously written raw alongside the token, so the token described
+     only part of the system it claimed to define. */
+  --radius: 8px;        /* cards, panels, buttons */
+  --radius-sm: 4px;     /* inline code chips */
+  --radius-pill: 999px; /* tags */
+
+  /* TYPE SCALE. Six steps, every one used on this page.
+     Before this there were fifteen distinct font-size values here -- 0.72,
+     0.78, 0.8, 0.83, 0.85, 0.89, 0.9, 0.93, 0.95, 0.97 and up -- which is not
+     a scale, it is a pile of decimals that happened to look right one at a
+     time. Neighbouring values were collapsed onto the nearest step; the
+     largest single change is 0.06rem, about one pixel.
+
+     NOT part of the scale, deliberately:
+       - h1 and .lede use clamp(): they are FLUID heads that interpolate with
+         the viewport, not fixed steps.
+       - `code` stays at 0.87em: it is relative to whatever it sits inside,
+         which is the correct behaviour for inline code and would be lost if
+         it were pinned to a rem step. */
+  --fs-xs: 0.78rem;     /* micro uppercase: eyebrow, th, tags, stack labels */
+  --fs-sm: 0.85rem;     /* captions, blurbs, footer */
+  --fs-base: 0.9rem;    /* small body: tables, card copy */
+  --fs-md: 0.95rem;     /* interactive text: buttons, links, section subs */
+  --fs-lg: 1.28rem;     /* h2 */
+  --fs-xl: 1.5rem;      /* the stat figure */
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -44,7 +70,7 @@ a { color: var(--accent); }
 
 header.hero { padding: 4.5rem 0 2.5rem; }
 .eyebrow {
-  font-size: 0.78rem; letter-spacing: 0.09em; text-transform: uppercase;
+  font-size: var(--fs-xs); letter-spacing: 0.09em; text-transform: uppercase;
   color: var(--muted); margin: 0 0 0.9rem;
 }
 h1 { font-size: clamp(2.1rem, 5.5vw, 3.1rem); line-height: 1.12; margin: 0 0 1rem; letter-spacing: -0.02em; }
@@ -55,26 +81,26 @@ h1 { font-size: clamp(2.1rem, 5.5vw, 3.1rem); line-height: 1.12; margin: 0 0 1re
 .btn {
   display: inline-block; padding: 0.6rem 1.1rem; border-radius: var(--radius);
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
-  text-decoration: none; font-size: 0.93rem; font-weight: 500;
+  text-decoration: none; font-size: var(--fs-md); font-weight: 500;
 }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
 .btn:hover { border-color: var(--accent); }
 
 section { padding: 2.6rem 0; border-top: 1px solid var(--border); }
-h2 { font-size: 1.28rem; margin: 0 0 0.5rem; letter-spacing: -0.01em; }
-.sub { color: var(--muted); margin: 0 0 1.6rem; max-width: 46rem; font-size: 0.95rem; }
+h2 { font-size: var(--fs-lg); margin: 0 0 0.5rem; letter-spacing: -0.01em; }
+.sub { color: var(--muted); margin: 0 0 1.6rem; max-width: 46rem; font-size: var(--fs-md); }
 
 .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
 .card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 1.1rem 1.15rem;
 }
-.card h3 { margin: 0 0 0.4rem; font-size: 0.97rem; }
-.card p { margin: 0; color: var(--muted); font-size: 0.89rem; line-height: 1.6; }
+.card h3 { margin: 0 0 0.4rem; font-size: var(--fs-md); }
+.card p { margin: 0; color: var(--muted); font-size: var(--fs-base); line-height: 1.6; }
 
 figure { margin: 0; }
 svg { display: block; width: 100%; height: auto; }
-figcaption { color: var(--muted); font-size: 0.83rem; margin-top: 0.9rem; }
+figcaption { color: var(--muted); font-size: var(--fs-sm); margin-top: 0.9rem; }
 
 /* The table scrolls INSIDE its own box rather than pushing the page wide.
    Caught at a 293px viewport: three columns of prose could not fit, so the
@@ -83,24 +109,24 @@ figcaption { color: var(--muted); font-size: 0.83rem; margin-top: 0.9rem; }
    edge case. min-width stops the columns crushing into unreadable slivers
    instead. */
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-table { width: 100%; min-width: 30rem; border-collapse: collapse; font-size: 0.9rem; }
+table { width: 100%; min-width: 30rem; border-collapse: collapse; font-size: var(--fs-base); }
 th, td { text-align: left; padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-th { color: var(--muted); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+th { color: var(--muted); font-weight: 500; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.06em; }
 td.t { color: var(--muted); }
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.87em; background: var(--bg); border: 1px solid var(--border);
-  border-radius: 4px; padding: 0.05em 0.35em;
+  border-radius: var(--radius-sm); padding: 0.05em 0.35em;
 }
-.tag { font-size: 0.72rem; padding: 0.12rem 0.45rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+.tag { font-size: var(--fs-xs); padding: 0.12rem 0.45rem; border-radius: var(--radius-pill); border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
 .tag.live { color: var(--accent); border-color: var(--accent); }
 
 ul.repos { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
 ul.repos a { display: flex; justify-content: space-between; gap: 0.8rem; align-items: baseline;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 0.65rem 0.85rem; text-decoration: none; color: var(--text); font-size: 0.9rem; }
+  padding: 0.65rem 0.85rem; text-decoration: none; color: var(--text); font-size: var(--fs-base); }
 ul.repos a:hover { border-color: var(--accent); }
-ul.repos span { color: var(--muted); font-size: 0.8rem; text-align: right; }
+ul.repos span { color: var(--muted); font-size: var(--fs-xs); text-align: right; }
 
 /* Projects list. Two links per row -- the live site, and "source" where the
    repo is public -- so a project with no deployment still has somewhere to go. */
@@ -111,32 +137,32 @@ ul.projects li > a:first-child {
   flex: 1; display: flex; flex-direction: column; gap: 0.15rem;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 0.7rem 0.9rem;
-  text-decoration: none; color: var(--text); font-size: 0.93rem; }
+  text-decoration: none; color: var(--text); font-size: var(--fs-md); }
 ul.projects li > a:first-child:hover { border-color: var(--accent); }
-ul.projects .blurb { color: var(--muted); font-size: 0.83rem; line-height: 1.5; }
-ul.projects .stack { color: var(--muted); font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; }
+ul.projects .blurb { color: var(--muted); font-size: var(--fs-sm); line-height: 1.5; }
+ul.projects .stack { color: var(--muted); font-size: var(--fs-xs); letter-spacing: 0.04em; text-transform: uppercase; }
 ul.projects a.repo {
   display: flex; align-items: center; padding: 0 0.7rem;
   border: 1px solid var(--border); border-radius: var(--radius);
   background: var(--surface); color: var(--muted);
-  text-decoration: none; font-size: 0.78rem; white-space: nowrap; }
+  text-decoration: none; font-size: var(--fs-xs); white-space: nowrap; }
 ul.projects a.repo:hover { border-color: var(--accent); color: var(--accent); }
 /* [hidden] must win over any author display rule -- learn/ D-19. */
 [hidden] { display: none !important; }
 
 .stats { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
 .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
-.stat b { display: block; font-size: 1.5rem; letter-spacing: -0.02em; }
-.stat span { color: var(--muted); font-size: 0.8rem; }
+.stat b { display: block; font-size: var(--fs-xl); letter-spacing: -0.02em; }
+.stat span { color: var(--muted); font-size: var(--fs-xs); }
 
 blockquote {
   margin: 0; padding: 0.9rem 1.1rem; background: var(--surface);
   border: 1px solid var(--border); border-left: 3px solid var(--accent);
-  border-radius: var(--radius); color: var(--muted); font-size: 0.93rem;
+  border-radius: var(--radius); color: var(--muted); font-size: var(--fs-md);
 }
 blockquote strong { color: var(--text); }
 
-footer { border-top: 1px solid var(--border); padding: 2rem 0 3.5rem; color: var(--muted); font-size: 0.85rem; }
+footer { border-top: 1px solid var(--border); padding: 2rem 0 3.5rem; color: var(--muted); font-size: var(--fs-sm); }
 </style>
 </head>
 <body>
@@ -157,6 +183,12 @@ footer { border-top: 1px solid var(--border); padding: 2rem 0 3.5rem; color: var
       <a class="btn" href="https://github.com/HarshitRawat11/app-hub">Source on GitHub</a>
     </div>
   </header>
+
+  <!-- LANDMARK. Lighthouse flagged `landmark-one-main` on this page only:
+       demo.html and 404.html already had the landmark, so this was an
+       rather than a site-wide convention. Without it a screen-reader user has
+       no way to skip the header and jump to the content. -->
+  <main>
 
   <section>
     <h2>Why it exists</h2>
@@ -363,6 +395,8 @@ footer { border-top: 1px solid var(--border); padding: 2rem 0 3.5rem; color: var
       <a class="btn" href="https://github.com/HarshitRawat11/app-hub/tree/master/learn">Read all 32 write-ups →</a>
     </p>
   </section>
+
+  </main>
 
   <footer>
     <p>

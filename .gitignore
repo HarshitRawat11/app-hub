@@ -34,3 +34,7 @@ logs/
 # Wrangler CLI cache, created by `npx wrangler pages deploy`. Local build
 # state, not source -- and it can hold account identifiers.
 .wrangler/
+
+# Lighthouse JSON reports — ~600 KB each and regenerable with one npx command.
+# The screenshots beside them ARE kept: they are the before/after evidence.
+review/*.json

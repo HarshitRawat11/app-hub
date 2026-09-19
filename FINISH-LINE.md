@@ -135,14 +135,30 @@ invented:
 | **Palette** | 7 tokens — `--bg --surface --border --text --muted --accent --danger` |
 | Light | `#fbfbfa` `#ffffff` `#e3e1dd` `#1f1e1c` `#6f6c67` `#2f6f4f` `#a13b2d` |
 | Dark | `#17171a` `#1f1f23` `#33333a` `#eceaE6` `#9a968e` `#6fc79a` `#e0806f` |
-| **Typography** | one family: `ui-monospace, "Cascadia Code", Menlo, monospace` |
-| **Radius** | `--radius: 8px` |
+| **Typography** | **two families**: a system sans for prose, a mono for code and chips |
+| **Type scale** | **6 steps** — `--fs-xs .78` `--fs-sm .85` `--fs-base .9` `--fs-md .95` `--fs-lg 1.28` `--fs-xl 1.5` — plus 2 fluid `clamp()` heads |
+| **Radius** | 3 named tokens — `--radius 8px`, `--radius-sm 4px`, `--radius-pill 999px` |
 | **Theming** | `@media (prefers-color-scheme: dark)` |
 
 **D1 — No page introduces a colour outside the seven tokens.** Check: no literal
 hex in `site/*.html` or `site/static/*.css` other than the token definitions.
 
-**D2 — One type family.** No second `font-family` declaration anywhere in `site/`.
+**D2 — Two type families, and a scale with six steps.** One system sans for
+prose, one mono for code and chips. Every fixed size in a site-owned file
+resolves to a `--fs-*` token; the only exceptions are `code` at `0.87em`
+(relative by design) and the two `clamp()` heads (fluid, not steps).
+
+> **CORRECTED 2026-09-19. This criterion previously read *"One type family. No
+> second `font-family` declaration anywhere in `site/`."* Both halves were
+> false** — there are two families and four declarations. I wrote it after
+> grepping `font-family:` in `style.css` alone, which matched neither the
+> `font:` shorthand that actually sets the body type nor anything in
+> `index.html`. The site did not fail a gate; **I wrote a gate that did not
+> describe the site.**
+
+**D5 — Radius is tokenised.** Three named tokens, no raw values in site-owned
+files. *(`style.css` additionally uses `50%` for a circular control — vendored
+from `gateway`, and a legitimately distinct idiom.)*
 
 **D3 — Both pages support light and dark** via `prefers-color-scheme`.
 
