@@ -176,7 +176,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `Done` · `Needs v
 | R-03 | Replace the mutable `:v1` tag with immutable tags | **Done** 2026-09-03 · 11:20 IST | None | `c06d65f`. `image_tag_mutability = "IMMUTABLE"` in `ecr.tf`; the Makefile derives the tag from the links-service commit SHA (a dirty tree gets a timestamp suffix so the push stays unique). A tag now names exactly the code it was built from. **Takes effect on the next `terraform apply`.** |
 | R-04 | Deploy into a dedicated namespace | **Done and VERIFIED on a live cluster** 2026-09-10 — **admission control demonstrably rejected a non-compliant pod** | None | `e073761`. New `00-namespace.yaml` (the `00-` prefix is load-bearing — `kubectl apply -f dir/` goes in filename order and everything else references the namespace). Enforces the **restricted** Pod Security Standard, so non-compliant manifests are rejected at admission rather than quietly running as root. 
 | R-05 | Observability: **Prometheus / Grafana via `kube-prometheus-stack`** | **DONE and VERIFIED ON REAL EKS** 2026-09-14 — 22 targets all UP, five of them app-hub pods, scraped because of one `ServiceMonitor` with no config file edited and nothing restarted. Built as a **guided build** (`CLAUDE.md § 2`), a tier added this day at the owner's request: Claude wrote `values.yaml` and the `ServiceMonitor`, the owner ran every command and hit every failure. `learn/30` | Depends on `E-04`. **Phase 2 in the owner roadmap — comes before CI/CD.** | Helm chart. Note this is *why* the node group is EC2 and not Fargate: `node-exporter` is a DaemonSet, which Fargate does not support. First stateful workload — the PVC/EBS teardown checklist in `CLAUDE.md § 9` becomes mandatory from here on. |
-| R-06 | CI: **Jenkins in-cluster via Helm** | **WRITTEN 2026-09-18, NEVER APPLIED.** Guided build — Jenkins is a genuinely new tool, so Claude wrote the artifacts and the owner runs every command. `infra/jenkins-irsa.tf` (third IRSA role, ECR push only, no delete), `manifests/jenkins/` (namespace at `baseline` PSS, values.yaml carrying the **entire** Jenkins config as JCasC), `links-service/Jenkinsfile`, and `make jenkins`. Passes offline checks; **no API server and no running Jenkins have seen it.** <br><br>**Owner's decisions, taken 2026-09-18:** JCasC over persistence (the cluster dies nightly, so a PVC buys nothing and adds an EBS orphan risk); **Kaniko** over Docker-in-Docker (DinD needs privileged, which `baseline` forbids and which is a real escape risk); a **deploy key** over a PAT (scoped to one repo). <br><br>**Known incomplete and stated in the file:** the Test stage is a placeholder — the Kaniko container has no Python, so the pipeline is **not yet a CI gate**. Adding a second container to the agent pod template is the first task after it runs. | Depends on `R-05` landing first (owner roadmap phase 3) | Build, test, push image, then **commit a bumped image tag into the `manifests` repo**. Jenkins must never run `kubectl apply` — that is ArgoCD deliberately (see Decisions). |
+| R-06 | CI: **Jenkins in-cluster via Helm** | **WRITTEN, NEVER APPLIED — but no longer blocked on credentials (2026-09-20).** Both deploy keys verified at the access level (Jenkins write, ArgoCD read-only), and the admin password is generated and stored at `~/.app-hub/jenkins-admin.env` (mode 600, outside every repo, never printed). `make jenkins-password` done; `make jenkins-secrets` puts both Secrets in the cluster and is a **routine post-`make up` step**, since Secrets die with the cluster. **All that remains is a cluster.** <br><br>*(was: WRITTEN 2026-09-18, NEVER APPLIED.* Guided build — Jenkins is a genuinely new tool, so Claude wrote the artifacts and the owner runs every command. `infra/jenkins-irsa.tf` (third IRSA role, ECR push only, no delete), `manifests/jenkins/` (namespace at `baseline` PSS, values.yaml carrying the **entire** Jenkins config as JCasC), `links-service/Jenkinsfile`, and `make jenkins`. Passes offline checks; **no API server and no running Jenkins have seen it.** <br><br>**Owner's decisions, taken 2026-09-18:** JCasC over persistence (the cluster dies nightly, so a PVC buys nothing and adds an EBS orphan risk); **Kaniko** over Docker-in-Docker (DinD needs privileged, which `baseline` forbids and which is a real escape risk); a **deploy key** over a PAT (scoped to one repo). <br><br>**Known incomplete and stated in the file:** the Test stage is a placeholder — the Kaniko container has no Python, so the pipeline is **not yet a CI gate**. Adding a second container to the agent pod template is the first task after it runs. | Depends on `R-05` landing first (owner roadmap phase 3) | Build, test, push image, then **commit a bumped image tag into the `manifests` repo**. Jenkins must never run `kubectl apply` — that is ArgoCD deliberately (see Decisions). |
 | R-07 | CD: **ArgoCD, GitOps from `app-hub-manifests`** | **DONE and VERIFIED ON REAL EKS 2026-09-19** — all six Applications `Synced`/`Healthy`, exactly one ALB, the app served through it (`HTTP 200`, catalogue from DynamoDB). Guided build — ArgoCD is a genuinely new tool, so Claude wrote it heavily commented and the owner runs every command. Chart `argo/argo-cd` **10.9.2** (ArgoCD v3.5.3), read from `helm search repo` rather than guessed. **App-of-apps**: one root Application applied by `make argocd`, five children in `manifests/argocd/apps/` ordered by sync wave (namespace -1, services 0, Ingress 1). `automated` + `prune` + `selfHeal`. `dex` and `notifications` disabled. <br><br>**THREE CLAIMS WERE TESTED RATHER THAN ASSERTED, AND ONE WAS FALSE.** (1) **`applicationSet.enabled: false` DID NOTHING** — that key does not exist in chart 10.9.2 (the only `enabled` beneath it is `applicationSet.pdb`), **Helm accepts unknown values silently**, and the controller ran anyway. Caught by reading `kubectl get pods`, not the file. Settled with `helm template`: `enabled=false` renders `replicas: 1`, `replicas=0` renders `replicas: 0`. Fixed to `replicas: 0`; note the Deployment object still exists with no pods. (2) **`enforce: restricted` survived** — proven by admission control actually rejecting a busybox pod, not by reading the label. (3) **`selfHeal` reverts in SECONDS, not ~3 minutes** — a `scale --replicas=0` was already back to 2 before the next command ran, because ArgoCD watches resources rather than only polling. The 3-minute figure was wrong in six places and is corrected. | **Owner's**: generate a **read-only** deploy key on `app-hub-manifests` (Jenkins's existing key is write; ArgoCD only reads) and create the labelled `app-hub-manifests-repo` Secret. `make argocd` refuses to install without it. Then a cluster. | ArgoCD watches the manifests repo and reconciles. **`make down` gained a step 0** because of it: with `selfHeal`, deleting the Ingress makes ArgoCD recreate it, the controller provisions a **second ALB**, and teardown orphans it — `D-28` again, with something actively undoing the fix. Step 0 deletes the root Application first (cascading, while the ALB controller is still alive) and **asserts zero Applications remain**. <br><br>**`make validate` now globs two directory levels**, because `manifests/argocd/apps/` sits deeper than anything before it and a one-level glob would have skipped it silently — the same failure that hid `manifests/monitoring/` until 2026-09-16. **Proven by deleting a namespace from a child Application and watching validate fail**, then restoring it. <br><br>**Not under ArgoCD, deliberately**: ArgoCD itself (bootstrap paradox), the ALB controller (must exist before the Ingress), Prometheus and Jenkins (Helm releases — the natural second step). `learn/35`. |
 
 ### Phase 4 — n8n workflows
@@ -291,6 +291,63 @@ Newest first. One entry per working session — what changed, and what it unbloc
 **Timestamps are IST (+05:30) and anchored to real commit times.** This machine runs two clocks — Windows on IST, WSL on UTC — so a bare time is ambiguous; always state the zone. Times marked `~` predate the umbrella repo, so they have no exact commit to anchor to.
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
+
+### 2026-09-20 · 02:32 IST — The Jenkins secrets, split along "does this need a cluster"
+
+**Asked to create the `jenkins-admin` Secret. It cannot be created right now** —
+a Kubernetes Secret is an in-cluster object and there is no cluster. The
+kubeconfig still points at a destroyed endpoint that no longer resolves, which
+is `CLAUDE.md § 5`'s stale-kubeconfig certainty rather than a fault.
+
+**That reshapes the task rather than blocking it.** The Secret dies with every
+`make down`, so creating it was never going to be one-time setup — and if the
+password were regenerated on each rebuild it would change nightly, which
+`manifests/jenkins/values.yaml` already names as the thing to avoid. So the
+password has to persist *outside* the cluster, and putting the Secret in has to
+become a routine step.
+
+**Two targets, split exactly on that line:**
+
+| target | needs a cluster? | when |
+|---|---|---|
+| `make jenkins-password` | no | **once, ever** — done, 02:26 IST |
+| `make jenkins-secrets` | yes | **after every `make up`** — pending a cluster |
+
+**`make jenkins-password` has run.** A 32-character random password now lives at
+`~/.app-hub/jenkins-admin.env`, mode `600`. **It was never printed** — the target
+reports length and file mode only, the same discipline `CLAUDE.md` applies to the
+n8n API key.
+
+**Where it lives was a constraint, not a preference.** Not in any of the eight
+repositories, obviously. Also **not under `/mnt/c`**: a Windows-mounted file
+cannot hold Unix `0600`, so `chmod` there **reports success and changes
+nothing** — the same silent-lie family as everything in § 9. WSL home is ext4,
+so the mode is real, and `stat` confirms it. Verified not to be inside any git
+repo, so it cannot be committed by accident.
+
+**`make jenkins-secrets` creates BOTH secrets**, because `make jenkins` guards on
+both and delivering one leaves you blocked in the same place. It verifies each
+against its source by comparing 12-character sha256 prefixes — which proves
+equality while revealing nothing. That check exists because **after a password
+change, a Secret that *exists* and a Secret that is *correct* are different
+facts**, and `kubectl get secret` cannot tell them apart.
+
+**Five guard paths were tested by making each one fire**, not by reading them:
+no cluster, missing store, missing deploy key, plus idempotency (re-running
+`jenkins-password` must not rotate — confirmed unchanged) and a control that the
+real deploy key is present, so the fake-path failure is genuinely detecting
+absence. Each guard prints a distinct, actionable message and exits non-zero.
+
+**The cluster guard earns its place**: without it the failure surfaces as a DNS
+error about a stale EKS endpoint, which reads like a network problem and is
+really just "no cluster".
+
+**Docs**: `manifests/jenkins/README.md` steps 1a/1c rewritten (the old text had
+you type `CHANGE-THIS` by hand), `make help` updated, and `learn/36` written.
+Step 1b gained a cross-reference warning **not to delete ArgoCD's key** from the
+same Deploy keys page — that is precisely where yesterday's deletion happened.
+
+**`G3` now needs only a cluster.**
 
 ### 2026-09-20 · 02:18 IST — Both manifests deploy keys verified, and the ambiguity that deleted one is closed
 

@@ -77,6 +77,22 @@ JENKINS_CHART_VERSION := 5.8.18
 # chart version that does not exist fails at install time, not at review.
 ARGOCD_CHART_VERSION := 10.9.2
 
+# Where the Jenkins admin password lives BETWEEN cluster rebuilds.
+#
+# It is deliberately NOT in any of the eight git repositories, and not
+# under /mnt/c either: a Windows-mounted file cannot hold Unix 0600, so a
+# `chmod` there reports success and changes nothing. WSL home is ext4, so
+# the mode is real. Same reasoning that already puts the deploy key in
+# ~/.ssh rather than in the repo.
+#
+# WHY IT HAS TO PERSIST AT ALL: the Secret is an in-cluster object and
+# dies with every `make down`. If the password were regenerated on each
+# rebuild it would change nightly -- which manifests/jenkins/values.yaml
+# names explicitly as the thing to avoid, because it defeats the point of
+# reproducibility.
+JENKINS_SECRET_STORE := $(HOME)/.app-hub/jenkins-admin.env
+JENKINS_DEPLOY_KEY   := $(HOME)/.ssh/app-hub-manifests-deploy
+
 # Tag every image with the links-service commit it was built from, because the
 # ECR repo is IMMUTABLE (R-03) and a tag must never be reused. A dirty working
 # tree gets a timestamp suffix so uncommitted experiments still push.
@@ -91,7 +107,7 @@ dirty_of = $(shell git -C $(1) status --porcelain 2>/dev/null | head -c1)
 tag_of   = $(if $(call dirty_of,$(1)),$(call sha_of,$(1))-dirty-$(shell date +%s),$(call sha_of,$(1)))
 
 .DEFAULT_GOAL := help
-.PHONY: help guard status up deploy verify down destroy-only ecr-prune validate test verify-dynamo monitoring jenkins argocd run-local stop-local deploy-site
+.PHONY: help guard status up deploy verify down destroy-only ecr-prune validate test verify-dynamo monitoring jenkins jenkins-password jenkins-secrets argocd run-local stop-local deploy-site
 
 help:
 	@echo "app-hub — run from WSL"
@@ -106,6 +122,8 @@ help:
 	@echo "  make test     run every service test suite (no cluster needed)"
 	@echo "  make validate offline manifest + terraform checks (no cluster needed)"
 	@echo "  make monitoring  install Prometheus + Grafana (R-05) on a live cluster"
+	@echo "  make jenkins-password  generate the admin password once (no cluster needed)"
+	@echo "  make jenkins-secrets   put both Jenkins secrets in the cluster (after every up)"
 	@echo "  make jenkins     install Jenkins, configured entirely as code (R-06)"
 	@echo "  make argocd      install ArgoCD + the root Application (R-07)"
 	@echo ""
@@ -631,6 +649,95 @@ verify-dynamo:
 #
 # NOT part of `make deploy`: Jenkins wants ~1Gi on a two-node cluster that
 # already runs Prometheus and three services, so it is opt-in.
+# ---------------------------------------------------------------------------
+# jenkins-password -- generate the admin password ONCE. No cluster needed.
+#
+# Split from jenkins-secrets on purpose: this half is local and permanent,
+# that half is in-cluster and has to be redone after every `make up`.
+# ---------------------------------------------------------------------------
+jenkins-password:
+	@mkdir -p $(dir $(JENKINS_SECRET_STORE)) && chmod 700 $(dir $(JENKINS_SECRET_STORE))
+	@# REFUSE TO OVERWRITE. Silently regenerating would rotate the password
+	@# out from under a running Jenkins, and the symptom would be a login
+	@# failure with no obvious cause.
+	@if [ -f $(JENKINS_SECRET_STORE) ]; then \
+	   echo "   password store already exists -- not touching it"; \
+	 else \
+	   umask 077; \
+	   { echo "JENKINS_ADMIN_USER=admin"; \
+	     printf 'JENKINS_ADMIN_PASSWORD=%s\n' \
+	       "$$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32)"; \
+	   } > $(JENKINS_SECRET_STORE); \
+	   chmod 600 $(JENKINS_SECRET_STORE); \
+	   echo "   generated a new password store"; \
+	 fi
+	@# VERIFY WITHOUT PRINTING. Length and file mode are checkable facts;
+	@# the value itself must never reach a terminal or a transcript. Same
+	@# discipline CLAUDE.md applies to the n8n API key.
+	@len=$$(awk -F= '/^JENKINS_ADMIN_PASSWORD=/{print length($$2)}' $(JENKINS_SECRET_STORE)); \
+	 mode=$$(stat -c '%a' $(JENKINS_SECRET_STORE)); \
+	 [ -n "$$len" ] && [ "$$len" -ge 32 ] || { echo "ERROR: no usable password in $(JENKINS_SECRET_STORE)"; exit 1; }; \
+	 [ "$$mode" = "600" ] || { echo "ERROR: $(JENKINS_SECRET_STORE) is mode $$mode, expected 600"; exit 1; }; \
+	 echo "   $$len-char password, mode $$mode, at $(JENKINS_SECRET_STORE)"
+	@echo ""
+	@echo "   Next, with a cluster up:  make jenkins-secrets"
+
+# ---------------------------------------------------------------------------
+# jenkins-secrets -- put BOTH secrets into the cluster. NEEDS A CLUSTER.
+#
+# Run this after every `make up`, before `make jenkins`. Both secrets are
+# in-cluster objects, so both die with the cluster -- this is a routine
+# step, not a one-time setup.
+#
+# Creates both because `make jenkins` guards on both, and delivering only
+# one leaves you blocked at exactly the same place.
+# ---------------------------------------------------------------------------
+jenkins-secrets:
+	@command -v kubectl >/dev/null || { echo "ERROR: kubectl not found. Run this from WSL."; exit 1; }
+	@[ -f $(JENKINS_SECRET_STORE) ] || { echo "ERROR: no password store. Run:  make jenkins-password"; exit 1; }
+	@[ -f $(JENKINS_DEPLOY_KEY) ] || { echo "ERROR: no deploy key at $(JENKINS_DEPLOY_KEY). See manifests/jenkins/README.md step 1b."; exit 1; }
+	@# FAIL EARLY AND HONESTLY IF THE CLUSTER IS DOWN. Without this the
+	@# kubectl calls below emit a DNS error about a stale EKS endpoint,
+	@# which reads like a network fault and is really just "no cluster".
+	@kubectl cluster-info >/dev/null 2>&1 || { \
+	   echo "ERROR: no reachable cluster."; \
+	   echo "  If it is up:   aws eks update-kubeconfig --region $(REGION) --name $(CLUSTER)"; \
+	   echo "  If it is not:  make up"; \
+	   exit 1; }
+	kubectl apply -f $(MANIFEST_ROOT)/jenkins/namespace.yaml
+	@# --dry-run=client | apply makes this IDEMPOTENT. Plain `create secret`
+	@# fails with AlreadyExists on a re-run, which would make the sensible
+	@# habit of re-running a target look like an error.
+	@set -a; . $(JENKINS_SECRET_STORE); set +a; \
+	 kubectl -n jenkins create secret generic jenkins-admin \
+	   --from-literal=username="$$JENKINS_ADMIN_USER" \
+	   --from-literal=password="$$JENKINS_ADMIN_PASSWORD" \
+	   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+	@# Key name `manifests-deploy-key` is load-bearing: JCasC resolves
+	@# $${manifests-deploy-key} against it, and values.yaml mounts it by
+	@# that exact keyName. A different name installs fine and fails at the
+	@# git push, after the image is already in ECR.
+	@kubectl -n jenkins create secret generic jenkins-deploy-key \
+	   --from-file=manifests-deploy-key=$(JENKINS_DEPLOY_KEY) \
+	   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+	@echo ""
+	@# PROVE THE CLUSTER HOLDS THE SAME PASSWORD AS THE STORE, not merely
+	@# that a Secret named jenkins-admin exists. After a rotation those are
+	@# different facts, and `get secret` cannot tell them apart. Comparing
+	@# short sha256 prefixes proves equality and reveals nothing.
+	@disk=$$(. $(JENKINS_SECRET_STORE); printf '%s' "$$JENKINS_ADMIN_PASSWORD" | sha256sum | cut -c1-12); \
+	 live=$$(kubectl -n jenkins get secret jenkins-admin -o jsonpath='{.data.password}' | base64 -d | sha256sum | cut -c1-12); \
+	 [ "$$disk" = "$$live" ] || { echo "ERROR: jenkins-admin in the cluster does NOT match $(JENKINS_SECRET_STORE) ($$disk vs $$live)"; exit 1; }; \
+	 echo "   jenkins-admin      matches the store (sha256 $$disk)"
+	@# Same idea for the key: compare against the file on disk rather than
+	@# trusting that the Secret is non-empty.
+	@disk=$$(sha256sum < $(JENKINS_DEPLOY_KEY) | cut -c1-12); \
+	 live=$$(kubectl -n jenkins get secret jenkins-deploy-key -o jsonpath='{.data.manifests-deploy-key}' | base64 -d | sha256sum | cut -c1-12); \
+	 [ "$$disk" = "$$live" ] || { echo "ERROR: jenkins-deploy-key does NOT match $(JENKINS_DEPLOY_KEY) ($$disk vs $$live)"; exit 1; }; \
+	 echo "   jenkins-deploy-key matches $(JENKINS_DEPLOY_KEY) (sha256 $$disk)"
+	@echo ""
+	@echo "   Both secrets verified against their sources. Next:  make jenkins"
+
 jenkins: guard
 	@command -v helm >/dev/null || { echo "ERROR: helm not found. Run this from WSL."; exit 1; }
 	kubectl apply -f $(MANIFEST_ROOT)/jenkins/namespace.yaml
@@ -645,7 +752,8 @@ jenkins: guard
 	    echo ""; \
 	    echo "MISSING SECRET: $$sec"; \
 	    echo "Jenkins would install and then fail at runtime. Create both first:"; \
-	    echo "  see manifests/jenkins/README.md"; \
+	    echo "  make jenkins-secrets"; \
+	    echo "  (background: manifests/jenkins/README.md)"; \
 	    exit 1; }; \
 	done
 	@echo "   both secrets present"
