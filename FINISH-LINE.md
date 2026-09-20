@@ -300,9 +300,28 @@ item is a legitimate idea; none is part of v1.
 unfreeze; **`G6` closed the same evening** when `D-24`'s evidence finally
 appeared.
 
-What remains: `G1` and `G3`–`G5` are real work needing a cluster; `G2` is
-owner-only credential work. **`G3` and `G4` are both written and both blocked on
-exactly one thing — a live cluster.**
+**What remains, sorted by what actually blocks it.** This line previously read
+*"`G1` and `G3`–`G5` are real work needing a cluster"*, and that was wrong about
+two of them — corrected 2026-09-20. **Only `G3` and `G4` need EKS.**
+
+| gap | needs a cluster? | blocked on |
+|---|---|---|
+| `G1` | **no** — Docker Compose on the always-on host | `G2`'s credentials |
+| `G2` | **no** | owner-only: IAM user + access key, Tailscale account/ACL/key |
+| `G3` | **yes** | a cluster, and nothing else — credentials done 2026-09-20 |
+| `G4` | **yes** | a cluster; written, never executed |
+| `G5` | **no** — n8n under Compose, re-targeted off EKS | owner's go-ahead: it stops a running n8n and moves a volume holding live credentials |
+| `G7` | **no** — and it is *cheaper* with the cluster down | one deliberate overnight test |
+
+**`G1` needing no cluster is not an assumption — its preconditions were checked
+on 2026-09-20 and all of them live in the PERSISTENT stack**, which is precisely
+why ECR was moved there: three images in each of the three ECR repositories, and
+`app-hub-links` `ACTIVE`. Both survive every teardown. The ephemeral stack
+contributes nothing to `G1`.
+
+**So four of the six open gaps are reachable with no cluster and no spend.**
+`G7` is the cheapest — it is free, it needs the cluster *down*, and it is the
+entire remaining condition for `D-25`, the only open defect.
 
 **`G7` was described here as closing "by observation", and that was wrong.**
 Measured 2026-09-20: the laptop is awake at 23:30 every night in the record, and
