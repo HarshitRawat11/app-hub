@@ -601,6 +601,31 @@ Each of these cost real time to find. They are here so no future session pays fo
 
   **So: when handing the owner a command, label the shell, and prefer one that works in PowerShell** — or wrap the bash in `wsl -e bash -lc "..."`, which is the only reliable way to get bash semantics from here. `npx`, `git`, `kubectl`, `curl.exe` and `docker.exe` are shell-agnostic and safe as written; anything using `&&`, `$(...)`, `<(...)`, `|` into a shell builtin, or backslash-escaped quotes is not.
 
+- **Write a multi-line commit message to a FILE and use `git commit -F`. Never `-m`.**
+  This has now truncated a commit message **twice**, most recently 2026-09-20. The
+  mechanism: a `"` anywhere inside `-m "..."` **ends the string**, and everything
+  after it is parsed as shell. The message silently loses its tail, and the leftover
+  words are run as commands.
+
+  **It does not fail cleanly, which is why it keeps getting through.** The 2026-09-20
+  run exited `127` with `by: command not found` — but git had *already made the
+  commit*, with a message cut off mid-sentence at `FINISH-LINE said G7 closes`. So
+  the visible signal was a command-not-found error about a word no one typed, while
+  the actual damage was a commit that looked fine in `git log --oneline`. Checking
+  that a commit exists does not check that its message survived.
+
+  Quoting the inner quotes is not the fix — the fix is to stop putting prose through
+  shell argument parsing at all:
+
+  ```bash
+  git commit -F /path/to/message.txt
+  ```
+
+  Same applies to `gh pr create --body`. Anything with paragraphs, quotes,
+  backticks, or `$` belongs in a file. The first incident lived only in session
+  history and a PROGRESS note, which is precisely why it happened again — a lesson
+  that is not in this file is a lesson that will be repaid.
+
 - **n8n nodes can replay pinned data instead of executing.** Right-click a node; if the menu offers "Unpin", its output is frozen and the node is not really running. Also: the green check on the canvas means "did not halt the workflow", **not** "received a 200".
 
 - **EKS needs `enable_cluster_creator_admin_permissions = true`.** Without it, the IAM user that *created* the cluster has no `kubectl` access to it. Already set in `eks.tf`.
