@@ -287,10 +287,10 @@ item is a legitimate idea; none is part of v1.
 | **G1** | `P-11` — deploy the always-on host | `docker compose ps` shows 4 services up; the Tailscale hostname serves the dashboard from a non-home network |
 | **G2** | `P-11` owner prerequisites — scoped IAM user + access key, Tailscale account/ACL/key/expiry, `.env` | The above, working |
 | **G3** | `R-06` — apply Jenkins to a live cluster | A build runs green and pushes an image to ECR. **Credentials are no longer a blocker** (2026-09-20): both deploy keys verified at the access level (Jenkins write, ArgoCD read-only), and the admin password is generated and stored outside the cluster at `~/.app-hub/jenkins-admin.env`. `make jenkins-secrets` installs both Secrets and must be re-run after every `make up`. **Only a cluster remains.** |
-| **G4** | `R-06` — a **real** test stage (owner's ruling) | The pipeline executes the service's pytest suite and fails the build when a test fails |
+| **G4** | `R-06` — a **real** test stage (owner's ruling) | The pipeline executes the service's pytest suite and fails the build when a test fails. ***Written 2026-09-20, never executed*** — the `uv` agent container is in `values.yaml` and the Test stage runs `uv sync --frozen && uv run pytest` with `junit allowEmptyResults: false`, but no pipeline has run it. **Same blocker as `G3`: a cluster.** |
 | **G5** | `N-06` — n8n on the **always-on host**, re-targeted from EKS 2026-09-20 | The existing instance runs under Compose with its `n8n_data` volume attached, workflows intact and **credentials still decrypting**, reachable tailnet-only on `:8443`. *Written; not yet migrated.* |
 | ~~**G6**~~ | ~~`D-24` — cost watchdog proven alive~~ | **DONE 2026-09-19** — `mode=trigger` at 21:00:05 IST after a 06:48→12:19 sleep. Closing condition met. **Residual, recorded not hidden**: the 17:00 trigger was still missed because the restart landed at 17:50/18:32, so firings between a sleep and the next restart are still lost |
-| **G7** | `D-25` — teardown notification proven | A ~23:30 teardown log from a night the laptop slept |
+| **G7** | `D-25` — teardown notification proven | A ~23:30 teardown log from a night the laptop slept, **plus a Power-Troubleshooter wake event at ~23:30** — the log alone is not enough, because Task Scheduler catches up a missed trigger on wake and that looks identical. <br><br>**Half of `D-25` is now PROVEN (2026-09-20)**: both recent 23:30 runs reported `HTTP 200`, including the 09-18 one that **failed with exit 2** — the exact failed-teardown/failed-notification pair the defect was opened for. <br><br>**But this will NOT close by waiting.** Windows' event log shows the laptop was awake at 23:30 on both nights, and every recorded sleep begins between 05:21 and 06:49 — so it is never asleep at the trigger time. **Needs a deliberate test**: shut the lid before 23:30 one evening with the cluster down (free), then check for both signals next morning. |
 | ~~**G8**~~ | ~~`README.md:7` three phases stale~~ | **DONE 2026-09-19** — now reads *Phases 1, 2 and 5 complete; 40 of 43 tasks done*, and names the three open tasks |
 | ~~**G9**~~ | ~~Remove `netlify.toml` and its `README.md` reference~~ | **DONE 2026-09-19** — file deleted; `README.md`, `CLAUDE.md § 3` and `site/README.md` all corrected to Cloudflare Pages. **Scope was larger than this row claimed**: `site/README.md` was mostly a Netlify runbook and needed rewriting, not a reference swap |
 | ~~**G10**~~ | ~~`O8` — console errors unmeasured~~ | **DONE 2026-09-19** — both pages load with **zero console messages of any level** |
@@ -301,9 +301,16 @@ unfreeze; **`G6` closed the same evening** when `D-24`'s evidence finally
 appeared.
 
 What remains: `G1` and `G3`–`G5` are real work needing a cluster; `G2` is
-owner-only credential work; **`G7` closes by observation** — it needs a ~23:30
-teardown log from a night the laptop slept, so it cannot be "worked on", only
-waited for and checked.
+owner-only credential work. **`G3` and `G4` are both written and both blocked on
+exactly one thing — a live cluster.**
+
+**`G7` was described here as closing "by observation", and that was wrong.**
+Measured 2026-09-20: the laptop is awake at 23:30 every night in the record, and
+every sleep begins between 05:21 and 06:49. Waiting cannot produce the evidence.
+It needs **one deliberate test** — lid shut before 23:30, cluster down so it costs
+nothing — and the check is two signals, not one: the teardown log *and* a wake
+event at ~23:30, because Task Scheduler catching up on wake looks the same in the
+log alone.
 
 **`D-30` is RESOLVED (2026-09-20) and `DEP1` now holds on its own.** The cause
 was one repository missing from the Cloudflare Pages GitHub App's access list —
