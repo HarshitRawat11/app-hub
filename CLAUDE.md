@@ -512,9 +512,15 @@ Work through these in order. Stop as soon as you have what the task needs — do
 
 ## 8. Known defects at a glance
 
-The authoritative list — with severity and next steps — lives in **`PROGRESS.md` § Known Defects**. The one you are most likely to trip over:
+The authoritative list — with severity and next steps — lives in **`PROGRESS.md` § Known Defects**.
 
-> `links-service/app/main.py:29` stores the incoming `LinkCreate` instead of the constructed `Link`, so every record read back from `GET /links` and `GET /links/{id}` is missing its `id`. `POST` returns the correct shape, which is why it looks fine at first glance.
+**Exactly one defect is open, and it is not in the application code:**
+
+> **`D-25` — the nightly teardown's wake timer has never been exercised.** The teardown itself runs and reports correctly, including on failure. What is unproven is whether it fires on a night the laptop is *asleep* at 23:30 — and measurement on 2026-09-20 showed the machine is awake at 23:30 every night in the record, so **this cannot be closed by waiting.** It needs one deliberate test. See `D-25` in `PROGRESS.md`.
+
+**This section used to warn about a `links-service` storage bug. That bug is FIXED, and the warning is removed rather than left to mislead.** It read: *"`main.py:29` stores the incoming `LinkCreate` instead of the constructed `Link`, so every record read back is missing its `id`."* `D-01` is closed — `create_link` now returns what the repository built, `test_created_link_has_an_id_when_listed` is a regression test named for that exact symptom, and the full suite is green (**152 tests**, verified 2026-09-20).
+
+**Line 29 now means something else entirely**, which is the real hazard of a stale pointer in the file every session reads first: it sends someone hunting a bug that is not there, at a line that no longer says what the warning claims. **A fixed defect must be removed from here, not just marked resolved in `PROGRESS.md`.**
 
 ---
 

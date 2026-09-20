@@ -292,6 +292,58 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
+### 2026-09-20 · 10:52 IST — Everything that could be done without a cluster
+
+**Swept the remaining work for anything not blocked on EKS, and found two stale
+documents rather than two missing features.**
+
+**1. `CLAUDE.md § 8` was warning about a bug that no longer exists.** It told
+every new session that `links-service/app/main.py:29` stores the incoming
+`LinkCreate` instead of the constructed `Link`. **`D-01` is closed.**
+`create_link` returns what the repository built; `test_created_link_has_an_id_when_listed`
+is a regression test named for that exact symptom; the full suite is green
+(**152 tests** — 42 links-service, 59 gateway, 51 aggregator).
+
+**Line 29 now means something else entirely**, which is what makes this worse
+than a merely out-of-date note: § 6 sends every session to read `CLAUDE.md`
+first, so the stale pointer would send someone hunting a phantom at a line that
+does not say what the warning claims. **Removing a fixed defect from § 8 is part
+of fixing it**, not optional tidying — marking it resolved in `PROGRESS.md` is
+not enough. The old text is quoted in place rather than deleted, so the history
+stays legible.
+
+**2. `G1`'s closing criterion had drifted out from under `G5`.** It read
+*"`docker compose ps` shows **4** services up"*. `G5` added `n8n` to the stack on
+2026-09-20 and nobody updated the criterion — so **`G1` could have passed with a
+service missing.** Now 5, and the services are named rather than counted, since a
+bare number is exactly what drifted.
+
+**3. The compose stack was verified offline** — written 2026-09-20 and, until
+now, never parsed by Docker:
+
+- **parses** under `docker compose config`
+- resolves to exactly **5 services**: `links-service`, `gateway`, `aggregator`,
+  `n8n`, `tailscale`
+- publishes **no ports at all**, as designed
+- **`n8n_data` resolves to `external: true`** — the single property that, if
+  wrong, would start n8n blank, generate a fresh encryption key, and make every
+  stored credential permanently undecryptable
+- the live `n8n_data` volume **exists**, confirmed with an absent-name control so
+  the hit is real
+
+**4. `scripts/check-doc-drift.py` passes** — 4 embedded blocks, none drifted.
+
+**Also observed, and it is the argument for `G5`:** the standalone n8n container
+is up and publishing **`0.0.0.0:5678`** — the automation admin UI, which holds
+every credential on the instance, reachable from anything on the local network.
+The Compose version removes that; it is tailnet-only.
+
+**Nothing else can be done without a cluster.** `G3` and `G4` need EKS. `G2` is
+owner-only credential work. `G7` needs one deliberate overnight test. **`G5` is
+the only remaining item that needs no cluster — but it stops the running n8n and
+moves a volume holding live credentials, so it is not something to start
+unasked.**
+
 ### 2026-09-20 · 02:32 IST — The Jenkins secrets, split along "does this need a cluster"
 
 **Asked to create the `jenkins-admin` Secret. It cannot be created right now** —
