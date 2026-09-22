@@ -514,9 +514,13 @@ Work through these in order. Stop as soon as you have what the task needs — do
 
 The authoritative list — with severity and next steps — lives in **`PROGRESS.md` § Known Defects**.
 
-**Exactly one defect is open, and it is not in the application code:**
+**`D-25` closed 2026-09-22 — the wake timer fired and was caught in the act.** Laptop slept `22:02:32`, Windows woke it at `23:30:38`, the teardown ran and reported `HTTP 200`. **Two defects are open in its place, and neither is in the application code:**
 
-> **`D-25` — the nightly teardown's wake timer has never been exercised.** The teardown itself runs and reports correctly, including on failure. What is unproven is whether it fires on a night the laptop is *asleep* at 23:30 — and measurement on 2026-09-20 showed the machine is awake at 23:30 every night in the record, so **this cannot be closed by waiting.** It needs one deliberate test. See `D-25` in `PROGRESS.md`.
+> **`D-31` (Medium) — a nightly trigger was silently skipped.** The `2026-09-21` 23:30 teardown produced **no Task Scheduler event at all** while the machine was awake, then caught up four hours late at `09-22 03:37`, suspended six seconds later, and died on the WSL2 DNS-across-suspend failure. Nothing was billing, which is luck rather than design — a cluster up that night would have run ~11 hours ≈ $3.10. **Cause UNKNOWN**; the task's own history is unreadable unelevated.
+
+> **`D-32` (Low) — a stale duplicate teardown task is registered.** A bare `app-hub nightly teardown` exists alongside the working `app-hub nightly teardown (harshit.rawat)` and only ever emits `id=332` ("will not be run"). It never runs, so it costs nothing — but its failure-shaped events sit in the same log as the real task's and cost diagnosis time.
+
+**Both are in `PROGRESS.md § Known Defects` with next steps. `D-31`'s next step needs an elevated shell, so it is the owner's.**
 
 **This section used to warn about a `links-service` storage bug. That bug is FIXED, and the warning is removed rather than left to mislead.** It read: *"`main.py:29` stores the incoming `LinkCreate` instead of the constructed `Link`, so every record read back is missing its `id`."* `D-01` is closed — `create_link` now returns what the repository built, `test_created_link_has_an_id_when_listed` is a regression test named for that exact symptom, and the full suite is green (**152 tests**, verified 2026-09-20).
 

@@ -290,15 +290,16 @@ item is a legitimate idea; none is part of v1.
 | **G4** | `R-06` — a **real** test stage (owner's ruling) | The pipeline executes the service's pytest suite and fails the build when a test fails. ***Written 2026-09-20, never executed*** — the `uv` agent container is in `values.yaml` and the Test stage runs `uv sync --frozen && uv run pytest` with `junit allowEmptyResults: false`, but no pipeline has run it. **Same blocker as `G3`: a cluster.** |
 | **G5** | `N-06` — n8n on the **always-on host**, re-targeted from EKS 2026-09-20 | The existing instance runs under Compose with its `n8n_data` volume attached, workflows intact and **credentials still decrypting**, reachable tailnet-only on `:8443`. *Written; not yet migrated.* |
 | ~~**G6**~~ | ~~`D-24` — cost watchdog proven alive~~ | **DONE 2026-09-19** — `mode=trigger` at 21:00:05 IST after a 06:48→12:19 sleep. Closing condition met. **Residual, recorded not hidden**: the 17:00 trigger was still missed because the restart landed at 17:50/18:32, so firings between a sleep and the next restart are still lost |
-| **G7** | `D-25` — teardown notification proven | A ~23:30 teardown log from a night the laptop slept, **plus a Power-Troubleshooter wake event at ~23:30** — the log alone is not enough, because Task Scheduler catches up a missed trigger on wake and that looks identical. <br><br>**Half of `D-25` is now PROVEN (2026-09-20)**: both recent 23:30 runs reported `HTTP 200`, including the 09-18 one that **failed with exit 2** — the exact failed-teardown/failed-notification pair the defect was opened for. <br><br>**But this will NOT close by waiting.** Windows' event log shows the laptop was awake at 23:30 on both nights, and every recorded sleep begins between 05:21 and 06:49 — so it is never asleep at the trigger time. **Needs a deliberate test**: shut the lid before 23:30 one evening with the cluster down (free), then check for both signals next morning. |
+| ~~**G7**~~ | ~~`D-25` — teardown notification proven~~ | **DONE 2026-09-22.** Laptop slept `09-20 22:02:32`, Windows woke it at **23:30:38**, Task Scheduler logged the time trigger at **23:30:34**, the teardown ran **23:31→23:32 success** and reported `HTTP 200`. Three independent sources agree, and the ~27-second wake-to-run gap distinguishes a **wake timer** from a catch-up (the `09-17` catch-up took 6 minutes). <br><br>**A separate fault was found in the same evidence and is tracked as `D-31`, not as this gap reopening**: the `09-21` 23:30 trigger never fired while the machine was awake, caught up at `09-22 03:37`, and failed. <br><br>*(was: A ~23:30 teardown log from a night the laptop slept, plus a Power-Troubleshooter wake event at ~23:30 — the log alone is not enough, because Task Scheduler catches up a missed trigger on wake and that looks identical. <br><br>**Half of `D-25` is now PROVEN (2026-09-20)**: both recent 23:30 runs reported `HTTP 200`, including the 09-18 one that **failed with exit 2** — the exact failed-teardown/failed-notification pair the defect was opened for. <br><br>**But this will NOT close by waiting.** Windows' event log shows the laptop was awake at 23:30 on both nights, and every recorded sleep begins between 05:21 and 06:49 — so it is never asleep at the trigger time. **Needs a deliberate test**: shut the lid before 23:30 one evening with the cluster down (free), then check for both signals next morning. |
 | ~~**G8**~~ | ~~`README.md:7` three phases stale~~ | **DONE 2026-09-19** — now reads *Phases 1, 2 and 5 complete; 40 of 43 tasks done*, and names the three open tasks |
 | ~~**G9**~~ | ~~Remove `netlify.toml` and its `README.md` reference~~ | **DONE 2026-09-19** — file deleted; `README.md`, `CLAUDE.md § 3` and `site/README.md` all corrected to Cloudflare Pages. **Scope was larger than this row claimed**: `site/README.md` was mostly a Netlify runbook and needed rewriting, not a reference swap |
 | ~~**G10**~~ | ~~`O8` — console errors unmeasured~~ | **DONE 2026-09-19** — both pages load with **zero console messages of any level** |
 | ~~**G11**~~ | ~~`D4` — responsive floor unmeasured~~ | **DONE 2026-09-19** — no page-level horizontal scroll at 360 / 768 / 1280 on either page. The 480px table is contained by `div.table-wrap` (`overflow-x: auto`) |
 
-**Gap size: 6 items** — down from 11. `G8`–`G11` closed on 2026-09-19 after the
+**Gap size: 5 items** — down from 11. `G8`–`G11` closed on 2026-09-19 after the
 unfreeze; **`G6` closed the same evening** when `D-24`'s evidence finally
-appeared.
+appeared; **`G7` closed 2026-09-22** when the wake timer fired on its own and
+three independent logs agreed.
 
 **What remains, sorted by what actually blocks it.** This line previously read
 *"`G1` and `G3`–`G5` are real work needing a cluster"*, and that was wrong about
@@ -311,7 +312,7 @@ two of them — corrected 2026-09-20. **Only `G3` and `G4` need EKS.**
 | `G3` | **yes** | a cluster, and nothing else — credentials done 2026-09-20 |
 | `G4` | **yes** | a cluster; written, never executed |
 | `G5` | **no** — n8n under Compose, re-targeted off EKS | owner's go-ahead: it stops a running n8n and moves a volume holding live credentials |
-| `G7` | **no** — and it is *cheaper* with the cluster down | one deliberate overnight test |
+| ~~`G7`~~ | — | **CLOSED 2026-09-22** — no test needed in the end; the conditions occurred on their own on the night of 09-20 |
 
 **`G1` needing no cluster is not an assumption — its preconditions were checked
 on 2026-09-20 and all of them live in the PERSISTENT stack**, which is precisely
@@ -319,9 +320,27 @@ why ECR was moved there: three images in each of the three ECR repositories, and
 `app-hub-links` `ACTIVE`. Both survive every teardown. The ephemeral stack
 contributes nothing to `G1`.
 
-**So four of the six open gaps are reachable with no cluster and no spend.**
-`G7` is the cheapest — it is free, it needs the cluster *down*, and it is the
-entire remaining condition for `D-25`, the only open defect.
+**So three of the five open gaps are reachable with no cluster and no spend** —
+`G1`, `G2` and `G5`. All three converge on the same bottleneck: **`G2`'s
+credentials**, which only the owner can create. `G5` additionally needs their
+go-ahead, because it stops a running n8n and moves a volume holding live
+credentials.
+
+**`G7` closed on 2026-09-22 without the deliberate test this document called
+for.** The laptop happened to sleep at 22:02 on 09-20 and the wake timer fired at
+23:30:38 — so the evidence arrived on its own. **The recommendation was still
+right**: it could not have closed by *waiting passively and checking one signal*,
+which is what the document said before 2026-09-20. It closed because the check
+was defined as **two** signals, and the second one — a wake event at the trigger
+minute — is what separates a wake timer from Task Scheduler catching up.
+
+**The same evidence opened two new defects**, `D-31` (a 23:30 trigger silently
+skipped while the machine was awake, then caught up four hours late into a
+suspend, then failed on WSL DNS) and `D-32` (a stale duplicate task registration
+emitting failure-shaped events). **Neither is part of the v1 test**, which names
+`D-24` and `D-25` specifically and both of which are now closed. Whether they
+should gate v1 is the owner's decision, not something to settle by editing the
+test.
 
 **`G7` was described here as closing "by observation", and that was wrong.**
 Measured 2026-09-20: the laptop is awake at 23:30 every night in the record, and

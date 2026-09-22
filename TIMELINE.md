@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 220 across 8 repositories |
+| Commits | 222 across 8 repositories |
 | Active days | 25 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-20 10:18 IST |
+| Latest commit | 2026-09-20 13:36 IST |
 
 ---
 
@@ -359,3 +359,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 02:49 | `app-hub` | `276d69f` | Record the live verification of the projects page |
 | 10:16 | `app-hub` | `ad06f39` | G7 cannot close by waiting, and half of D-25 is already proven |
 | 10:18 | `app-hub` | `57b62bd` | Add the commit -F rule to CLAUDE.md section 9 |
+| 10:54 | `app-hub` | `5e9d5d5` | Clear the no-cluster work: two stale documents, and a compose check |
+| 13:36 | `app-hub` | `1472cf5` | Correct which gaps actually need a cluster |
