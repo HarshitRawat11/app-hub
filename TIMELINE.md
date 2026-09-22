@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 223 across 8 repositories |
+| Commits | 225 across 8 repositories |
 | Active days | 26 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-22 12:13 IST |
+| Latest commit | 2026-09-22 12:53 IST |
 
 ---
 
@@ -367,3 +367,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | Time (IST) | Repo | Commit | Change |
 |---|---|---|---|
 | 12:13 | `app-hub` | `a553ce4` | D-25 and G7 closed by evidence; D-31 and D-32 opened |
+| 12:20 | `app-hub` | `4a8b7f4` | D-32 root cause: the dead task belongs to the work domain account |
+| 12:53 | `compose` | `01d6b6a` | Write the IAM policy and the Tailscale ACL for G2 |

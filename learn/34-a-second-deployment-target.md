@@ -93,3 +93,26 @@ Transparency logs**, which are public and searchable. This matters here because
 governs `site/projects.json`. Setting `"AllowFunnel": false` makes it
 tailnet-only on the same hostname, which is arguably what a personal dashboard
 wants; the public face of this project is already `site/` on Cloudflare Pages.
+
+
+---
+
+## Postscript, 2026-09-22 — the 180-day expiry above has a fix, and it is a tag
+
+**The "Gotchas" section says node keys expire after 180 days and the node drops
+off.** For a host whose whole purpose is to stay up, that is a time bomb with a
+six-month fuse and no warning.
+
+**Tagged devices do not have key expiry.** So `compose/tailscale-acl.hujson`
+grants the `funnel` attribute to `tag:app-hub` rather than to
+`autogroup:member`, and the auth key is generated carrying that tag. That was
+chosen for a security reason — `autogroup:member` would let *every* device on
+the tailnet publish to the public internet, laptop included — and the expiry fix
+came with it.
+
+**The cost is one failure mode worth knowing before you meet it.** The tag must
+exist in the ACL's `tagOwners` **before** the key is generated, and the key must
+be created with it. Get either wrong and the node joins the tailnet, looks
+completely healthy on the Machines page, and its public URL simply never
+answers — because the `funnel` attribute was granted to a tag this node does not
+carry. It fails closed and it fails quietly, like most of Funnel's failures.
