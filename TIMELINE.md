@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 228 across 8 repositories |
+| Commits | 230 across 8 repositories |
 | Active days | 27 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-25 14:59 IST |
+| Latest commit | 2026-09-25 16:35 IST |
 
 ---
 
@@ -377,3 +377,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 |---|---|---|---|
 | 12:24 | `compose` | `7f8e907` | Add the default ssh block to the Tailscale ACL |
 | 14:59 | `compose` | `bc268dc` | Set AllowFunnel false: tailnet-only, at the owner request |
+| 15:01 | `app-hub` | `bff47a7` | P-11 deployed and running; the edge is unverified |
+| 16:35 | `compose` | `845f8b5` | Publish gateway on 127.0.0.1 so the host can reach its own dashboard |

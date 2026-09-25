@@ -294,6 +294,52 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
+### 2026-09-25 · 16:47 IST — `G2` closed; the host can reach its own dashboard
+
+**`G2` is DONE.** The owner created the scoped IAM user and the Tailscale
+account, and every criterion was verified by *using* it rather than by being
+told it existed — which matters here, because an earlier session once claimed a
+scoped IAM user existed when it never had (`CLAUDE.md § 2`).
+
+| criterion | evidence |
+|---|---|
+| scoped IAM user + key | `user/app-hub-compose`; pulled all three images; reads DynamoDB |
+| correctly scoped | `eks`, `iam`, `ecr:DescribeImages` **all denied** |
+| Tailscale account + ACL | node reports `Tags: ['tag:app-hub']` |
+| tagged auth key | same — a tag cannot appear unless `tagOwners` preceded the key |
+| **expiry** | **`KeyExpiry: None`** — tagged devices do not expire |
+| `.env` | complete, gitignored, never printed |
+
+**`KeyExpiry: None` is the one worth calling out.** `learn/34` recorded the
+180-day node-key expiry as a time bomb for an always-on host. Tagging removes it,
+and that is now **observed** rather than inferred from documentation.
+
+**The dashboard is reachable at `http://localhost:8001`, and the reason it was
+not is worth keeping.** The host running these containers is not a tailnet
+member — the Tailscale node lives *inside* the tailscale container. So with
+tailnet-only serving, **the one machine that could not open the dashboard was the
+machine running it.** The tailnet held exactly one device, the container, which
+means no device could reach it; a phone would have failed identically. That was
+measured before anything was changed.
+
+**Fixed with `127.0.0.1:8001:8001` on gateway, and the prefix is the whole
+point.** The "no published ports" rule exists because standalone n8n publishes
+`5678` on `0.0.0.0` — a credential-holding admin UI reachable from anything on
+the network. `0.0.0.0` means everyone nearby; `127.0.0.1` means this machine.
+**Verified with controls in both directions**: `netstat` shows the socket on
+`127.0.0.1:8001` and not `0.0.0.0`, the host's non-loopback address refuses on
+8001, and loopback accepts.
+
+**Two obstacles, both instructive.** The owner had run the temporary `tmp-view`
+sidecar I offered, and it still held the port — so the permanent bind failed with
+`port is already allocated`. And after that failure Docker left the container
+with `PortBindings` correctly set while **nothing was actually published**:
+`docker inspect` said the binding existed, `docker port` said nothing was
+forwarded. **A configured binding and a live forward are different facts.**
+`--force-recreate` fixed it.
+
+**This does not replace Tailscale** — it serves the desk, not the phone.
+
 ### 2026-09-25 · 14:58 IST — `P-11` deployed and running; the edge is UNVERIFIED
 
 **Four of the five compose services are up on the laptop, and the internal path
