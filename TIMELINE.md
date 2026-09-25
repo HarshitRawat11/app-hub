@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 225 across 8 repositories |
-| Active days | 26 |
+| Commits | 228 across 8 repositories |
+| Active days | 27 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-22 12:53 IST |
+| Latest commit | 2026-09-25 14:59 IST |
 
 ---
 
@@ -369,3 +369,11 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 12:13 | `app-hub` | `a553ce4` | D-25 and G7 closed by evidence; D-31 and D-32 opened |
 | 12:20 | `app-hub` | `4a8b7f4` | D-32 root cause: the dead task belongs to the work domain account |
 | 12:53 | `compose` | `01d6b6a` | Write the IAM policy and the Tailscale ACL for G2 |
+| 12:55 | `app-hub` | `ca1431b` | G2: the two policy documents are written and validated |
+
+## 2026-09-25
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 12:24 | `compose` | `7f8e907` | Add the default ssh block to the Tailscale ACL |
+| 14:59 | `compose` | `bc268dc` | Set AllowFunnel false: tailnet-only, at the owner request |

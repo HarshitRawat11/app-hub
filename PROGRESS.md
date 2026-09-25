@@ -294,6 +294,66 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
+### 2026-09-25 · 14:58 IST — `P-11` deployed and running; the edge is UNVERIFIED
+
+**Four of the five compose services are up on the laptop, and the internal path
+is proven end to end. The one thing `G1` actually asks for — a tailnet device
+loading the dashboard — I could not test, and it is not claimed.**
+
+**Proven, by running it rather than reading it:**
+
+| claim | evidence |
+|---|---|
+| the scoped key works and is correctly scoped | `sts get-caller-identity` → `user/app-hub-compose`; `dynamodb:Scan` allowed; **`eks`, `iam` and `ecr:DescribeImages` all denied** |
+| images pull with that key | `docker compose pull` of all three succeeded after an ECR login as `app-hub-compose` |
+| `links-service` reaches DynamoDB | `/links` → 200, five real records |
+| `gateway` reaches `links-service` by DNS name | `gateway /links` → 200, five items |
+| `aggregator` runs | `/status` → `total 5, up 3, down 2` |
+| nothing listens on the host | `docker compose ps` shows **zero** `0.0.0.0` bindings |
+| the node joined, tagged | `app-hub.tailf4b0ae.ts.net`, `Online: true`, **`Tags: ['tag:app-hub']`** |
+| TLS certificate issued | `app-hub.tailf4b0ae.ts.net.crt` present, ACME completed |
+| **it is NOT public** | `tailscale serve status` and `funnel status` both report **"tailnet only"** on both routes |
+
+**The tagged node is worth noting**: `Tags: ['tag:app-hub']` only appears if
+`tagOwners` was in the ACL *before* the auth key was generated. Getting that
+order wrong fails with an error that reads like a bad key. It also means node-key
+expiry is off, which is `learn/34`'s 180-day time bomb defused.
+
+**NOT PROVEN, and this is `G1`'s actual criterion:** that a device on the tailnet
+can load the dashboard through the hostname. **Two separate reasons I could not
+test it, and both are about the test rather than the deployment:**
+
+1. **From inside the serving container, the hostname resolves to `209.177.145.x`**
+   — Tailscale's *public* Funnel ingress, because Docker's resolver does not do
+   MagicDNS. Funnel is deliberately off, so that path resets. **The failure was
+   evidence the config is right**, not evidence it is broken.
+2. **Connecting to the tailnet IP `100.90.199.65` from inside the same container
+   times out** — a node in userspace-networking mode cannot hairpin to its own
+   tailnet address. So the serving node cannot test itself by either route.
+
+**Tailscale is not installed on the Windows host** and the name resolves there
+only to the public ingress, so no device available to this session is on the
+tailnet. **The test is one tap on the owner's phone**, and until that happens
+`G1` stays open.
+
+**Edge set to tailnet-only at the owner's explicit choice**, not as a default:
+`AllowFunnel` flipped to `false` before tailscale was ever started, and verified
+false by parsing the file first. Flipping it public later is that one value and a
+restart.
+
+**Found while checking what Funnel would expose — the DynamoDB catalogue has
+drifted from `site/projects.json`.** It still serves
+`procedoinfo-preview.netlify.app`, which **returns 404** and was corrected in
+`projects.json` on 2026-09-20, and `Acharya Amit Puri` still points at
+`localhost:4322`. `scripts/seed-projects.py` has not been run since. **This is
+why the public flag matters**: `gateway` does not filter on it, so those entries
+would have gone public along with the personal Xiaomi notes link.
+
+**n8n was deliberately not started.** The standalone container still holds the
+name `n8n`, so a full `up` fails on a name conflict; `--no-deps` was used to
+bring tailscale up without it. The `:8443` route exists and will answer once
+`G5` migrates it.
+
 ### 2026-09-22 · 12:08 IST — `D-25` closed by evidence, and two defects found in the same logs
 
 **`G7` and `D-25` are CLOSED.** The deliberate test I recommended on 2026-09-20
