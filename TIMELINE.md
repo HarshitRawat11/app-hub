@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 230 across 8 repositories |
-| Active days | 27 |
+| Commits | 232 across 8 repositories |
+| Active days | 28 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-25 16:35 IST |
+| Latest commit | 2026-09-27 11:35 IST |
 
 ---
 
@@ -379,3 +379,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 14:59 | `compose` | `bc268dc` | Set AllowFunnel false: tailnet-only, at the owner request |
 | 15:01 | `app-hub` | `bff47a7` | P-11 deployed and running; the edge is unverified |
 | 16:35 | `compose` | `845f8b5` | Publish gateway on 127.0.0.1 so the host can reach its own dashboard |
+| 16:49 | `app-hub` | `beaccf4` | G2 closed: credentials created and verified by use |
+
+## 2026-09-27
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 11:35 | `app-hub` | `4fd4793` | Catalogue drift: fix the data, then fix the script that hid it |
