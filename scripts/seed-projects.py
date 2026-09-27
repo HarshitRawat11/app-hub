@@ -30,6 +30,25 @@ ids, because ids are server-generated UUIDs: this script cannot know in advance
 what a record's id will be, so it has no other stable handle. The consequence
 worth knowing is that RENAMING a project in projects.json makes the next run
 create a second record rather than updating the first.
+
+AND THAT IDEMPOTENCY HID A REAL DRIFT, on 2026-09-27. `projects.json` was
+corrected on 2026-09-20 to move two projects off dead URLs. Re-running this
+script afterwards printed `skip -- already in the catalogue` for both and exited
+0, because the NAMES still matched. The catalogue went on serving a URL that
+returns 404 for a week, and the script that exists to sync it reported success
+every time.
+
+So a name match is no longer sufficient. The URL is compared too:
+
+  same name, same url   -> skip, as before
+  same name, DIFFERENT  -> DRIFT. Reported loudly, and the script exits
+     url                   NON-ZERO so it cannot pass in CI or be mistaken for
+                           a clean run. Pass --sync to actually fix it.
+
+--sync repairs drift by DELETE then POST, because the API has no update verb --
+GET, POST and DELETE only. That is not a workaround for a missing feature; the
+record genuinely gets a new id, and anything holding the old id will not find
+it. Nothing does today, but say so rather than pretending it is an update.
 """
 
 import argparse
@@ -62,6 +81,10 @@ def main() -> int:
                     help="gateway base URL (default: %(default)s)")
     ap.add_argument("--dry-run", action="store_true",
                     help="show what would be created, write nothing")
+    ap.add_argument("--sync", action="store_true",
+                    help="repair drift: when a name exists with a different URL, "
+                         "DELETE the record and re-create it. Without this, drift "
+                         "is reported and the script exits non-zero.")
     args = ap.parse_args()
     base = args.base.rstrip("/")
 
@@ -103,14 +126,43 @@ def main() -> int:
         print(f"ERROR: GET /links returned {status}")
         return 1
 
-    have = {link["name"] for link in existing}
-    created = skipped = 0
+    # name -> the whole record, not just the name, so the URL can be compared.
+    # Comparing only names is what let a dead URL sit in the catalogue for a
+    # week while this script reported success -- see the module docstring.
+    have = {link["name"]: link for link in existing}
+    created = skipped = drifted = repaired = 0
 
     for p in ready:
-        if p["name"] in have:
-            print(f"  skip   {p['name']} -- already in the catalogue")
-            skipped += 1
-            continue
+        current = have.get(p["name"])
+        if current is not None:
+            if current.get("url") == p["url"]:
+                print(f"  skip   {p['name']} -- already in the catalogue")
+                skipped += 1
+                continue
+
+            # Same name, different URL. THIS IS THE CASE THAT USED TO BE
+            # SILENT.
+            print(f"  DRIFT  {p['name']}")
+            print(f"           catalogue: {current.get('url')}")
+            print(f"           projects.json: {p['url']}")
+            if not args.sync:
+                drifted += 1
+                continue
+            if args.dry_run:
+                print(f"         would delete {current['id']} and re-create")
+                repaired += 1
+                continue
+            try:
+                status, _ = request("DELETE", f"{base}/links/{current['id']}")
+            except urllib.error.HTTPError as e:
+                print(f"  FAIL   {p['name']} -- DELETE HTTP {e.code}")
+                return 1
+            if status not in (200, 204):
+                print(f"  FAIL   {p['name']} -- DELETE returned {status}")
+                return 1
+            print(f"         deleted {current['id']}")
+            repaired += 1
+            # fall through to the create below
         record = {
             "name": p["name"],
             "url": p["url"],
@@ -131,6 +183,21 @@ def main() -> int:
             return 1
         print(f"  create {p['name']} -> {body['id']}")
         created += 1
+
+    if drifted:
+        print()
+        print(f"DRIFT: {drifted} record(s) differ from projects.json and were NOT fixed.")
+        print("Re-run with --sync to repair them. Exiting non-zero so this cannot")
+        print("be mistaken for a clean run -- which is exactly how a dead URL sat")
+        print("in the catalogue from 2026-09-20 to 2026-09-27.")
+        return 1
+
+    # Report repairs separately. A summary reading "created 0" while a record
+    # was in fact replaced is the same misleading-report pattern this script was
+    # just fixed for -- a clean-looking line over a real change.
+    if repaired:
+        rverb = "would repair" if args.dry_run else "repaired"
+        print(f"  {rverb} {repaired} drifted record(s)")
 
     verb = "would create" if args.dry_run else "created"
     print(f"\n{verb} {created}, skipped {skipped} already present")
