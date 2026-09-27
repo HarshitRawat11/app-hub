@@ -295,6 +295,53 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
+### 2026-09-27 · 13:52 IST — The G5 migration broke the teardown webhook. Found and fixed the same day
+
+**A regression I introduced and did not check for.** `G5` removed n8n's
+`0.0.0.0:5678` publish, which was the point. What it also removed was the only
+way `scripts/scheduled-destroy.sh` could reach n8n.
+
+**The mechanism, and it is not subtle in hindsight.** That script POSTs its
+result to `$N8N_BASE_URL/webhook/destroy-status`, defaulting to
+`http://localhost:5678`. **The script runs in WSL, not in a container**, so it
+cannot resolve `n8n:5678` on the Compose network. With nothing published the
+POST returned **HTTP 000 — could not connect**.
+
+**Tonight's 23:30 teardown would have run and reported nothing.** That is
+`D-25`'s exact failure mode — a teardown whose notification also fails — **five
+days after `D-25` was closed on evidence.** Nothing was at cost risk, because the
+destroy itself still runs and still writes its log; what would have been lost is
+the notification.
+
+**Only the inbound path was affected**, which is worth stating precisely:
+
+| workflow | trigger | effect |
+|---|---|---|
+| `eks-cost-watchdog` | Schedule, internal | unaffected — outbound only |
+| `terraform-destroy-notifier` | **inbound webhook** | **broken** |
+
+**THE LESSON IS ONE THIS PROJECT ALREADY LEARNED AND I DID NOT APPLY: ask what
+else consumes a resource before changing how it is reached.** ECR taught it in
+September, when moving it into the ephemeral stack would have broken the
+always-on host's pulls. The same question — *who else talks to this?* — would
+have caught this before the migration rather than an hour after.
+
+**Fixed with `127.0.0.1:5678:5678`**, verified `HTTP 200` where it had been
+`000`. **Loopback, not `0.0.0.0`** — the security win of the migration stands;
+what is restored is reachability from this machine only.
+
+**This was not the preferred fix.** The intended answer is the tailnet `:8443`
+route, but that needs a second device, and installing the Tailscale client
+requires admin rights the owner does not currently have. **The `ports:` block
+carries a note saying to remove it once the tailnet route works.**
+
+**Side effect, stated rather than buried:** the reachability probe was a real
+POST, so it executed `terraform-destroy-notifier` (execution 63) and will have
+**sent an email reading `reachability probe from claude`**. Not a real teardown.
+
+**It also unblocks `D-33`** — n8n's UI is reachable again at
+`http://localhost:5678`, which is where the API key gets regenerated.
+
 ### 2026-09-27 · 11:43 IST — `G5` done: n8n migrated, encryption key provably intact
 
 **The one irreversible step in this project, and it worked.** n8n now runs under
