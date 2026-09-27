@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 234 across 8 repositories |
+| Commits | 236 across 8 repositories |
 | Active days | 28 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-27 11:55 IST |
+| Latest commit | 2026-09-27 11:59 IST |
 
 ---
 
@@ -388,3 +388,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 11:35 | `app-hub` | `4fd4793` | Catalogue drift: fix the data, then fix the script that hid it |
 | 11:47 | `app-hub` | `cf52050` | G5 done: n8n migrated with its encryption key provably intact |
 | 11:55 | `compose` | `726e5b8` | Correct three docs that describe a deployment as never deployed |
+| 11:56 | `app-hub` | `d5a5666` | Correct three docs that describe a deployment as never deployed |
+| 11:59 | `compose` | `0373f26` | Document joining a second device, and record the D-33 decision |
