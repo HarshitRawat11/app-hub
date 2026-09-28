@@ -35,6 +35,14 @@ logs/
 # state, not source -- and it can hold account identifiers.
 .wrangler/
 
+# The PRIVATE half of the links catalogue. Holds URLs that identify an
+# account -- a Cloudflare account id, a Supabase org id -- and localhost
+# links that mean nothing to anyone else. This repo is PUBLIC, and
+# `public:false` only governs which PAGE an entry renders on, never whether
+# the URL gets committed. site/projects.local.example.json shows the shape
+# and IS committed.
+site/projects.local.json
+
 # Lighthouse JSON reports — ~600 KB each and regenerable with one npx command.
 # The screenshots beside them ARE kept: they are the before/after evidence.
 review/*.json

@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 241 across 8 repositories |
+| Commits | 242 across 8 repositories |
 | Active days | 29 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-28 12:23 IST |
+| Latest commit | 2026-09-28 12:35 IST |
 
 ---
 
@@ -400,3 +400,4 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 |---|---|---|---|
 | 12:10 | `app-hub` | `54784de` | D-25 reopened: I closed it on evidence that could not have been true |
 | 12:23 | `app-hub` | `b617d41` | Add n8n to the catalogue as a private entry |
+| 12:35 | `app-hub` | `e83b0b6` | G1 and P-11 closed: the dashboard loads from mobile data |

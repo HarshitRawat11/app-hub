@@ -60,6 +60,24 @@ import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PROJECTS = ROOT / "site" / "projects.json"
+
+# THE PRIVATE OVERLAY, and it is gitignored on purpose.
+#
+# `public:false` decides where an entry may APPEAR. It never decided whether
+# the URL gets COMMITTED, and site/projects.json lives in a PUBLIC repo. Two
+# links carried an account id and an org id in their paths, so the flag was
+# protecting the page while the repository published the URL anyway.
+#
+# Splitting the file makes that protection structural rather than remembered.
+# The browser never loads this one: the landing page and the demo both fetch
+# projects.json only, and both additionally filter on public:true.
+#
+# ABSENT IS NORMAL, NOT AN ERROR. A fresh clone has no private links.
+PROJECTS_LOCAL = ROOT / "site" / "projects.local.json"
+# FALLBACK ONLY. Each entry in projects.json now carries its own category,
+# which decides the column it appears under on the dashboard. This value is
+# used for entries written before that field existed, so an old file still
+# seeds rather than crashing.
 CATEGORY = "projects"
 DEFAULT_ICON = "\U0001F9F1"
 
@@ -93,6 +111,24 @@ def main() -> int:
         return 1
 
     data = json.loads(PROJECTS.read_text(encoding="utf-8"))
+
+    # Merge the private overlay, if it exists. Reported either way -- a silent
+    # zero here would look exactly like a file that failed to parse.
+    if PROJECTS_LOCAL.exists():
+        local = json.loads(PROJECTS_LOCAL.read_text(encoding="utf-8"))
+        extra = local.get("projects", [])
+        leaked = [x["name"] for x in extra if x.get("public")]
+        if leaked:
+            # Refuse rather than repair. A public:true entry in the private
+            # file would render on the portfolio page while living in a file
+            # nobody else has -- so the site would differ per machine.
+            print(f"ERROR: {PROJECTS_LOCAL.name} contains public:true entries: {leaked}")
+            print("       Those belong in site/projects.json. Nothing was written.")
+            return 1
+        data["projects"] = data.get("projects", []) + extra
+        print(f"  merged {len(extra)} private entr(ies) from {PROJECTS_LOCAL.name}")
+    else:
+        print(f"  no {PROJECTS_LOCAL.name} -- public entries only")
     entries = data.get("projects", [])
 
     # NOTE THIS DOES NOT FILTER ON `public`, and that is deliberate.
@@ -135,16 +171,20 @@ def main() -> int:
     for p in ready:
         current = have.get(p["name"])
         if current is not None:
-            if current.get("url") == p["url"]:
+            want_cat = p.get("category") or CATEGORY
+            if current.get("url") == p["url"] and current.get("category") == want_cat:
                 print(f"  skip   {p['name']} -- already in the catalogue")
                 skipped += 1
                 continue
 
             # Same name, different URL. THIS IS THE CASE THAT USED TO BE
             # SILENT.
+            # Report BOTH fields, not just the one that differs. Printing only
+            # the URL when the category moved would show two identical lines and
+            # read as a bug in the checker rather than a category change.
             print(f"  DRIFT  {p['name']}")
-            print(f"           catalogue: {current.get('url')}")
-            print(f"           projects.json: {p['url']}")
+            print(f"           catalogue:     url={current.get('url')} category={current.get('category')}")
+            print(f"           projects.json: url={p['url']} category={want_cat}")
             if not args.sync:
                 drifted += 1
                 continue
@@ -166,7 +206,7 @@ def main() -> int:
         record = {
             "name": p["name"],
             "url": p["url"],
-            "category": CATEGORY,
+            "category": p.get("category") or CATEGORY,
             "icon": p.get("icon") or DEFAULT_ICON,
         }
         if args.dry_run:

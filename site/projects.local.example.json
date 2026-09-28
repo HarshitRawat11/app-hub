@@ -1,0 +1,21 @@
+{
+  "_comment": [
+    "Shape reference for site/projects.local.json, which is gitignored.",
+    "Copy this to projects.local.json and put your private links in it.",
+    "Every entry here must be public:false -- anything public:true belongs in",
+    "site/projects.json instead, where the landing page can render it."
+  ],
+  "projects": [
+    {
+      "name": "Example private link",
+      "url": "https://example.com/dashboard/your-account-id",
+      "repo": null,
+      "public": false,
+      "category": "infra",
+      "blurb": "Something whose URL identifies an account, or that only resolves on your own machine.",
+      "stack": "",
+      "icon": "🔒",
+      "note": "category decides the dashboard column. Any string works; the dashboard derives its columns from the data."
+    }
+  ]
+}

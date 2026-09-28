@@ -1,29 +1,27 @@
 {
   "_comment": [
-    "THE ONE SOURCE OF TRUTH for the owner's other projects.",
+    "THE PUBLIC HALF of the owner's catalogue. Committed to a PUBLIC repo.",
+    "",
     "Three things read this file: the Projects section on site/index.html, the",
     "demo catalogue in site/static/demo-api.js, and scripts/seed-projects.py,",
-    "which writes them into the real links catalogue when a cluster is up.",
+    "which writes into the real links catalogue when the stack is up.",
     "",
-    "url: null means NOT YET SUPPLIED. Every consumer skips those entries, and",
-    "the seeder names them rather than skipping in silence.",
+    "EVERY ENTRY HERE IS public:true, AND THAT IS NOW STRUCTURAL.",
+    "Private entries live in site/projects.local.json, which is GITIGNORED.",
+    "Split on 2026-09-28 for a specific reason: `public:false` decides where an",
+    "entry may APPEAR, and it never decided whether the URL gets COMMITTED.",
+    "Two links carried an account id and an org id in their paths, and this",
+    "repository is public, so the flag was protecting the page while the",
+    "repository published the URL anyway. Neither id is a credential, but a",
+    "public commit is permanent.",
     "",
-    "public DECIDES WHERE AN ENTRY IS ALLOWED TO APPEAR, and it is the field",
-    "that matters most here.",
+    "So the rule is now mechanical rather than remembered: if it is not",
+    "public:true, it does not belong in this file.",
     "",
-    "  public: true   goes everywhere -- the portfolio page, the demo",
-    "                 catalogue, and the real catalogue.",
-    "  public: false  ONLY the real catalogue, which is the owner's private",
-    "                 start page.",
-    "",
-    "Two of these are localhost and one is behind a personal Xiaomi account.",
-    "Those are entirely CORRECT links for a private start page -- pointing at",
-    "your own dev server is what a start page is for -- and entirely WRONG on a",
-    "public portfolio page, where every visitor gets a connection error and",
-    "reads it as carelessness.",
-    "",
-    "So the flag is not a quality judgement. It is the difference between 'a",
-    "link that works for me' and 'a link that works for anyone'.",
+    "category decides which column an entry appears under on the dashboard.",
+    "gateway's app.js groups by it -- one section with its own heading per",
+    "category, sorted alphabetically. Four in use as of 2026-09-28: projects,",
+    "infra, productivity, media. A fifth needs nothing but a new string.",
     "",
     "Blurbs are quoted or condensed from each project's own README rather than",
     "invented, so they stay true if someone follows the source link."
@@ -36,7 +34,8 @@
       "public": true,
       "blurb": "Single-user installable PWA for logging resistance training and daily food intake — and for seeing whether any of it is working.",
       "stack": "React · Vite · Supabase",
-      "icon": "📓"
+      "icon": "📓",
+      "category": "projects"
     },
     {
       "name": "Procedo Infosystems",
@@ -46,7 +45,8 @@
       "blurb": "Marketing site for an infrastructure-first IT firm — IT infrastructure, security, audio-visual, telecom and power systems.",
       "stack": "Astro",
       "icon": "🏢",
-      "note": "Moved from netlify.app to Cloudflare Pages 2026-09-20; the old procedoinfo-preview.netlify.app now returns 404, so the previous value was a dead link on the public page. Still a preview subdomain -- if it moves to the client own domain, change it here, this file is the only place it is written."
+      "note": "Moved from netlify.app to Cloudflare Pages 2026-09-20; the old procedoinfo-preview.netlify.app now returns 404, so the previous value was a dead link on the public page. Still a preview subdomain -- if it moves to the client own domain, change it here, this file is the only place it is written.",
+      "category": "projects"
     },
     {
       "name": "Acharya Amit Puri",
@@ -56,37 +56,8 @@
       "blurb": "Practice site for a Vastu, Vedic astrology and numerology consultant. Near-zero JavaScript, edited from a single config file.",
       "stack": "Astro · Tailwind",
       "icon": "🪔",
-      "note": "Repo is acharya-amit-puri, not -pur; the shorter name only works because GitHub redirects. Deployed to Cloudflare Pages 2026-09-20, which is when public flipped to true -- it had been false only because the URL was a localhost dev server on 4322 (not Astro's default 4321, so it can run beside Procedo). That dev server still works locally; this file now points at the deployed site, because this URL is served to visitors."
-    },
-    {
-      "name": "Notes",
-      "url": "https://in.i.mi.com/note/h5#/",
-      "repo": null,
-      "public": false,
-      "blurb": "Xiaomi Mi Cloud notes.",
-      "stack": "",
-      "icon": "📝",
-      "note": "Returns 200 to anyone, but it is the owner's personal account -- a visitor gets a login screen, not the notes. Never public."
-    },
-    {
-      "name": "n8n",
-      "url": "http://localhost:5678",
-      "repo": "https://github.com/HarshitRawat11/app-hub-n8n",
-      "public": false,
-      "blurb": "Workflow automation. The EKS cost watchdog and the teardown notifier both run here.",
-      "stack": "n8n",
-      "icon": "\ud83d\udd01",
-      "note": "public:false because this URL only resolves on the host running the container -- the same reason app-hub's own entry is private. NOTE THE TRADE-OFF: localhost:5678 works from the machine hosting the stack and NOWHERE else, so opening the dashboard from a phone over the tailnet gives a dead link here. The portable alternative is https://app-hub.<tailnet>.ts.net:8443, which works from any tailnet device; it is not used because the tailnet name would then be committed to a file, and it is the one value that changes if TS_HOSTNAME changes."
-    },
-    {
-      "name": "app-hub",
-      "url": "http://localhost:8001/",
-      "repo": "https://github.com/HarshitRawat11/app-hub",
-      "public": false,
-      "blurb": "This project's own dashboard, running locally.",
-      "stack": "FastAPI",
-      "icon": "🗂️",
-      "note": "gateway running locally. In-cluster the equivalent is the ALB from E-06, whose hostname changes on every rebuild and so cannot be written down here. Deliberately not public: the public equivalent is the demo on this same site."
+      "note": "Repo is acharya-amit-puri, not -pur; the shorter name only works because GitHub redirects. Deployed to Cloudflare Pages 2026-09-20, which is when public flipped to true -- it had been false only because the URL was a localhost dev server on 4322 (not Astro's default 4321, so it can run beside Procedo). That dev server still works locally; this file now points at the deployed site, because this URL is served to visitors.",
+      "category": "projects"
     }
   ]
 }
