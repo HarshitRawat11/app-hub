@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 239 across 8 repositories |
-| Active days | 28 |
+| Commits | 241 across 8 repositories |
+| Active days | 29 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-27 13:52 IST |
+| Latest commit | 2026-09-28 12:23 IST |
 
 ---
 
@@ -393,3 +393,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 12:00 | `app-hub` | `419c4d2` | Document joining a second device, and record the D-33 decision |
 | 13:51 | `compose` | `0ff6f4b` | Restore the teardown webhook: publish n8n on 127.0.0.1:5678 |
 | 13:52 | `app-hub` | `a58e72e` | Restore the teardown webhook: publish n8n on 127.0.0.1:5678 |
+
+## 2026-09-28
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 12:10 | `app-hub` | `54784de` | D-25 reopened: I closed it on evidence that could not have been true |
+| 12:23 | `app-hub` | `b617d41` | Add n8n to the catalogue as a private entry |
