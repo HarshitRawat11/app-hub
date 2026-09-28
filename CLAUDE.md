@@ -514,13 +514,44 @@ Work through these in order. Stop as soon as you have what the task needs — do
 
 The authoritative list — with severity and next steps — lives in **`PROGRESS.md` § Known Defects**.
 
-**`D-25` closed 2026-09-22 — the wake timer fired and was caught in the act.** Laptop slept `22:02:32`, Windows woke it at `23:30:38`, the teardown ran and reported `HTTP 200`. **Two defects are open in its place, and neither is in the application code:**
+**ONE defect is open, and its cause is genuinely UNKNOWN. Two explanations have
+been proposed for it and both were disproven — read the row before proposing a
+third.**
 
-> **`D-31` (Medium) — a nightly trigger was silently skipped.** The `2026-09-21` 23:30 teardown produced **no Task Scheduler event at all** while the machine was awake, then caught up four hours late at `09-22 03:37`, suspended six seconds later, and died on the WSL2 DNS-across-suspend failure. Nothing was billing, which is luck rather than design — a cluster up that night would have run ~11 hours ≈ $3.10. **Cause UNKNOWN**; the task's own history is unreadable unelevated.
+> **`D-31` (Medium) — the nightly teardown misses some nights and catches up at
+> the next wake.** Observed: `09-20` ok, `09-21` missed, `09-26` missed, `09-27`
+> ok. A miss surfaces hours later — `09-26` ran at **11:28 the following
+> morning**, a 12-hour gap worth roughly **$3.40** with a cluster up. Both misses
+> happened with nothing running, which is luck rather than design.
+>
+> **Disproven explanation 1:** that the wake timer fired on 09-20 and therefore
+> worked. It could not have — `WakeToRun` was `False`.
+> **Disproven explanation 2:** that `WakeToRun: False` was the cause. It was not
+> — on `09-27` the laptop slept at `19:35:58`, **woke at `23:31:50`** and ran,
+> with that setting still `False`.
+>
+> `WakeToRun` is now `True` and wake timers are `0x00000002` on AC and DC. **That
+> is not offered as the fix**, only as a setting that should have been on. The
+> first night it can matter is `2026-09-28`; a miss that night would prove the
+> setting was never the variable.
 
-> **`D-32` (Low) — a dead teardown task owned by the WORK domain account.** A bare `app-hub nightly teardown` is registered to run as **`UZIO\uzio.admin`**, an account that never logs in — so it emits `id=332` ("will not be run") at every trigger and has never run. That also explains why it is absent from `Get-ScheduledTask` enumeration while `schtasks` answers `Access is denied` rather than `cannot find`. It costs nothing, but its failure-shaped events sit beside the real task's successes in one log, and they cost twenty minutes of the `D-25` investigation. **Removal needs an elevated shell, which on this work-managed laptop authenticates as the work admin — so it is owner-only.** Delete the **bare** name only; `app-hub nightly teardown (harshit.rawat)` is the working task and must survive.
+**Closed or withdrawn recently, so a future session does not re-open them:**
 
-**Both are in `PROGRESS.md § Known Defects` with next steps. `D-31`'s next step needs an elevated shell, so it is the owner's.**
+- **`D-25`** — the notification layer works and has for weeks; every run that
+  happens reports `HTTP 200`, failures included. The open question moved to
+  `D-31`.
+- **`D-32`** — the dead work-account task was deleted 2026-09-28, proven by
+  `schtasks` answering *cannot find* where it previously answered *access
+  denied*.
+- **`D-33`** — **WITHDRAWN, never a defect.** The n8n API key works. The 401 came
+  from a Claude command that expanded `$K` in the outer shell, sending an empty
+  header.
+
+**A caution this project earned on 2026-09-27: a probe against a webhook that
+emails a human is not a read-only check.** A reachability test sent to the
+teardown webhook executed the workflow and delivered an **"app-hub destroy
+FAILED"** email that referred to nothing. Check what a test payload will *do*,
+not only whether the endpoint answers.
 
 **This section used to warn about a `links-service` storage bug. That bug is FIXED, and the warning is removed rather than left to mislead.** It read: *"`main.py:29` stores the incoming `LinkCreate` instead of the constructed `Link`, so every record read back is missing its `id`."* `D-01` is closed — `create_link` now returns what the repository built, `test_created_link_has_an_id_when_listed` is a regression test named for that exact symptom, and the full suite is green (**152 tests**, verified 2026-09-20).
 
