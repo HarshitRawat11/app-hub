@@ -69,6 +69,16 @@
       "note": "Returns 200 to anyone, but it is the owner's personal account -- a visitor gets a login screen, not the notes. Never public."
     },
     {
+      "name": "n8n",
+      "url": "http://localhost:5678",
+      "repo": "https://github.com/HarshitRawat11/app-hub-n8n",
+      "public": false,
+      "blurb": "Workflow automation. The EKS cost watchdog and the teardown notifier both run here.",
+      "stack": "n8n",
+      "icon": "\ud83d\udd01",
+      "note": "public:false because this URL only resolves on the host running the container -- the same reason app-hub's own entry is private. NOTE THE TRADE-OFF: localhost:5678 works from the machine hosting the stack and NOWHERE else, so opening the dashboard from a phone over the tailnet gives a dead link here. The portable alternative is https://app-hub.<tailnet>.ts.net:8443, which works from any tailnet device; it is not used because the tailnet name would then be committed to a file, and it is the one value that changes if TS_HOSTNAME changes."
+    },
+    {
       "name": "app-hub",
       "url": "http://localhost:8001/",
       "repo": "https://github.com/HarshitRawat11/app-hub",
