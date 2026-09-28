@@ -636,6 +636,38 @@ Each of these cost real time to find. They are here so no future session pays fo
   history and a PROGRESS note, which is precisely why it happened again — a lesson
   that is not in this file is a lesson that will be repaid.
 
+- **Never put a backtick inside `python -c "..."`, `bash -lc "..."` or any other
+  double-quoted command run through the Bash tool. Write a script file instead.**
+  This has now silently corrupted documentation **seven times**, most recently
+  2026-09-28, and it is the single most repeated mistake in this project's history.
+
+  **The mechanism:** the outer shell performs command substitution on backticks
+  *before* the inner interpreter ever sees the string. So `` `external: true` ``
+  inside a Python string becomes an attempt to run `external:` as a command, and
+  what lands in the file is **an empty gap**. Markdown then reads as
+  `** is the whole risk**` or `DNS resolves to , the tailnet IP` — grammatical
+  wreckage where a value should be.
+
+  **It does not fail, and that is the whole problem.** The script reports
+  success, the patch applies, the commit goes through. The only signal is stderr
+  noise like `external:: command not found` scrolling past among real output, and
+  on 2026-09-28 that noise appeared *alongside* a cheerful `row 38 indexed`.
+
+  **The fix is mechanical, not careful:**
+
+  ```bash
+  # write the patch to a file with the Write tool, then:
+  wsl -e bash -lc 'cd /path/to/scratchpad && python3 patch.py'
+  ```
+
+  Single quotes around the `bash -lc` argument, and the backticks live safely
+  inside a file the shell never parses. **Escaping is not the answer** — the
+  answer is to stop putting prose containing backticks through shell argument
+  parsing at all. Same principle as the `git commit -F` rule above.
+
+  **And verify the backticked fragments survived**, because the whole failure
+  mode is that nothing complains: `assert "`external: true`" in text`.
+
 - **n8n nodes can replay pinned data instead of executing.** Right-click a node; if the menu offers "Unpin", its output is frozen and the node is not really running. Also: the green check on the canvas means "did not halt the workflow", **not** "received a 200".
 
 - **EKS needs `enable_cluster_creator_admin_permissions = true`.** Without it, the IAM user that *created* the cluster has no `kubectl` access to it. Already set in `eks.tf`.

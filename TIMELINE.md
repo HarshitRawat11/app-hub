@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 238 across 8 repositories |
+| Commits | 239 across 8 repositories |
 | Active days | 28 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-27 13:51 IST |
+| Latest commit | 2026-09-27 13:52 IST |
 
 ---
 
@@ -392,3 +392,4 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 11:59 | `compose` | `0373f26` | Document joining a second device, and record the D-33 decision |
 | 12:00 | `app-hub` | `419c4d2` | Document joining a second device, and record the D-33 decision |
 | 13:51 | `compose` | `0ff6f4b` | Restore the teardown webhook: publish n8n on 127.0.0.1:5678 |
+| 13:52 | `app-hub` | `a58e72e` | Restore the teardown webhook: publish n8n on 127.0.0.1:5678 |
