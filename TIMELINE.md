@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 242 across 8 repositories |
+| Commits | 244 across 8 repositories |
 | Active days | 29 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-28 12:35 IST |
+| Latest commit | 2026-09-28 16:37 IST |
 
 ---
 
@@ -401,3 +401,5 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 12:10 | `app-hub` | `54784de` | D-25 reopened: I closed it on evidence that could not have been true |
 | 12:23 | `app-hub` | `b617d41` | Add n8n to the catalogue as a private entry |
 | 12:35 | `app-hub` | `e83b0b6` | G1 and P-11 closed: the dashboard loads from mobile data |
+| 16:27 | `app-hub` | `4c7fb1d` | Categories for the catalogue, and split the private half out of a public repo |
+| 16:37 | `app-hub` | `d5005a5` | D-31: retract the second wrong root cause; cause is UNKNOWN |

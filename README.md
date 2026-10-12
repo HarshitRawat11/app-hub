@@ -166,8 +166,11 @@ wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub && mak
 | `make deploy` | For **every** service in `SERVICES`: build, push a git-SHA-tagged image, pin the manifest, apply, verify |
 | `make down` | Drain Kubernetes, `terraform destroy`, audit for orphans. **Does not touch ECR** — see below |
 | `make ecr-prune` | Delete every image from every ECR repository. **Opt-in, never part of `down`** — the always-on host (`P-11`) pulls these |
-| `make test` | Every service test suite — 29 tests, no cluster, no AWS |
+| `make test` | Every service test suite — **152 tests**, no cluster, no AWS (42 links-service, 59 gateway, 51 aggregator; measured 2026-09-20) |
 | `make validate` | Offline checks: doc drift, manifests, both Terraform stacks |
+| `make run-local` | Run all three services from source on `:8000`/`:8001`/`:8002`. No cluster, no Docker, no cost |
+| `make stop-local` | Stop them, and **wait for the ports to actually release** |
+| `make deploy-site` | Publish `site/` to Cloudflare Pages, then assert against the live bytes |
 
 `make down` exists because teardown has a **required order**: Kubernetes-created AWS resources (the load balancer, EBS volumes) must be deleted while the cluster is still alive, or they are orphaned permanently. See [learn/15](learn/15-safe-teardown.md).
 
@@ -177,21 +180,124 @@ The manual commands below are the same steps, spelled out.
 
 **All of it runs from WSL.** `terraform`, `uv`, `python3`, `jq` and `make` are WSL-native; Docker is reached as **`docker.exe`** through WSL interop. `kubectl` and `aws` exist on both sides but point at **different things** — Windows `kubectl` is minikube and Windows `aws` is your work account. Use WSL for anything touching app-hub. `gh` is not installed anywhere.
 
-### 1. Run the service locally
+### 1. Running app-hub locally
 
-From **WSL**:
-
-```bash
-cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub/links-service && uv sync && uv run uvicorn app.main:app --reload --port 8000
-```
-
-Then check it (either OS):
+**It is probably already running.** The Compose stack sets `restart: unless-stopped`,
+so it comes back after a reboot on its own. Check before starting anything:
 
 ```bash
-curl http://localhost:8000/health
+docker.exe compose -f compose/docker-compose.yml --env-file compose/.env ps
 ```
 
-Interactive API docs: <http://localhost:8000/docs>
+Then open **<http://localhost:8001>**. If that answers, you are done — there is
+nothing to start.
+
+---
+
+#### There are two ways to run it, and they are not interchangeable
+
+| | **Compose stack** | **`make run-local`** |
+|---|---|---|
+| What | 5 containers: links-service, gateway, aggregator, n8n, tailscale | 3 `uvicorn` processes from source |
+| Runs | images pulled from ECR | the code in your working tree |
+| Survives reboot | **yes** | no |
+| Reachable from your phone | **yes**, over Tailscale | no |
+| Code changes picked up | no — needs a rebuild and push | **yes, immediately** |
+| Use it when | you just want the dashboard | you are **editing a service** |
+
+Both read the **same real DynamoDB table**, so links you add in one appear in the
+other. Neither needs a cluster and neither costs anything.
+
+> **THEY COLLIDE ON PORT 8001, and this is the thing that will bite you.**
+> The Compose gateway publishes `127.0.0.1:8001`, and `make run-local` wants the
+> same port. `run-local` **refuses to start** rather than racing it — which is
+> deliberate: a `uvicorn` started on a held port **dies silently**, leaving you
+> talking to the other process while believing you are testing your changes.
+> Stop one before starting the other.
+
+---
+
+#### A. The Compose stack — the normal way
+
+From **WSL or PowerShell**, in `compose/`:
+
+```bash
+docker.exe compose up -d
+```
+
+```bash
+docker.exe compose ps
+```
+
+All five should read `Up`. Then **<http://localhost:8001>**.
+
+To stop it:
+
+```bash
+docker.exe compose stop
+```
+
+`stop` leaves the containers and volumes alone. **Do not use `docker compose down -v`** —
+`-v` deletes volumes, and `n8n_data` holds the encryption key that makes every
+stored n8n credential readable. Losing it is not recoverable. See
+[learn/38](learn/38-migrating-a-volume-that-holds-a-key.md).
+
+---
+
+#### B. `make run-local` — when you are changing code
+
+Run it from **WSL**, from the repo root:
+
+```bash
+wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub && make stop-local && make run-local"
+```
+
+`stop-local` first, because of the port collision above. If the Compose stack is
+up, stop its gateway too:
+
+```bash
+docker.exe compose -f compose/docker-compose.yml --env-file compose/.env stop gateway
+```
+
+Then the three services are on:
+
+| | |
+|---|---|
+| `http://localhost:8000` | links-service — the catalogue API |
+| `http://localhost:8001` | **gateway — the dashboard** |
+| `http://localhost:8002` | aggregator — link health probes |
+
+Logs go to `/tmp/app-hub-*.log`. Interactive API docs at
+<http://localhost:8000/docs>.
+
+Stop them with:
+
+```bash
+wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub && make stop-local"
+```
+
+**`stop-local` waits for the ports to be released, not just for `kill` to
+return.** The first version did not, and its own assertion caught it — it
+printed *stopped* for all three ports and *3 port(s) still held* in the same
+breath. `kill` sends SIGTERM and returns immediately; `uvicorn` takes a moment
+to close its socket.
+
+---
+
+#### If something does not answer
+
+**Check what is actually listening before anything else.** Almost every local
+failure here is a port, not the code:
+
+```bash
+wsl -e bash -lc "ss -ltnp | grep -E ':(8000|8001|8002|5678)'"
+```
+
+Then the logs — `/tmp/app-hub-*.log` for `run-local`, or:
+
+```bash
+docker.exe compose -f compose/docker-compose.yml --env-file compose/.env logs --tail=40 gateway
+```
 
 ### 2. Build and run the container
 
