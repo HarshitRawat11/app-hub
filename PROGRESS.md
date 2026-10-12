@@ -295,6 +295,65 @@ Newest first. One entry per working session — what changed, and what it unbloc
 
 **`TIMELINE.md` is the authoritative record** — it is generated from git across all six repos by `./scripts/timeline.sh`, so it cannot drift. This log carries the *narrative*; the timeline carries the *facts*. If they disagree, the timeline wins.
 
+### 2026-10-12 · 14:27 IST — app-hub has a mark; two bugs found by breaking the stylesheet on purpose
+
+**The favicon was an inline data-URI emoji on all four pages.** Fine as a
+placeholder, wrong as an identity for a dashboard opened dozens of times a day
+in a tab strip beside everything else in the catalogue.
+
+**The mark is a hub with four spokes — the name, drawn — with its core in the
+accent green.** That colour is not decorative: it is the same `--accent` token
+as the liveness dot on every row below it, so the centre of the mark is the
+thing the page is actually about.
+
+**Two cuts, because one geometry cannot serve both ends of the scale.**
+`logo.svg` keeps hairline spokes at 1.9 units and half opacity for display at
+24px and up. `icon.svg` thickens them to 2.4 at full opacity, because at a 16px
+favicon a 1.9-unit stroke lands **under one device pixel** and renders as grey
+mush. PNGs at 32 and 180 come from the same geometry via PIL at 8x
+supersampling — Safari does not support SVG favicons at all, and `icon-180.png`
+is the `apple-touch-icon` the phone uses for a home-screen shortcut over the
+tailnet.
+
+**The header mark is inline SVG, not an `<img>`.** Inline, it inherits
+`currentColor` and `var(--accent)` from the tokens already in the stylesheet, so
+light and dark work with no extra code. An `<img>` is an opaque document and
+would need its own hardcoded palette plus a second copy of the dark-mode rules,
+which would then drift. The **standalone** files cannot inherit anything, so
+they carry their own `prefers-color-scheme` block — and are asserted to contain
+no `var(` at all, since a CSS variable with no page context is a permanent bug.
+
+**TWO BUGS FOUND BY ACCIDENT, AND THE ACCIDENT IS WORTH KEEPING.** A preview
+rendered with its stylesheet failing to load, which exposed what reading the
+markup never would have:
+
+- **`fill="var(--accent)"` with no value defined falls back to BLACK.** The one
+  meaningful colour vanished and the result still looked like a deliberate
+  logo — no error, nothing in the console. Now `var(--accent, #2f6f4f)`.
+- **An SVG with no `width`/`height` attributes and no CSS expands to fill its
+  container.** The mark took the entire viewport. The attributes are now a
+  floor; CSS still wins when it loads.
+
+Both are this project's recurring disease in a new costume: **a failure that
+renders as something plausible instead of as an error** — the same family as a
+`401` parsed into *"0 workflows"*, a wrong `--query` returning `None`, and
+`/health` reporting healthy through a two-week data-path outage. **Render the
+degraded case on purpose.**
+
+**Size was set by looking, not by matching numbers.** At `1.15rem`, equal to the
+wordmark, the mark read noticeably smaller — a sparse shape of dots and gaps
+carries less optical weight than solid letterforms in the same box. `1.4rem`
+balances it. No formula; it needed a screenshot.
+
+**Verified end to end rather than at the file level.** Gateway rebuilt as
+`b740512`, pushed to ECR, `GATEWAY_TAG` repointed and the container recreated —
+the dashboard serves all four assets with the right content types, the
+placeholder is gone from what is actually **served**, and `icon-180.png`
+resolves over the tailnet, which is what the phone will fetch. 59 gateway tests
+pass. 12 links and all four categories intact.
+
+`learn/39` has the detail.
+
 ### 2026-09-27 · 13:52 IST — The G5 migration broke the teardown webhook. Found and fixed the same day
 
 **A regression I introduced and did not check for.** `G5` removed n8n's

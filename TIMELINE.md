@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 244 across 8 repositories |
-| Active days | 29 |
+| Commits | 246 across 8 repositories |
+| Active days | 30 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-09-28 16:37 IST |
+| Latest commit | 2026-10-12 14:27 IST |
 
 ---
 
@@ -403,3 +403,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 | 12:35 | `app-hub` | `e83b0b6` | G1 and P-11 closed: the dashboard loads from mobile data |
 | 16:27 | `app-hub` | `4c7fb1d` | Categories for the catalogue, and split the private half out of a public repo |
 | 16:37 | `app-hub` | `d5005a5` | D-31: retract the second wrong root cause; cause is UNKNOWN |
+
+## 2026-10-12
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 11:53 | `app-hub` | `193bab2` | README: document how to actually run app-hub locally |
+| 14:27 | `gateway` | `b740512` | A real mark for app-hub, replacing the emoji placeholder |

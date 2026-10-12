@@ -15,7 +15,13 @@
        gains an element, that check fails here rather than the demo silently
        half-working. -->
   <link rel="stylesheet" href="/static/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🗂️</text></svg>">
+  <!-- SVG first: it carries its own prefers-color-scheme rules, so the
+       mark follows the tab bar rather than fighting it. The PNGs are the
+       fallback for Safari, which does not support SVG favicons at all, and
+       icon-180 is what iOS and Android use for a home-screen shortcut. -->
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/icon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/static/icon-180.png">
   <style>
     /* Scoped to the demo. Nothing here touches the vendored stylesheet. */
     .demo-note {

@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>app-hub — a self-hosted platform on EKS</title>
 <meta name="description" content="A personal platform on AWS EKS: three FastAPI services, Terraform, Prometheus and Grafana, destroyed and rebuilt every night on purpose.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🗂️</text></svg>">
+<!-- SVG first: it carries its own prefers-color-scheme rules, so the
+     mark follows the tab bar rather than fighting it. The PNGs are the
+     fallback for Safari, which does not support SVG favicons at all, and
+     icon-180 is what iOS and Android use for a home-screen shortcut. -->
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/static/icon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
 <style>
 /* Same tokens as the dashboard's stylesheet, so the demo does not feel like a
    different product. No CDN, no webfont: the project's own rule is that a page
@@ -73,7 +79,14 @@ header.hero { padding: 4.5rem 0 2.5rem; }
   font-size: var(--fs-xs); letter-spacing: 0.09em; text-transform: uppercase;
   color: var(--muted); margin: 0 0 0.9rem;
 }
-h1 { font-size: clamp(2.1rem, 5.5vw, 3.1rem); line-height: 1.12; margin: 0 0 1rem; letter-spacing: -0.02em; }
+h1 { display: flex; align-items: center; gap: 0.5rem; font-size: clamp(2.1rem, 5.5vw, 3.1rem); line-height: 1.12; margin: 0 0 1rem; letter-spacing: -0.02em; }
+
+/* The mark is INLINE rather than an <img> so it inherits currentColor and
+   --accent from the tokens above. One source of truth for the palette, and it
+   follows the light/dark switch with no second copy of the colours to drift.
+   aria-hidden because the wordmark beside it already says "app-hub" --
+   announcing it twice is worse than not announcing it at all. */
+.logo { flex: none; width: 0.82em; height: 0.82em; }
 .lede { font-size: clamp(1.02rem, 2.2vw, 1.2rem); color: var(--muted); max-width: 46rem; margin: 0 0 1.8rem; }
 .lede strong { color: var(--text); font-weight: 600; }
 
@@ -171,7 +184,32 @@ footer { border-top: 1px solid var(--border); padding: 2rem 0 3.5rem; color: var
 
   <header class="hero">
     <p class="eyebrow">Personal infrastructure · AWS <code>ap-south-1</code></p>
-    <h1>app-hub</h1>
+    <h1>
+      <!-- THE HUB MARK. Inline rather than <img src="logo.svg"> on purpose:
+           inline SVG inherits currentColor and var(--accent) from the tokens
+           in style.css, so the mark follows the light/dark switch with no
+           second copy of the palette to drift out of sync. An <img> is an
+           opaque document and would need its own hardcoded colours.
+           aria-hidden because the wordmark right next to it already reads
+           "app-hub"; announcing it twice is worse than not at all. -->
+      <svg class="logo" viewBox="0 0 32 32" width="20" height="20"
+           aria-hidden="true" focusable="false">
+        <g fill="currentColor" stroke="currentColor">
+          <line x1="16" y1="16" x2="16" y2="4.6" stroke-width="1.9" stroke-linecap="round" opacity="0.5"/>
+          <line x1="16" y1="16" x2="27.4" y2="16" stroke-width="1.9" stroke-linecap="round" opacity="0.5"/>
+          <line x1="16" y1="16" x2="16" y2="27.4" stroke-width="1.9" stroke-linecap="round" opacity="0.5"/>
+          <line x1="16" y1="16" x2="4.6" y2="16" stroke-width="1.9" stroke-linecap="round" opacity="0.5"/>
+          <circle cx="16" cy="4.6" r="2.9"/>
+          <circle cx="27.4" cy="16" r="2.9"/>
+          <circle cx="16" cy="27.4" r="2.9"/>
+          <circle cx="4.6" cy="16" r="2.9"/>
+        </g>
+        <!-- The core is the accent green -- deliberately the same token as the
+             liveness dot on every row below. -->
+        <circle cx="16" cy="16" r="5.2" fill="var(--accent, #2f6f4f)"/>
+      </svg>
+      app-hub
+    </h1>
     <p class="lede">
       A self-hosted home for the tools I build for myself — three FastAPI
       services on <strong>AWS EKS</strong>, provisioned by <strong>Terraform</strong>,
