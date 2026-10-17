@@ -166,7 +166,7 @@ wsl -e bash -lc "cd /mnt/c/Users/harshit.rawat/Documents/Projects/app-hub && mak
 | `make deploy` | For **every** service in `SERVICES`: build, push a git-SHA-tagged image, pin the manifest, apply, verify |
 | `make down` | Drain Kubernetes, `terraform destroy`, audit for orphans. **Does not touch ECR** — see below |
 | `make ecr-prune` | Delete every image from every ECR repository. **Opt-in, never part of `down`** — the always-on host (`P-11`) pulls these |
-| `make test` | Every service test suite — **152 tests**, no cluster, no AWS (42 links-service, 59 gateway, 51 aggregator; measured 2026-09-20) |
+| `make test` | Every service test suite — **154 tests**, no cluster, no AWS (44 links-service, 59 gateway, 51 aggregator; measured 2026-10-17) |
 | `make validate` | Offline checks: doc drift, manifests, both Terraform stacks |
 | `make run-local` | Run all three services from source on `:8000`/`:8001`/`:8002`. No cluster, no Docker, no cost |
 | `make stop-local` | Stop them, and **wait for the ports to actually release** |

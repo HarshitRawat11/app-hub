@@ -8,10 +8,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 
 | | |
 |---|---|
-| Commits | 246 across 8 repositories |
-| Active days | 30 |
+| Commits | 248 across 8 repositories |
+| Active days | 31 |
 | First commit | 2026-07-28 15:27 IST |
-| Latest commit | 2026-10-12 14:27 IST |
+| Latest commit | 2026-10-17 23:19 IST |
 
 ---
 
@@ -410,3 +410,10 @@ shell made the commit — relevant here, because Windows runs IST and WSL runs U
 |---|---|---|---|
 | 11:53 | `app-hub` | `193bab2` | README: document how to actually run app-hub locally |
 | 14:27 | `gateway` | `b740512` | A real mark for app-hub, replacing the emoji placeholder |
+| 14:35 | `app-hub` | `4384674` | The same mark on the site, and learn/39 on what breaking the stylesheet found |
+
+## 2026-10-17
+
+| Time (IST) | Repo | Commit | Change |
+|---|---|---|---|
+| 23:19 | `links-service` | `3ad5ba8` | D-34: DynamoDB timeouts of 1s, not botocore's 60s |

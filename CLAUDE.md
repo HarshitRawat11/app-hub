@@ -514,9 +514,10 @@ Work through these in order. Stop as soon as you have what the task needs — do
 
 The authoritative list — with severity and next steps — lives in **`PROGRESS.md` § Known Defects**.
 
-**ONE defect is open, and its cause is genuinely UNKNOWN. Two explanations have
-been proposed for it and both were disproven — read the row before proposing a
-third.**
+**THREE defects are open. `D-31` has a genuinely UNKNOWN cause after two
+disproven explanations — read the row before proposing a third. `D-34` has a
+fix deployed that is also the experiment deciding its cause. `D-35` has a
+workaround only.**
 
 > **`D-31` (Medium) — the nightly teardown misses some nights and catches up at
 > the next wake.** Observed: `09-20` ok, `09-21` missed, `09-26` missed, `09-27`
@@ -534,6 +535,20 @@ third.**
 > is not offered as the fix**, only as a setting that should have been on. The
 > first night it can matter is `2026-09-28`; a miss that night would prove the
 > setting was never the variable.
+
+> **`D-34` (Medium) — the first dashboard load after a long sleep returns 504.**
+> The cause is UNPROVEN: either Docker networking settling after the wake, or a
+> pooled DynamoDB connection that died during the sleep and waited out botocore's
+> **60-second** default. `3ad5ba8` cuts that to 1s with one retry, inside
+> gateway's 3s. **If morning 504s stop, the stale connection was the cause.**
+> Don't "simplify" the constructor back to a bare `boto3.resource(...)`; two
+> tests guard it.
+>
+> **`D-35` (Low) — `localhost:8001` dies across a sleep while the tailnet route
+> lives.** Docker Desktop's port forwarder (`com.docker.backend`) accepts and
+> hangs up (curl exit 52). The workaround is
+> `docker compose up -d --force-recreate gateway`. A plain `restart` is not
+> enough.
 
 **Closed or withdrawn recently, so a future session does not re-open them:**
 
@@ -553,7 +568,7 @@ teardown webhook executed the workflow and delivered an **"app-hub destroy
 FAILED"** email that referred to nothing. Check what a test payload will *do*,
 not only whether the endpoint answers.
 
-**This section used to warn about a `links-service` storage bug. That bug is FIXED, and the warning is removed rather than left to mislead.** It read: *"`main.py:29` stores the incoming `LinkCreate` instead of the constructed `Link`, so every record read back is missing its `id`."* `D-01` is closed — `create_link` now returns what the repository built, `test_created_link_has_an_id_when_listed` is a regression test named for that exact symptom, and the full suite is green (**152 tests**, verified 2026-09-20).
+**This section used to warn about a `links-service` storage bug. That bug is FIXED, and the warning is removed rather than left to mislead.** It read: *"`main.py:29` stores the incoming `LinkCreate` instead of the constructed `Link`, so every record read back is missing its `id`."* `D-01` is closed — `create_link` now returns what the repository built, `test_created_link_has_an_id_when_listed` is a regression test named for that exact symptom, and the full suite is green (**154 tests**, verified 2026-10-17 with `make test`).
 
 **Line 29 now means something else entirely**, which is the real hazard of a stale pointer in the file every session reads first: it sends someone hunting a bug that is not there, at a line that no longer says what the warning claims. **A fixed defect must be removed from here, not just marked resolved in `PROGRESS.md`.**
 
@@ -716,3 +731,24 @@ Each of these cost real time to find. They are here so no future session pays fo
 - **A flaky test is worse than no test.** `test_ids_do_not_become_labels` passed alone and failed in the suite for two days, because `importlib.reload` re-registers Prometheus collectors into a process-wide registry, the duplicate is swallowed, and **the reloaded app then records nothing while `/metrics` keeps serving frozen values**. It went red for a reason unrelated to what it guards, which makes ignoring it the *rational* response -- and that is how a real failure gets ignored too. Root-causing it took four wrong hypotheses; only measuring settled it.
 
 - **Two process traps met repeatedly on 2026-09-16/17, both the same family as the measurement artifacts above.** A `curl` fired immediately after starting a server reports a connection failure that is only a **race with startup** -- wait, then re-check, before believing it. And a `uvicorn` started on a port something else already holds **dies silently**, so a test can appear to pass while running against a completely different process. Check what is actually listening (`ss -ltnp`) rather than trusting that your own process is the one answering.
+
+- **An absence is only evidence if the check could have seen a presence.** Three
+  checks failed this way in one afternoon (2026-10-17), and each one produced a
+  clean-looking answer:
+
+  - **`docker compose logs --since <RFC3339 timestamp>` returned ZERO lines** for
+    a window already known to contain lines. It happened twice, on two
+    containers. Use `--tail N` and filter instead.
+  - **uvicorn writes no access-log line for a request whose client has already
+    hung up.** So "links-service never logged it" does not mean "it never
+    arrived" when the caller has a timeout. Tested by sending a request with a
+    5ms client timeout and watching for the line, which never came.
+  - **botocore's `retries.max_attempts` counts RETRIES**, and silently resolves
+    `max_attempts=2` into `total_max_attempts=3`. Use `total_max_attempts`. The
+    budget test passed on that bug because it read the constant (what was asked
+    for) rather than `client.meta.config` (what was resolved).
+
+  The cure is the same one this file keeps prescribing: **run the check against
+  something you KNOW is there first.** Make one request you can recognise, then
+  look for it. A query that can't find your own control can't tell you anything
+  about the case you care about.
